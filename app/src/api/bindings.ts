@@ -13,7 +13,7 @@ export const commands = {
 	 */
 	rosettaInstall: () => __TAURI_INVOKE<string>("rosetta_install"),
 	/**  Runtimes from the manifest that run on this machine. */
-	runtimesAvailable: () => __TAURI_INVOKE<RuntimeInfo[]>("runtimes_available"),
+	runtimesAvailable: () => __TAURI_INVOKE<RuntimeInfo_Serialize[]>("runtimes_available"),
 	/**  Installed runtimes, with their disk usage. */
 	runtimesInstalled: () => __TAURI_INVOKE<Runtime[]>("runtimes_installed"),
 	/**  Starts downloading and installing a runtime. Progress comes as job events. */
@@ -25,6 +25,23 @@ export const commands = {
 	 *  the manifest can be opened, never one sent by the frontend.
 	 */
 	runtimeOpenLink: (id: string, link: RuntimeLink) => __TAURI_INVOKE<null>("runtime_open_link", { id, link }),
+	bottlesList: () => __TAURI_INVOKE<BottleListItem[]>("bottles_list"),
+	bottleGet: (id: string) => __TAURI_INVOKE<Bottle_Serialize>("bottle_get", { id }),
+	/**  Creates a bottle. It is listed right away; setup runs as a job. */
+	bottleCreate: (name: string, runtimeId: string, windowsVersion: WindowsVersion) => __TAURI_INVOKE<StartedBottle>("bottle_create", { name, runtimeId, windowsVersion }),
+	bottleUpdate: (id: string, patch: BottlePatch) => __TAURI_INVOKE<Bottle_Serialize>("bottle_update", { id, patch }),
+	/**  Applies a Windows version (runs `winecfg /v`), as a job. */
+	bottleSetWindowsVersion: (id: string, version: WindowsVersion) => __TAURI_INVOKE<string>("bottle_set_windows_version", { id, version }),
+	/**  Copies a bottle under a new name. The copy is listed right away. */
+	bottleDuplicate: (id: string, newName: string) => __TAURI_INVOKE<StartedBottle>("bottle_duplicate", { id, newName }),
+	/**  Stops the bottle's programs and moves it to the Trash. */
+	bottleDelete: (id: string) => __TAURI_INVOKE<null>("bottle_delete", { id }),
+	/**  Opens the bottle's C: drive in Finder (or the file manager on Linux). */
+	bottleOpenDriveC: (id: string) => __TAURI_INVOKE<null>("bottle_open_drive_c", { id }),
+	/**  Opens a built-in Wine tool in the bottle. */
+	bottleTool: (id: string, tool: Tool) => __TAURI_INVOKE<null>("bottle_tool", { id, tool }),
+	/**  Stops every Wine process in the bottle (`wineserver -k`). */
+	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),
 };
 
 /** Events */
@@ -35,6 +52,74 @@ export const events = {
 
 /* Types */
 export type ArchiveFormat = "tar_xz" | "tar_gz";
+
+/**  Contents of `bottle.toml`. */
+export type Bottle = Bottle_Serialize | Bottle_Deserialize;
+
+/**
+ *  `bottle.toml` as read from disk: everything after `created_at` is optional.
+ *  Kept separate so the API type (and its generated TS) has no optional fields.
+ */
+export type BottleFile = {
+	id: string,
+	name: string,
+	runtime: string,
+	created_at: string,
+	windows_version?: WindowsVersion,
+	graphics?: Graphics,
+	recipe?: string | null,
+	env?: { [key in string]: string },
+	dll_overrides?: { [key in string]: string },
+	programs?: ProgramDef[],
+};
+
+export type BottleListItem = {
+	status: BottleStatus,
+} & BottleSummary;
+
+/**  Fields to change; missing ones are left alone. */
+export type BottlePatch = {
+	name: string | null,
+	runtime: string | null,
+};
+
+export type BottleStatus = "ready" | 
+/**  Being created or duplicated right now. */
+"setting_up" | 
+/**  Setup was interrupted (e.g. Vinter quit). Can only be deleted. */
+"incomplete";
+
+/**  What the bottle list shows. */
+export type BottleSummary = {
+	id: string,
+	name: string,
+	runtime: string,
+	windows_version: WindowsVersion,
+	/**  False while setup runs, or if it was interrupted. */
+	setup_complete: boolean,
+	program_count: number,
+};
+
+/**  Contents of `bottle.toml`. */
+export type Bottle_Deserialize = BottleFile;
+
+/**  Contents of `bottle.toml`. */
+export type Bottle_Serialize = {
+	id: string,
+	name: string,
+	/**  Id of the runtime it runs with. */
+	runtime: string,
+	/**  RFC 3339 timestamp. */
+	created_at: string,
+	windows_version: WindowsVersion,
+	graphics: Graphics,
+	/**  Recipe that set it up, if any. */
+	recipe: string | null,
+	/**  Extra environment variables. Applied last, so they win. */
+	env: { [key in string]: string },
+	dll_overrides: { [key in string]: string },
+	programs: ProgramDef[],
+};
 
 export type Check = {
 	/**  Stable identifier, e.g. `"rosetta"`. */
@@ -57,6 +142,9 @@ export type CommandError = {
 
 export type Flavor = "stable" | "devel" | "staging" | "crossover" | "gptk";
 
+/**  Graphics translation layer. Only stored in M2; applied in M4. */
+export type Graphics = "wined3d" | "dxvk" | "dxmt" | "d3dmetal";
+
 export type JobDone = {
 	job_id: string,
 	ok: boolean,
@@ -73,6 +161,17 @@ export type JobProgress = {
 	percent: number | null,
 };
 
+/**  A program shown in a bottle. */
+export type ProgramDef = {
+	name: string,
+	/**  Windows path, e.g. `C:\Program Files\App\app.exe`. */
+	exe: string,
+	args?: string[],
+	/**  PNG path relative to the bottle folder. */
+	icon?: string | null,
+	pinned?: boolean,
+};
+
 /**  An installed runtime. */
 export type Runtime = {
 	id: string,
@@ -87,10 +186,16 @@ export type Runtime = {
 	/**  Disk usage in bytes. */
 	size: number,
 	source_url: string,
+	arch: string,
+	/**  x86_64 build on Apple Silicon: runs only with Rosetta 2. */
+	needs_rosetta: boolean,
 };
 
 /**  One downloadable Wine build. */
-export type RuntimeInfo = {
+export type RuntimeInfo = RuntimeInfo_Serialize | RuntimeInfo_Deserialize;
+
+/**  One downloadable Wine build. */
+export type RuntimeInfo_Deserialize = {
 	id: string,
 	name: string,
 	version: string,
@@ -114,11 +219,44 @@ export type RuntimeInfo = {
 	release_url: string,
 };
 
+/**  One downloadable Wine build. */
+export type RuntimeInfo_Serialize = {
+	id: string,
+	name: string,
+	version: string,
+	flavor: Flavor,
+	/**  Host OS, as in `std::env::consts::OS`. */
+	os: string,
+	/**  CPU architecture of the Wine binaries (macOS builds are x86_64 and run under Rosetta 2). */
+	arch: string,
+	url: string,
+	/**  Lowercase hex sha256 of the archive. */
+	sha256: string,
+	/**  Download size in bytes. */
+	size: number,
+	format: ArchiveFormat,
+	/**  Path of the `wine` binary inside the archive. */
+	wine_bin: string,
+	license: string,
+	/**  Exact Wine source this build was made from (LGPL requirement). */
+	source_url: string,
+	/**  Upstream release page of the build. */
+	release_url: string,
+	/**  Filled in for this machine: x86_64 build on Apple Silicon. */
+	needs_rosetta: boolean,
+};
+
 export type RuntimeLink = 
 /**  The Wine source code the build was made from. */
 "source" | 
 /**  The upstream release page of the build. */
 "release";
+
+/**  A bottle whose setup has started in the background. */
+export type StartedBottle = {
+	bottle_id: string,
+	job_id: string,
+};
 
 export type SystemStatus = {
 	/**  Version of `vinter-core`. */
@@ -131,6 +269,12 @@ export type SystemStatus = {
 	data_dir: string,
 	checks: Check[],
 };
+
+/**  Built-in Wine programs that can be opened in a bottle. */
+export type Tool = "winecfg" | "regedit" | "taskmgr" | "control" | "notepad" | "explorer";
+
+/**  Windows version reported to programs, set with `winecfg /v`. */
+export type WindowsVersion = "win11" | "win10" | "win81" | "win8" | "win7" | "winxp64";
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

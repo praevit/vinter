@@ -55,6 +55,9 @@ pub struct RuntimeInfo {
     pub source_url: String,
     /// Upstream release page of the build.
     pub release_url: String,
+    /// Filled in for this machine: x86_64 build on Apple Silicon.
+    #[serde(default, skip_deserializing)]
+    pub needs_rosetta: bool,
 }
 
 impl RuntimeInfo {
@@ -92,7 +95,10 @@ pub fn available_for(os: &str, arch: &str) -> Vec<RuntimeInfo> {
     all()
         .iter()
         .filter(|r| r.runs_on(os, arch))
-        .cloned()
+        .map(|r| RuntimeInfo {
+            needs_rosetta: crate::system::rosetta::needed_on(os, arch) && r.arch == "x86_64",
+            ..r.clone()
+        })
         .collect()
 }
 

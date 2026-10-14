@@ -129,8 +129,8 @@ fn rosetta_check(installed: bool) -> Check {
         Check::new(
             "rosetta",
             "Rosetta 2",
-            CheckStatus::Error,
-            "Rosetta 2 is not installed. Wine needs it to run on Apple Silicon.",
+            CheckStatus::Warning,
+            "Not installed. The current Wine builds for Mac need it; Vinter will offer to install it when one is used.",
         )
     }
 }
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn rosetta_states() {
         assert_eq!(rosetta_check(true).status, CheckStatus::Ok);
-        assert_eq!(rosetta_check(false).status, CheckStatus::Error);
+        assert_eq!(rosetta_check(false).status, CheckStatus::Warning);
     }
 
     #[test]

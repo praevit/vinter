@@ -34,6 +34,19 @@ pub struct RuntimeRecord {
     pub wine_bin: String,
     pub license: String,
     pub source_url: String,
+    /// CPU architecture of the Wine binaries. Records written by M1 lack it;
+    /// every build offered then was x86_64.
+    #[serde(default = "default_arch")]
+    pub arch: String,
+}
+
+fn default_arch() -> String {
+    "x86_64".into()
+}
+
+/// True when `arch` binaries need Rosetta 2 on this machine.
+pub fn arch_needs_rosetta(arch: &str) -> bool {
+    crate::system::rosetta::is_needed() && arch == "x86_64"
 }
 
 /// An installed runtime.
@@ -52,6 +65,9 @@ pub struct Runtime {
     /// Disk usage in bytes.
     pub size: u64,
     pub source_url: String,
+    pub arch: String,
+    /// x86_64 build on Apple Silicon: runs only with Rosetta 2.
+    pub needs_rosetta: bool,
 }
 
 impl Runtime {
@@ -65,8 +81,18 @@ impl Runtime {
             flavor: record.flavor,
             installed_at: record.installed_at,
             source_url: record.source_url,
+            needs_rosetta: arch_needs_rosetta(&record.arch),
+            arch: record.arch,
             path,
         }
+    }
+
+    /// Fails with `RosettaRequired` if this runtime cannot run on this machine.
+    pub fn check_can_run(&self) -> Result<()> {
+        if self.needs_rosetta && !crate::system::rosetta::is_installed() {
+            return Err(Error::RosettaRequired(self.name.clone()));
+        }
+        Ok(())
     }
 
     /// Folder holding `wine`, `wineserver` and friends.
@@ -148,6 +174,16 @@ pub fn remove(paths: &AppPaths, id: &str) -> Result<()> {
     let dir = paths.runtimes_dir().join(id);
     if !dir.join(RECORD_FILE).is_file() {
         return Err(Error::RuntimeNotInstalled(id.to_string()));
+    }
+    let users = crate::bottle::using_runtime(paths, id)?;
+    if !users.is_empty() {
+        let name = read_record(&dir)
+            .map(|r| r.name)
+            .unwrap_or_else(|_| id.to_string());
+        return Err(Error::RuntimeInUse {
+            runtime: name,
+            bottles: users,
+        });
     }
     // Rename first so a half-deleted folder never looks installed.
     let trash = paths

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottles-list"
+description = "Enables the bottles_list command without any pre-configured scope."
+commands.allow = ["bottles_list"]
+
+[[permission]]
+identifier = "deny-bottles-list"
+description = "Denies the bottles_list command without any pre-configured scope."
+commands.deny = ["bottles_list"]

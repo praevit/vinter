@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-kill-all"
+description = "Enables the bottle_kill_all command without any pre-configured scope."
+commands.allow = ["bottle_kill_all"]
+
+[[permission]]
+identifier = "deny-bottle-kill-all"
+description = "Denies the bottle_kill_all command without any pre-configured scope."
+commands.deny = ["bottle_kill_all"]

@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissions for the main window. Only Vinter's own commands and job events; no shell or fs access. Links are opened from Rust, so the opener plugin grants nothing to the frontend.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -12,6 +14,16 @@
     "allow-runtimes-installed",
     "allow-runtime-install",
     "allow-runtime-remove",
-    "allow-runtime-open-link"
+    "allow-runtime-open-link",
+    "allow-bottles-list",
+    "allow-bottle-get",
+    "allow-bottle-create",
+    "allow-bottle-update",
+    "allow-bottle-set-windows-version",
+    "allow-bottle-duplicate",
+    "allow-bottle-delete",
+    "allow-bottle-open-drive-c",
+    "allow-bottle-tool",
+    "allow-bottle-kill-all"
   ]
 }

@@ -10,6 +10,16 @@ fn main() {
             "runtime_install",
             "runtime_remove",
             "runtime_open_link",
+            "bottles_list",
+            "bottle_get",
+            "bottle_create",
+            "bottle_update",
+            "bottle_set_windows_version",
+            "bottle_duplicate",
+            "bottle_delete",
+            "bottle_open_drive_c",
+            "bottle_tool",
+            "bottle_kill_all",
         ]),
     ))
     .expect("failed to run tauri-build");

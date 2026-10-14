@@ -1,8 +1,14 @@
 import { useState } from "react";
 import { Download, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
-import { commands, type Flavor, type Runtime, type RuntimeInfo } from "../api/bindings";
+import {
+  commands,
+  type Flavor,
+  type Runtime,
+  type RuntimeInfo_Serialize as RuntimeInfo,
+} from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
+import { useEnsureRosetta } from "../api/rosetta";
 import {
   formatBytes,
   runtimeJobKey,
@@ -138,10 +144,15 @@ function InstalledRow({ runtime: r }: { runtime: Runtime }) {
 
 function AvailableRow({ runtime: r }: { runtime: RuntimeInfo }) {
   const jobs = useJobs();
+  const ensureRosetta = useEnsureRosetta();
   const job = jobs.job(runtimeJobKey(r.id));
   const running = isRunning(job);
   const error = job?.done && !job.done.ok ? job.done.error : null;
-  const install = () => jobs.start(runtimeJobKey(r.id), () => commands.runtimeInstall(r.id));
+  const install = async () => {
+    // Downloading works without Rosetta, so skipping it still installs.
+    await ensureRosetta(r.needs_rosetta, { optional: true });
+    jobs.start(runtimeJobKey(r.id), () => commands.runtimeInstall(r.id));
+  };
 
   return (
     <li className="flex flex-col gap-2 px-4 py-3">

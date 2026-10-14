@@ -25,6 +25,16 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::runtimes::runtime_install,
             commands::runtimes::runtime_remove,
             commands::runtimes::runtime_open_link,
+            commands::bottles::bottles_list,
+            commands::bottles::bottle_get,
+            commands::bottles::bottle_create,
+            commands::bottles::bottle_update,
+            commands::bottles::bottle_set_windows_version,
+            commands::bottles::bottle_duplicate,
+            commands::bottles::bottle_delete,
+            commands::bottles::bottle_open_drive_c,
+            commands::bottles::bottle_tool,
+            commands::bottles::bottle_kill_all,
         ])
         .events(collect_events![events::JobProgress, events::JobDone])
         .error_handling(ErrorHandlingMode::Throw)

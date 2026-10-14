@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-set-windows-version"
+description = "Enables the bottle_set_windows_version command without any pre-configured scope."
+commands.allow = ["bottle_set_windows_version"]
+
+[[permission]]
+identifier = "deny-bottle-set-windows-version"
+description = "Denies the bottle_set_windows_version command without any pre-configured scope."
+commands.deny = ["bottle_set_windows_version"]

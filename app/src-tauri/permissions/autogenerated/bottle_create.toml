@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-create"
+description = "Enables the bottle_create command without any pre-configured scope."
+commands.allow = ["bottle_create"]
+
+[[permission]]
+identifier = "deny-bottle-create"
+description = "Denies the bottle_create command without any pre-configured scope."
+commands.deny = ["bottle_create"]

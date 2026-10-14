@@ -168,6 +168,7 @@ where
         wine_bin: info.wine_bin.clone(),
         license: info.license.clone(),
         source_url: info.source_url.clone(),
+        arch: info.arch.clone(),
     };
     let toml = toml::to_string_pretty(&record).expect("runtime record serializes");
     write(staging.join(RECORD_FILE), toml).await?;
@@ -386,6 +387,7 @@ mod tests {
             license: "LGPL-2.1-or-later".into(),
             source_url: "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.0".into(),
             release_url: "https://example.invalid".into(),
+            needs_rosetta: false,
         }
     }
 

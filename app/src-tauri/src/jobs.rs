@@ -30,6 +30,19 @@ impl JobReporter {
     }
 }
 
+/// Runs blocking `work` (child processes, file copies) on a worker thread
+/// and emits `job://done` when it finishes.
+pub fn spawn_blocking<W>(app: &AppHandle, work: W) -> JobId
+where
+    W: FnOnce(JobReporter) -> Result<(), String> + Send + 'static,
+{
+    spawn(app, |job| async move {
+        tauri::async_runtime::spawn_blocking(move || work(job))
+            .await
+            .map_err(|e| e.to_string())?
+    })
+}
+
 /// Runs `work` in the background and emits `job://done` when it finishes.
 pub fn spawn<W, F>(app: &AppHandle, work: W) -> JobId
 where

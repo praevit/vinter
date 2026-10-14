@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-get"
+description = "Enables the bottle_get command without any pre-configured scope."
+commands.allow = ["bottle_get"]
+
+[[permission]]
+identifier = "deny-bottle-get"
+description = "Denies the bottle_get command without any pre-configured scope."
+commands.deny = ["bottle_get"]

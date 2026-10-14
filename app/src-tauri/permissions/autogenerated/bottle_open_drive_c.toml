@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-open-drive-c"
+description = "Enables the bottle_open_drive_c command without any pre-configured scope."
+commands.allow = ["bottle_open_drive_c"]
+
+[[permission]]
+identifier = "deny-bottle-open-drive-c"
+description = "Denies the bottle_open_drive_c command without any pre-configured scope."
+commands.deny = ["bottle_open_drive_c"]

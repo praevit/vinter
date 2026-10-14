@@ -39,6 +39,36 @@ pub enum Error {
     #[error("could not read {path}: {message}")]
     Config { path: PathBuf, message: String },
 
+    #[error("no bottle {0:?}")]
+    BottleNotFound(String),
+
+    #[error("{0:?} matches more than one bottle; use its id")]
+    AmbiguousBottle(String),
+
+    #[error("invalid bottle name: {0}")]
+    InvalidName(String),
+
+    #[error("bottle {0:?} is not set up yet")]
+    BottleNotReady(String),
+
+    #[error("bottle {bottle:?} uses runtime {runtime:?}, which is not installed")]
+    BottleRuntimeMissing { bottle: String, runtime: String },
+
+    #[error("{runtime} cannot be removed while these bottles use it: {}", bottles.join(", "))]
+    RuntimeInUse {
+        runtime: String,
+        bottles: Vec<String>,
+    },
+
+    #[error("{0} needs Rosetta 2, which is not installed")]
+    RosettaRequired(String),
+
+    #[error("{what} failed: {message}")]
+    ProcessFailed { what: String, message: String },
+
+    #[error("could not move the bottle to the Trash: {0}")]
+    Trash(String),
+
     #[error("Rosetta 2 installation failed: {0}")]
     RosettaInstall(String),
 

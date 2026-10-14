@@ -29,6 +29,7 @@ flate2.workspace = true
 walkdir.workspace = true
 uuid.workspace = true
 humantime.workspace = true
+trash.workspace = true
 specta = { workspace = true, features = ["derive"], optional = true }
 
 [target.'cfg(unix)'.dependencies]
