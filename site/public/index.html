@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vinter: Windows apps, poured onto your Mac</title>
+  <meta name="description" content="Vinter runs Windows programs on macOS and Linux without a Windows license or a virtual machine. Free and open source, built on Wine.">
+  <link rel="canonical" href="https://getvinter.app/">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F8FAFC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1A2433" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Vinter">
+  <meta property="og:url" content="https://getvinter.app/">
+  <meta property="og:title" content="Vinter: Windows apps, poured onto your Mac">
+  <meta property="og:description" content="Run Windows programs on macOS and Linux without a Windows license or a virtual machine. Free and open source.">
+  <meta property="og:image" content="https://getvinter.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Vinter logo, a wine glass with a snowflake, next to the words Vinter: Windows apps, poured onto your Mac.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Vinter: Windows apps, poured onto your Mac">
+  <meta name="twitter:description" content="Run Windows programs on macOS and Linux without a Windows license or a virtual machine.">
+  <meta name="twitter:image" content="https://getvinter.app/og-image.png">
+
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <!-- Bump ?v= when styles.css changes: it is cached for a year. -->
+  <link rel="stylesheet" href="/styles.css?v=1">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="/" aria-label="Vinter home">
+        <img src="/logo.svg" alt="" width="36" height="36">
+        <span>Vinter</span>
+      </a>
+      <nav aria-label="Main">
+        <ul class="nav">
+          <li><a href="#how">How it works</a></li>
+          <li><a href="#status">Status</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="/github">GitHub</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-inner">
+        <img class="hero-logo" src="/logo.svg" alt="Vinter logo: a wine glass with a snowflake" width="160" height="160">
+        <h1 id="hero-title">Vinter</h1>
+        <p class="tagline">Windows apps, poured onto your Mac.</p>
+        <p class="lede">Vinter runs Windows programs on macOS and Linux, without a Windows license or a virtual machine.</p>
+        <div class="actions">
+          <a class="button primary" href="/download/mac">Download for Mac</a>
+          <a class="button secondary" href="/github">View on GitHub</a>
+        </div>
+        <p class="note">Free and open source. Early development. Also for <a href="/download/linux">Linux</a>.</p>
+      </div>
+    </section>
+
+    <section id="how" class="section" aria-labelledby="how-title">
+      <div class="wrap">
+        <h2 id="how-title">How it works</h2>
+        <ol class="steps">
+          <li>
+            <h3>Pick an app or installer</h3>
+            <p>Choose the Windows installer you downloaded, or start from a ready-made recipe.</p>
+          </li>
+          <li>
+            <h3>Vinter sets up a bottle</h3>
+            <p>A bottle is a small, self-contained Windows environment with its own C: drive and settings. Your Mac stays untouched.</p>
+          </li>
+          <li>
+            <h3>Launch it like a normal app</h3>
+            <p>Your program gets a tile with its own icon. Open it with one click, and soon from Spotlight too.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section alt" aria-labelledby="features-title">
+      <div class="wrap">
+        <h2 id="features-title">What Vinter does</h2>
+        <ul class="features">
+          <li>
+            <h3>Bottles</h3>
+            <p>Keep each app in its own environment. Create, duplicate and delete them in seconds, and pick the Windows version per bottle.</p>
+          </li>
+          <li>
+            <h3>One-click recipes <span class="badge">Coming</span></h3>
+            <p>Declarative setups that install the right components and settings for a specific app.</p>
+          </li>
+          <li>
+            <h3>Graphics backends <span class="badge">Coming</span></h3>
+            <p>Choose how DirectX is translated per bottle, from Wine's built-in renderer to Vulkan and Metal based options.</p>
+          </li>
+          <li>
+            <h3>Native launchers <span class="badge">Coming</span></h3>
+            <p>Start your Windows programs from Spotlight, Launchpad or your Linux app menu.</p>
+          </li>
+          <li>
+            <h3>Per-run logs</h3>
+            <p>Every launch gets its own log, with live output while it runs. Handy when something does not start.</p>
+          </li>
+          <li>
+            <h3>Built in Rust</h3>
+            <p>A small, fast native app. Downloads are checksum-verified before anything is installed.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="status" class="section" aria-labelledby="status-title">
+      <div class="wrap">
+        <h2 id="status-title">Honest status</h2>
+        <p class="intro">Vinter is early. Plenty of Windows software runs well, and plenty does not yet. There is no downloadable release yet.</p>
+        <div class="status">
+          <div>
+            <h3>Works today</h3>
+            <ul class="checks">
+              <li>Installing Wine runtimes, with checksum verification</li>
+              <li>Creating, duplicating and deleting bottles</li>
+              <li>Running installers and finding the installed programs, with their icons</li>
+              <li>Launching and stopping programs, with live logs</li>
+              <li>macOS on Apple Silicon (with Rosetta 2) and Linux x86_64</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Coming next</h3>
+            <ul class="todo">
+              <li>Graphics backend choice per bottle</li>
+              <li>App recipes</li>
+              <li>Launchers in Spotlight and app menus</li>
+              <li>Signed releases and automatic updates</li>
+              <li>Native Apple Silicon runtimes that do not need Rosetta 2</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="section alt" aria-labelledby="faq-title">
+      <div class="wrap narrow">
+        <h2 id="faq-title">Questions</h2>
+        <details>
+          <summary>Is this an emulator?</summary>
+          <p>No. Vinter builds on <a href="https://www.winehq.org">Wine</a>, a compatibility layer that translates Windows calls into macOS and Linux ones. Programs run directly, not inside an emulated PC.</p>
+        </details>
+        <details>
+          <summary>Do I need Windows?</summary>
+          <p>No. You do not need a Windows license or a virtual machine.</p>
+        </details>
+        <details>
+          <summary>Will my app work?</summary>
+          <p>It depends on the app. Many work, some need tweaks, and some do not run yet. Recipes will capture the tweaks for apps that are known to work.</p>
+        </details>
+        <details>
+          <summary>Is it free?</summary>
+          <p>Yes. Vinter is free and open source.</p>
+        </details>
+        <details>
+          <summary>Does it run on Apple Silicon?</summary>
+          <p>Yes. Today's Wine builds for Mac need Rosetta 2, and Vinter offers to install it. Apple is limiting Rosetta in a future macOS release, so native Apple Silicon runtimes are on the roadmap.</p>
+        </details>
+        <details>
+          <summary>Can I play games?</summary>
+          <p>Some. Games with anti-cheat systems are not supported.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <a class="brand" href="/" aria-label="Vinter home">
+        <img src="/logo.svg" alt="" width="28" height="28">
+        <span>Vinter</span>
+      </a>
+      <p>Vinter is built on <a href="https://www.winehq.org">Wine</a>, licensed under the LGPL.</p>
+      <ul class="footer-links">
+        <li><a href="/github">GitHub</a></li>
+        <li><a href="/changelog">Changelog</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+      <p class="made">Made in Iceland by Prævit ehf.</p>
+    </div>
+  </footer>
+</body>
+</html>

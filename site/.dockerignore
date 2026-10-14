@@ -1,0 +1,5 @@
+# Only nginx.conf and public/ are needed in the image.
+*
+!nginx.conf
+!public/
+**/.DS_Store

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2A3950"/>
+      <stop offset="1" stop-color="#1A2433"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#page)"/>
+  <!-- The Vinter logo, unchanged, scaled into a 360px box -->
+  <svg x="80" y="155" width="320" height="320" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A3950"/>
+      <stop offset="1" stop-color="#1A2433"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <path d="M362 260H512L392 410Z" fill="#E2E8F0"/>
+  <path d="M512 260L632 410H392Z" fill="#F8FAFC"/>
+  <path d="M512 260H662L632 410Z" fill="#CBD5E1"/>
+  <path d="M392 410H512V540Z" fill="#9B2348"/>
+  <path d="M512 410H632L512 540Z" fill="#7A1838"/>
+  <path d="M512 326V394M482.6 343L541.4 377M482.6 377L541.4 343"
+        fill="none" stroke="#94A3B8" stroke-width="8" stroke-linecap="round"/>
+  <path d="M498 540H526V740H498Z" fill="#E2E8F0"/>
+  <path d="M512 610L538 625V655L512 670L486 655V625Z" fill="#CBD5E1"/>
+  <path d="M444 740H580L612 770H412Z" fill="#E2E8F0"/>
+</svg>
+  <text x="450" y="300" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="116" font-weight="700" fill="#F8FAFC" letter-spacing="-2">Vinter</text>
+  <text x="454" y="366" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="36" fill="#CBD5E1">Windows apps, poured onto your Mac.</text>
+  <text x="454" y="440" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="28" font-weight="600" fill="#E8A3B6">getvinter.app</text>
+</svg>
