@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the main window. Only Vinter's own commands; no shell or fs access.",
+  "windows": ["main"],
+  "permissions": ["allow-system-checks"]
+}

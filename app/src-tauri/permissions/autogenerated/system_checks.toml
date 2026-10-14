@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-system-checks"
+description = "Enables the system_checks command without any pre-configured scope."
+commands.allow = ["system_checks"]
+
+[[permission]]
+identifier = "deny-system-checks"
+description = "Denies the system_checks command without any pre-configured scope."
+commands.deny = ["system_checks"]

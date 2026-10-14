@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members = ["crates/vinter-core", "crates/vinter-cli", "app/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.85"
+
+[workspace.dependencies]
+vinter-core = { path = "crates/vinter-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+directories = "6"
+libc = "0.2"
+tempfile = "3"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+tauri = "2.12"
+tauri-build = "2.7"
+# tauri-specta has no stable v2 release yet; these RCs must move together.
+specta = "=2.0.0-rc.25"
+specta-typescript = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }

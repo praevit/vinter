@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* Nordic palette from the logo: frost white, deep slate, one wine-red accent. */
+@theme {
+  --color-frost-50: #f8fafc;
+  --color-frost-100: #eef2f7;
+  --color-frost-200: #e2e8f0;
+  --color-frost-300: #cbd5e1;
+  --color-frost-400: #94a3b8;
+  --color-slate-deep-700: #2a3950;
+  --color-slate-deep-800: #222f42;
+  --color-slate-deep-900: #1a2433;
+  --color-slate-deep-950: #121a25;
+  --color-wine-500: #9b2348;
+  --color-wine-600: #7a1838;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  @apply bg-frost-50 text-slate-deep-900 antialiased select-none dark:bg-slate-deep-950 dark:text-frost-100;
+}

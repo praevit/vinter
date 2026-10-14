@@ -1,0 +1,24 @@
+[package]
+name = "vinter-core"
+description = "Core library for Vinter: Wine runtimes, bottles, recipes and launchers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+# Derives `specta::Type` on public types so the Tauri app can generate TS bindings.
+specta = ["dep:specta"]
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+directories.workspace = true
+specta = { workspace = true, features = ["derive"], optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+serde_json.workspace = true
