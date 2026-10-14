@@ -6,9 +6,10 @@
 
 pub mod error;
 pub mod paths;
+pub mod runtime;
 pub mod system;
 
-pub use error::{Error, Result};
+pub use error::{Error, Result, validate_id};
 pub use paths::AppPaths;
 
 /// Version of this crate, shown in the UI and debug reports.

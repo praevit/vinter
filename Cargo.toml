@@ -16,6 +16,19 @@ thiserror = "2"
 directories = "6"
 libc = "0.2"
 tempfile = "3"
+toml = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "time", "process"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "system-proxy"] }
+sha2 = "0.11"
+hex = "0.4"
+tar = "0.4"
+# Maintained fork of xz2. `static` so release builds never link Homebrew's liblzma.
+liblzma = { version = "0.4", features = ["static"] }
+flate2 = "1"
+walkdir = "2"
+uuid = { version = "1", features = ["v4"] }
+humantime = "2"
+tauri-plugin-opener = "2.7"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 tauri = "2.12"

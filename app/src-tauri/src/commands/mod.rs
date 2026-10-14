@@ -1,5 +1,6 @@
 //! Tauri commands. Each one is a thin wrapper over `vinter-core`.
 
+pub mod runtimes;
 pub mod system;
 
 use serde::Serialize;
@@ -19,3 +20,12 @@ impl<E: std::fmt::Display> From<E> for CommandError {
 }
 
 pub type CommandResult<T> = Result<T, CommandError>;
+
+/// Runs blocking work (file system, child processes) off the async workers.
+pub async fn blocking<T, F>(work: F) -> CommandResult<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> CommandResult<T> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work).await?
+}

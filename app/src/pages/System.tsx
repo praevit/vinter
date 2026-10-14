@@ -1,8 +1,9 @@
 import { LoaderCircle, RefreshCw } from "lucide-react";
-import { errorMessage, useSystemChecks } from "../api/system";
+import { errorMessage } from "../api/errors";
+import { useSystemChecks } from "../api/system";
 import { CheckRow } from "../components/CheckRow";
 
-export function Home() {
+export function System() {
   const { data, error, isFetching, refetch } = useSystemChecks();
 
   return (

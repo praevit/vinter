@@ -1,7 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window. Only Vinter's own commands; no shell or fs access.",
+  "description": "Permissions for the main window. Only Vinter's own commands and job events; no shell or fs access. Links are opened from Rust, so the opener plugin grants nothing to the frontend.",
   "windows": ["main"],
-  "permissions": ["allow-system-checks"]
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-system-checks",
+    "allow-rosetta-install",
+    "allow-runtimes-available",
+    "allow-runtimes-installed",
+    "allow-runtime-install",
+    "allow-runtime-remove",
+    "allow-runtime-open-link"
+  ]
 }

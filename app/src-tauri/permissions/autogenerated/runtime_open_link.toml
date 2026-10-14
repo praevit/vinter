@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-runtime-open-link"
+description = "Enables the runtime_open_link command without any pre-configured scope."
+commands.allow = ["runtime_open_link"]
+
+[[permission]]
+identifier = "deny-runtime-open-link"
+description = "Denies the runtime_open_link command without any pre-configured scope."
+commands.deny = ["runtime_open_link"]

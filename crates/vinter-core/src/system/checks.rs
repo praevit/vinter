@@ -73,8 +73,8 @@ pub fn system_checks(paths: &AppPaths) -> SystemStatus {
     let arch = std::env::consts::ARCH;
     let data_dir = paths.data_dir();
 
-    let rosetta = if needs_rosetta(os, arch) {
-        rosetta_check(rosetta_installed())
+    let rosetta = if super::rosetta::needed_on(os, arch) {
+        rosetta_check(super::rosetta::is_installed())
     } else {
         Check::new(
             "rosetta",
@@ -115,21 +115,6 @@ fn platform_check(os: &str, arch: &str) -> Check {
         ),
     };
     Check::new("platform", "Platform", status, detail)
-}
-
-fn needs_rosetta(os: &str, arch: &str) -> bool {
-    os == "macos" && arch == "aarch64"
-}
-
-/// Wine builds for macOS are x86_64, so they need Rosetta 2 on Apple Silicon.
-fn rosetta_installed() -> bool {
-    std::process::Command::new("/usr/bin/arch")
-        .args(["-x86_64", "/usr/bin/true"])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
 }
 
 fn rosetta_check(installed: bool) -> Check {
@@ -243,10 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn rosetta_only_on_apple_silicon() {
-        assert!(needs_rosetta("macos", "aarch64"));
-        assert!(!needs_rosetta("macos", "x86_64"));
-        assert!(!needs_rosetta("linux", "x86_64"));
+    fn rosetta_states() {
         assert_eq!(rosetta_check(true).status, CheckStatus::Ok);
         assert_eq!(rosetta_check(false).status, CheckStatus::Error);
     }

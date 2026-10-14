@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "runtimes": [
+    {
+      "id": "wine-stable-11.0-macos",
+      "name": "Wine Stable 11.0",
+      "version": "11.0",
+      "flavor": "stable",
+      "os": "macos",
+      "arch": "x86_64",
+      "url": "https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.0_1/wine-stable-11.0_1-osx64.tar.xz",
+      "sha256": "b50dc50ec7f41d58b115a6b685d4d1315ba3c797bd3aa0f49213f2703cb82388",
+      "size": 185303032,
+      "format": "tar_xz",
+      "wine_bin": "Wine Stable.app/Contents/Resources/wine/bin/wine",
+      "license": "LGPL-2.1-or-later",
+      "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.0",
+      "release_url": "https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1"
+    },
+    {
+      "id": "wine-devel-11.18-macos",
+      "name": "Wine Devel 11.18",
+      "version": "11.18",
+      "flavor": "devel",
+      "os": "macos",
+      "arch": "x86_64",
+      "url": "https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.18/wine-devel-11.18-osx64.tar.xz",
+      "sha256": "aa0ea4c82e636ae7bca2076387cb0a5affa26509ad13f119ecd0d62bd7ba6f82",
+      "size": 190974384,
+      "format": "tar_xz",
+      "wine_bin": "Wine Devel.app/Contents/Resources/wine/bin/wine",
+      "license": "LGPL-2.1-or-later",
+      "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.18",
+      "release_url": "https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.18"
+    },
+    {
+      "id": "wine-stable-11.0-linux",
+      "name": "Wine Stable 11.0",
+      "version": "11.0",
+      "flavor": "stable",
+      "os": "linux",
+      "arch": "x86_64",
+      "url": "https://github.com/Kron4ek/Wine-Builds/releases/download/11.0/wine-11.0-amd64-wow64.tar.xz",
+      "sha256": "39574efa1132c3ca0d5c77dd2eddbe4a49cca0d6cc2c290ff4924493a1c40314",
+      "size": 73144724,
+      "format": "tar_xz",
+      "wine_bin": "wine-11.0-amd64-wow64/bin/wine",
+      "license": "LGPL-2.1-or-later",
+      "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.0",
+      "release_url": "https://github.com/Kron4ek/Wine-Builds/releases/tag/11.0"
+    },
+    {
+      "id": "wine-devel-11.19-linux",
+      "name": "Wine Devel 11.19",
+      "version": "11.19",
+      "flavor": "devel",
+      "os": "linux",
+      "arch": "x86_64",
+      "url": "https://github.com/Kron4ek/Wine-Builds/releases/download/11.19/wine-11.19-amd64-wow64.tar.xz",
+      "sha256": "a1fe858b45d12c9b16b91c7601d9b934f68430f7b6b95e240212ab6e2a198d8a",
+      "size": 99272636,
+      "format": "tar_xz",
+      "wine_bin": "wine-11.19-amd64-wow64/bin/wine",
+      "license": "LGPL-2.1-or-later",
+      "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.19",
+      "release_url": "https://github.com/Kron4ek/Wine-Builds/releases/tag/11.19"
+    }
+  ]
+}
