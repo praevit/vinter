@@ -20,6 +20,17 @@ fn main() {
             "bottle_open_drive_c",
             "bottle_tool",
             "bottle_kill_all",
+            "installer_choose",
+            "installer_run",
+            "programs_discover",
+            "programs_add",
+            "program_remove",
+            "programs_list",
+            "program_launch",
+            "program_stop",
+            "runs_list",
+            "logs_list",
+            "log_read",
         ]),
     ))
     .expect("failed to run tauri-build");

@@ -16,6 +16,39 @@ pub struct JobProgress {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "run://log")]
+pub struct RunLog {
+    pub run_id: String,
+    pub line: String,
+    pub stream: Stream,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "run://exit")]
+pub struct RunExit {
+    pub run_id: String,
+    /// Exit code, or null if the program was stopped by a signal.
+    pub code: Option<i32>,
+}
+
+/// Output stream of a log line.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "lowercase")]
+pub enum Stream {
+    Stdout,
+    Stderr,
+}
+
+impl From<vinter_core::process::Stream> for Stream {
+    fn from(s: vinter_core::process::Stream) -> Self {
+        match s {
+            vinter_core::process::Stream::Stdout => Self::Stdout,
+            vinter_core::process::Stream::Stderr => Self::Stderr,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[tauri_specta(event_name = "job://done")]
 pub struct JobDone {
     pub job_id: String,

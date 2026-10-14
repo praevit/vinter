@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-program-remove"
+description = "Enables the program_remove command without any pre-configured scope."
+commands.allow = ["program_remove"]
+
+[[permission]]
+identifier = "deny-program-remove"
+description = "Denies the program_remove command without any pre-configured scope."
+commands.deny = ["program_remove"]

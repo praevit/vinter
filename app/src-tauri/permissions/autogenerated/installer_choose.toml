@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-installer-choose"
+description = "Enables the installer_choose command without any pre-configured scope."
+commands.allow = ["installer_choose"]
+
+[[permission]]
+identifier = "deny-installer-choose"
+description = "Denies the installer_choose command without any pre-configured scope."
+commands.deny = ["installer_choose"]

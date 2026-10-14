@@ -3,9 +3,13 @@
 pub mod logs;
 
 use std::collections::BTreeMap;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+
+use serde::Serialize;
 
 use crate::bottle::Bottle;
 use crate::runtime::Runtime;
@@ -18,13 +22,16 @@ use crate::{Error, Result};
 ///
 /// `base_overrides` come first and are overridden by the bottle's own
 /// overrides (graphics backends will pass theirs here in M4).
+/// `winemenubuilder` is always disabled: Vinter makes its own launchers (M6),
+/// and Wine's would add stray entries to the host's app menus.
 pub fn wine_env(
     prefix: &Path,
     bottle: &Bottle,
     base_overrides: &[(&str, &str)],
 ) -> Vec<(String, String)> {
-    let mut overrides: BTreeMap<String, String> = base_overrides
+    let mut overrides: BTreeMap<String, String> = ALWAYS_OVERRIDES
         .iter()
+        .chain(base_overrides)
         .map(|(dll, mode)| (dll.to_string(), mode.to_string()))
         .collect();
     overrides.extend(bottle.dll_overrides.clone());
@@ -32,6 +39,8 @@ pub fn wine_env(
     let mut env = vec![
         ("WINEPREFIX".to_string(), prefix.display().to_string()),
         ("WINEDEBUG".to_string(), "-all".to_string()),
+        // MoltenVK (macOS Vulkan) prints ~150 info lines per start; keep errors only.
+        ("MVK_CONFIG_LOG_LEVEL".to_string(), "1".to_string()),
     ];
     if !overrides.is_empty() {
         env.push(("WINEDLLOVERRIDES".into(), dll_overrides_string(&overrides)));
@@ -45,6 +54,8 @@ pub fn wine_env(
     }
     env
 }
+
+const ALWAYS_OVERRIDES: &[(&str, &str)] = &[("winemenubuilder.exe", "d")];
 
 /// Formats overrides as Wine expects: `dll=mode;dll2=mode`.
 pub fn dll_overrides_string(overrides: &BTreeMap<String, String>) -> String {
@@ -128,6 +139,113 @@ pub fn spawn_detached(mut cmd: Command, log: &Path, what: &str) -> Result<u32> {
     Ok(pid)
 }
 
+/// Which output stream a line came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Stream {
+    Stdout,
+    Stderr,
+}
+
+/// Starts `cmd` in the background. Every output line is appended to `log`
+/// and passed to `on_line`; `on_exit` gets the exit code (`None` if killed
+/// by a signal) once the process and its output are done. Returns the pid.
+///
+/// Wine keeps this process alive exactly as long as the Windows program,
+/// so its exit is the program's exit.
+pub fn launch(
+    mut cmd: Command,
+    log: &Path,
+    what: &str,
+    on_line: impl Fn(Stream, &str) + Send + Sync + 'static,
+    on_exit: impl FnOnce(Option<i32>) + Send + 'static,
+) -> Result<u32> {
+    let file = std::fs::File::options()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|e| failed(what, e.to_string(), log))?;
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| failed(what, e.to_string(), log))?;
+    let pid = child.id();
+
+    let file = Arc::new(Mutex::new(file));
+    let on_line = Arc::new(on_line);
+    let readers: Vec<_> = [
+        (
+            Stream::Stdout,
+            child
+                .stdout
+                .take()
+                .map(|s| Box::new(s) as Box<dyn Read + Send>),
+        ),
+        (
+            Stream::Stderr,
+            child
+                .stderr
+                .take()
+                .map(|s| Box::new(s) as Box<dyn Read + Send>),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(stream, pipe)| {
+        let pipe = pipe?;
+        let (file, on_line) = (file.clone(), on_line.clone());
+        Some(std::thread::spawn(move || {
+            let mut reader = BufReader::new(pipe);
+            let mut buf = Vec::new();
+            while reader.read_until(b'\n', &mut buf).is_ok_and(|n| n > 0) {
+                let line = String::from_utf8_lossy(&buf);
+                let line = line.trim_end_matches(['\r', '\n']);
+                if let Ok(mut f) = file.lock() {
+                    let _ = writeln!(f, "{line}");
+                }
+                on_line(stream, line);
+                buf.clear();
+            }
+        }))
+    })
+    .collect();
+
+    std::thread::spawn(move || {
+        let code = child.wait().ok().and_then(|s| s.code());
+        for reader in readers {
+            let _ = reader.join();
+        }
+        on_exit(code);
+    });
+    Ok(pid)
+}
+
+/// Asks a process started by [`launch`] to stop (SIGTERM). Wine then ends
+/// the Windows program; other programs in the bottle keep running.
+pub fn terminate(pid: u32) -> Result<()> {
+    #[cfg(unix)]
+    {
+        let pid = libc::pid_t::try_from(pid)
+            .map_err(|_| Error::Unsupported(format!("invalid pid {pid}")))?;
+        // SAFETY: kill(2) has no memory-safety preconditions.
+        if unsafe { libc::kill(pid, libc::SIGTERM) } != 0 {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() != Some(libc::ESRCH) {
+                return Err(Error::Unsupported(format!("could not stop process: {err}")));
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        Err(Error::Unsupported(
+            "stopping programs is not supported here".into(),
+        ))
+    }
+}
+
 fn failed(what: &str, reason: String, log: &Path) -> Error {
     let tail = logs::tail(log, 15);
     Error::ProcessFailed {
@@ -169,7 +287,8 @@ mod tests {
         let env = wine_env(Path::new("/b/prefix"), &bottle(), &[]);
         assert_eq!(get(&env, "WINEPREFIX"), Some("/b/prefix"));
         assert_eq!(get(&env, "WINEDEBUG"), Some("-all"));
-        assert_eq!(get(&env, "WINEDLLOVERRIDES"), None);
+        assert_eq!(get(&env, "WINEDLLOVERRIDES"), Some("winemenubuilder.exe=d"));
+        assert_eq!(get(&env, "MVK_CONFIG_LOG_LEVEL"), Some("1"));
     }
 
     #[test]
@@ -181,7 +300,7 @@ mod tests {
         let env = wine_env(Path::new("/p"), &b, &[("mscoree", ""), ("mshtml", "")]);
         assert_eq!(
             get(&env, "WINEDLLOVERRIDES"),
-            Some("d3d11=native,builtin;mscoree=builtin;mshtml=")
+            Some("d3d11=native,builtin;mscoree=builtin;mshtml=;winemenubuilder.exe=d")
         );
     }
 
@@ -221,5 +340,59 @@ mod tests {
         slow.args(["-c", "sleep 5"]);
         let err = run_and_wait(slow, &log, "slow", Duration::from_millis(200)).unwrap_err();
         assert!(err.to_string().contains("timed out"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn launch_streams_lines_and_reports_exit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log = tmp.path().join("run.log");
+        let lines = Arc::new(Mutex::new(Vec::new()));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut cmd = Command::new("/bin/sh");
+        cmd.args(["-c", "echo one; echo two >&2; printf 'three'; exit 4"]);
+        let sink = lines.clone();
+        launch(
+            cmd,
+            &log,
+            "test",
+            move |stream, line| sink.lock().unwrap().push((stream, line.to_string())),
+            move |code| tx.send(code).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(10)).unwrap(), Some(4));
+        let mut got = lines.lock().unwrap().clone();
+        got.sort_by_key(|(_, l)| l.clone());
+        assert_eq!(
+            got,
+            [
+                (Stream::Stdout, "one".to_string()),
+                (Stream::Stdout, "three".to_string()),
+                (Stream::Stderr, "two".to_string()),
+            ]
+        );
+        let text = std::fs::read_to_string(&log).unwrap();
+        assert!(text.contains("one\n") && text.contains("two\n") && text.contains("three\n"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn terminate_stops_a_launched_process() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut cmd = Command::new("/bin/sh");
+        cmd.args(["-c", "exec sleep 30"]);
+        let pid = launch(
+            cmd,
+            &tmp.path().join("x.log"),
+            "sleep",
+            |_, _| {},
+            move |c| tx.send(c).unwrap(),
+        )
+        .unwrap();
+        terminate(pid).unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), None);
+        // Stopping an already finished process is not an error.
+        terminate(pid).unwrap();
     }
 }

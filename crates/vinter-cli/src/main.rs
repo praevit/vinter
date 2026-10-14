@@ -6,6 +6,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use vinter_core::AppPaths;
 use vinter_core::bottle::{self, Graphics, NewBottle, Tool, WindowsVersion};
+use vinter_core::process::logs;
+use vinter_core::programs;
 use vinter_core::runtime::{self, InstallProgress, InstallStage};
 use vinter_core::system::{CheckStatus, rosetta, system_checks};
 
@@ -95,6 +97,27 @@ enum BottleCommand {
     Kill { bottle: String },
     /// Print the path of the bottle's C: drive.
     DriveC { bottle: String },
+    /// Run an installer (.exe or .msi) in a bottle, then list what it installed.
+    Install {
+        bottle: String,
+        installer: std::path::PathBuf,
+        /// Extra installer arguments, e.g. `-- /S` for a silent install.
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+    /// List programs installed in a bottle that can be added to it.
+    Discover {
+        bottle: String,
+        /// Add every program found that is not added yet.
+        #[arg(long)]
+        add: bool,
+    },
+    /// List a bottle's programs.
+    Programs { bottle: String },
+    /// Start a program (by number from `programs`) and wait for it to exit.
+    Run { bottle: String, program: usize },
+    /// List a bottle's logs, or print one.
+    Logs { bottle: String, log: Option<String> },
 }
 
 fn parse_windows_version(s: &str) -> Result<WindowsVersion, String> {
@@ -318,8 +341,90 @@ fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
         BottleCommand::DriveC { bottle: key } => {
             println!("{}", bottle::drive_c(paths, &id(&key)?)?.display());
         }
+        BottleCommand::Install {
+            bottle: key,
+            installer,
+            args,
+        } => {
+            let id = id(&key)?;
+            println!("Running {} …", installer.display());
+            let code = programs::run_installer(paths, &id, &installer, &args, |_| {})?;
+            match code {
+                Some(0) => println!("Installer finished."),
+                Some(c) => println!("Installer exited with code {c} (it may have been cancelled)."),
+                None => println!("Installer was stopped."),
+            }
+            print_discovered(&programs::discover(paths, &id)?);
+        }
+        BottleCommand::Discover { bottle: key, add } => {
+            let id = id(&key)?;
+            let found = programs::discover(paths, &id)?;
+            print_discovered(&found);
+            if add {
+                let new: Vec<_> = found
+                    .iter()
+                    .filter(|p| !p.already_added)
+                    .map(|p| p.to_def())
+                    .collect();
+                let count = new.len();
+                programs::add(paths, &id, new)?;
+                println!("Added {count} program(s).");
+            }
+        }
+        BottleCommand::Programs { bottle: key } => {
+            let b = bottle::get(paths, &id(&key)?)?;
+            if b.programs.is_empty() {
+                println!("No programs. Use `vinter bottle discover {key} --add`.");
+            }
+            for (i, p) in b.programs.iter().enumerate() {
+                println!("{i}  {:<28} {}", p.name, p.exe);
+            }
+        }
+        BottleCommand::Run {
+            bottle: key,
+            program,
+        } => {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let launched = programs::launch(
+                paths,
+                &id(&key)?,
+                program,
+                |_, line| println!("{line}"),
+                move |code| {
+                    let _ = tx.send(code);
+                },
+            )?;
+            println!("Started {} (pid {}).", launched.name, launched.pid);
+            let code = rx.recv().unwrap_or(None);
+            println!("{} exited with {:?}.", launched.name, code);
+        }
+        BottleCommand::Logs { bottle: key, log } => {
+            let dir = bottle::dir(paths, &id(&key)?)?;
+            match log {
+                Some(log) => print!("{}", logs::read(&dir, &log)?),
+                None => {
+                    for l in logs::list(&dir)? {
+                        println!(
+                            "{}  {:<24} {:>8} B  {}",
+                            l.started_at, l.label, l.size, l.id
+                        );
+                    }
+                }
+            }
+        }
     }
     Ok(())
+}
+
+fn print_discovered(found: &[programs::DiscoveredProgram]) {
+    if found.is_empty() {
+        println!("No programs found.");
+    }
+    for p in found {
+        let added = if p.already_added { " (added)" } else { "" };
+        let icon = if p.icon.is_some() { "icon" } else { "    " };
+        println!("{icon}  {:<28} {}{added}", p.name, p.exe);
+    }
 }
 
 fn mb(bytes: u64) -> String {

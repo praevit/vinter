@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-programs-list"
+description = "Enables the programs_list command without any pre-configured scope."
+commands.allow = ["programs_list"]
+
+[[permission]]
+identifier = "deny-programs-list"
+description = "Denies the programs_list command without any pre-configured scope."
+commands.deny = ["programs_list"]

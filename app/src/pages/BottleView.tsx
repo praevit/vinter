@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, AppWindow, Copy, FolderOpen, Square, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, FolderOpen, Square, Trash2 } from "lucide-react";
 import { commands, type Tool, type WindowsVersion } from "../api/bindings";
 import {
   TOOLS,
@@ -18,18 +18,21 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useInstalledRuntimes } from "../api/runtimes";
+import { LogsTab } from "../components/LogsTab";
+import { ProgramsTab } from "../components/ProgramsTab";
 import { ProgressBar } from "../components/ProgressBar";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field, subtle } from "../components/ui";
 
-type Tab = "programs" | "tools" | "settings";
+type Tab = "programs" | "tools" | "logs" | "settings";
 
 export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Route) => void }) {
   const { data: bottle, error } = useBottle(id);
   const { data: list } = useBottles();
   const { data: runtimes } = useInstalledRuntimes();
   const jobs = useJobs();
-  const [tab, setTab] = useState<Tab>("tools");
+  const [tab, setTab] = useState<Tab>("programs");
+  const [logToShow, setLogToShow] = useState<string>();
 
   const status = list?.find((b) => b.id === id)?.status;
   const setup = jobs.job(bottleJobKey(id));
@@ -73,7 +76,7 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
             </Notice>
           )}
           <nav className="flex gap-1 border-b border-frost-200 dark:border-slate-deep-700">
-            {(["programs", "tools", "settings"] as Tab[]).map((t) => (
+            {(["programs", "tools", "logs", "settings"] as Tab[]).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -88,7 +91,17 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
               </button>
             ))}
           </nav>
-          {tab === "programs" && <Programs bottle={bottle} onTools={() => setTab("tools")} />}
+          {tab === "programs" && (
+            <ProgramsTab
+              bottleId={bottle.id}
+              needsRosetta={runtime?.needs_rosetta ?? false}
+              onShowLog={(id) => {
+                setLogToShow(id);
+                setTab("logs");
+              }}
+            />
+          )}
+          {tab === "logs" && <LogsTab key={logToShow} bottleId={bottle.id} initial={logToShow} />}
           {tab === "tools" && <Tools bottle={bottle} needsRosetta={runtime?.needs_rosetta ?? false} />}
           {tab === "settings" && <Settings bottle={bottle} onNavigate={onNavigate} />}
         </>
@@ -119,31 +132,6 @@ function SetupProgress({ step }: { step?: string }) {
         minute.
       </p>
     </div>
-  );
-}
-
-function Programs({ bottle, onTools }: { bottle: BottleDetails; onTools: () => void }) {
-  if (bottle.programs.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-frost-300 px-6 py-12 text-center dark:border-slate-deep-700">
-        <AppWindow className="size-8 text-frost-400" />
-        <p className="font-medium">No programs yet</p>
-        <p className="max-w-sm text-sm text-slate-deep-700/70 dark:text-frost-300/70">
-          Installing Windows programs is coming next. For now you can open Wine's built-in tools,
-          like Notepad, from the Tools tab.
-        </p>
-        <Button onClick={onTools}>Open Tools</Button>
-      </div>
-    );
-  }
-  return (
-    <ul className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-3">
-      {bottle.programs.map((p) => (
-        <li key={p.exe} className="rounded-xl border border-frost-200 p-3 text-sm dark:border-slate-deep-700">
-          {p.name}
-        </li>
-      ))}
-    </ul>
   );
 }
 

@@ -36,8 +36,24 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::bottles::bottle_open_drive_c,
             commands::bottles::bottle_tool,
             commands::bottles::bottle_kill_all,
+            commands::programs::installer_choose,
+            commands::programs::installer_run,
+            commands::programs::programs_discover,
+            commands::programs::programs_add,
+            commands::programs::program_remove,
+            commands::programs::programs_list,
+            commands::programs::program_launch,
+            commands::programs::program_stop,
+            commands::programs::runs_list,
+            commands::programs::logs_list,
+            commands::programs::log_read,
         ])
-        .events(collect_events![events::JobProgress, events::JobDone])
+        .events(collect_events![
+            events::JobProgress,
+            events::JobDone,
+            events::RunLog,
+            events::RunExit
+        ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.
         .dangerously_cast_bigints_to_number()
@@ -59,6 +75,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new(paths))
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {

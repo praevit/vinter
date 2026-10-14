@@ -113,7 +113,10 @@ fn create_runs_wineboot_with_the_right_environment() {
         "{env}"
     );
     assert!(env.contains("WINEDEBUG=-all"), "{env}");
-    assert!(env.contains("WINEDLLOVERRIDES=mscoree=;mshtml="), "{env}");
+    assert!(
+        env.contains("WINEDLLOVERRIDES=mscoree=;mshtml=;winemenubuilder.exe=d"),
+        "{env}"
+    );
     assert!(read(pfx.join("wineserver.txt")).contains("-w"));
 
     let summaries = list(&paths).unwrap();

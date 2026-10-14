@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window. Only Vinter's own commands and job events; no shell or fs access. Links are opened from Rust, so the opener plugin grants nothing to the frontend.",
+  "description": "Permissions for the main window. Only Vinter's own commands and job/run events; no shell or fs access. Links and the installer file dialog are opened from Rust, so the opener and dialog plugins grant nothing to the frontend.",
   "windows": [
     "main"
   ],
@@ -24,6 +24,17 @@
     "allow-bottle-delete",
     "allow-bottle-open-drive-c",
     "allow-bottle-tool",
-    "allow-bottle-kill-all"
+    "allow-bottle-kill-all",
+    "allow-installer-choose",
+    "allow-installer-run",
+    "allow-programs-discover",
+    "allow-programs-add",
+    "allow-program-remove",
+    "allow-programs-list",
+    "allow-program-launch",
+    "allow-program-stop",
+    "allow-runs-list",
+    "allow-logs-list",
+    "allow-log-read"
   ]
 }

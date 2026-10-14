@@ -66,6 +66,18 @@ pub enum Error {
     #[error("{what} failed: {message}")]
     ProcessFailed { what: String, message: String },
 
+    #[error("the bottle has no program number {0}")]
+    ProgramNotFound(usize),
+
+    #[error("{name} is no longer installed at {exe}")]
+    ProgramMissing { name: String, exe: String },
+
+    #[error("{0:?} is not a valid program for this bottle")]
+    InvalidProgram(String),
+
+    #[error("installer not found: {}", .0.display())]
+    InstallerNotFound(PathBuf),
+
     #[error("could not move the bottle to the Trash: {0}")]
     Trash(String),
 

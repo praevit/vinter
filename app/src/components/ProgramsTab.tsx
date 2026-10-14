@@ -1,0 +1,150 @@
+import { useState } from "react";
+import { AppWindow, LoaderCircle, Play, Plus, Search, Square, X } from "lucide-react";
+import { commands, type ProgramView } from "../api/bindings";
+import { errorMessage } from "../api/errors";
+import { isRunning, useJobs } from "../api/jobs";
+import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
+import { useEnsureRosetta } from "../api/rosetta";
+import { latestRun, useRuns } from "../api/runs";
+import { InstallDialog, ProgramIcon } from "./InstallDialog";
+import { Button, ErrorText, subtle } from "./ui";
+
+export function ProgramsTab({
+  bottleId,
+  needsRosetta,
+  onShowLog,
+}: {
+  bottleId: string;
+  needsRosetta: boolean;
+  onShowLog: (logId: string) => void;
+}) {
+  const { data: programs } = usePrograms(bottleId);
+  const jobs = useJobs();
+  const installing = isRunning(jobs.job(installerJobKey(bottleId)));
+  const [dialog, setDialog] = useState<"choose" | "pick" | null>(installing ? "choose" : null);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" onClick={() => setDialog("choose")}>
+          {installing ? <LoaderCircle className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          {installing ? "Installer running…" : "Install a program…"}
+        </Button>
+        <Button onClick={() => setDialog("pick")} disabled={installing}>
+          <Search className="size-4" /> Find installed programs
+        </Button>
+      </div>
+
+      {programs?.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-frost-300 px-6 py-12 text-center dark:border-slate-deep-700">
+          <AppWindow className="size-8 text-frost-400" />
+          <p className="font-medium">No programs yet</p>
+          <p className="max-w-sm text-sm text-slate-deep-700/70 dark:text-frost-300/70">
+            Install a Windows program with its installer, or let Vinter find programs that are
+            already installed in this bottle.
+          </p>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
+          {programs?.map((p) => (
+            <ProgramTile
+              key={`${p.index}-${p.exe}`}
+              bottleId={bottleId}
+              program={p}
+              needsRosetta={needsRosetta}
+              onShowLog={onShowLog}
+            />
+          ))}
+        </ul>
+      )}
+
+      {dialog && (
+        <InstallDialog
+          bottleId={bottleId}
+          needsRosetta={needsRosetta}
+          start={dialog}
+          onClose={() => setDialog(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProgramTile({
+  bottleId,
+  program,
+  needsRosetta,
+  onShowLog,
+}: {
+  bottleId: string;
+  program: ProgramView;
+  needsRosetta: boolean;
+  onShowLog: (logId: string) => void;
+}) {
+  const { runs, add } = useRuns();
+  const ensureRosetta = useEnsureRosetta();
+  const remove = useRemoveProgram(bottleId);
+  const [error, setError] = useState<string>();
+  const [starting, setStarting] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const run = latestRun(runs, bottleId, program.index);
+  const running = !!run && !run.exit;
+  const failed = run?.exit && run.exit.code !== 0 && run.exit.code !== null;
+
+  const launch = async () => {
+    setError(undefined);
+    if (!(await ensureRosetta(needsRosetta))) return;
+    setStarting(true);
+    try {
+      add(await commands.programLaunch(bottleId, program.index));
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  return (
+    <li className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center dark:border-slate-deep-700 dark:bg-slate-deep-900">
+      <button
+        type="button"
+        title="Remove from this bottle (keeps it installed)"
+        onClick={() => setConfirmRemove(true)}
+        className="absolute top-1.5 right-1.5 rounded p-0.5 text-frost-400 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:hover:bg-slate-deep-800"
+      >
+        <X className="size-3.5" />
+      </button>
+      <ProgramIcon src={program.icon_data_url} size="size-12" />
+      <span className="line-clamp-2 text-sm font-medium" title={program.exe}>
+        {program.name}
+      </span>
+
+      {confirmRemove ? (
+        <div className="flex gap-1">
+          <Button variant="danger" onClick={() => remove.mutate(program.index)}>
+            Remove
+          </Button>
+          <Button onClick={() => setConfirmRemove(false)}>Keep</Button>
+        </div>
+      ) : running ? (
+        <Button onClick={() => commands.programStop(run.info.run_id)}>
+          <Square className="size-3.5" /> Stop
+        </Button>
+      ) : (
+        <Button variant="primary" disabled={starting} onClick={launch}>
+          {starting ? <LoaderCircle className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+          Open
+        </Button>
+      )}
+
+      {running && <span className={subtle}>Running</span>}
+      {failed && (
+        <button type="button" className={`${subtle} underline`} onClick={() => onShowLog(run.info.log_id)}>
+          Exited with code {run.exit?.code}. See log
+        </button>
+      )}
+      {(error || remove.error) && <ErrorText>{error ?? errorMessage(remove.error)}</ErrorText>}
+    </li>
+  );
+}

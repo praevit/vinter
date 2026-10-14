@@ -42,12 +42,36 @@ export const commands = {
 	bottleTool: (id: string, tool: Tool) => __TAURI_INVOKE<null>("bottle_tool", { id, tool }),
 	/**  Stops every Wine process in the bottle (`wineserver -k`). */
 	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),
+	/**
+	 *  Lets the user pick an installer (.exe or .msi) with the system file dialog.
+	 *  This is the only way a file path reaches the backend from the UI.
+	 */
+	installerChoose: () => __TAURI_INVOKE<string | null>("installer_choose"),
+	/**  Runs an installer in a bottle, as a job that ends when the installer exits. */
+	installerRun: (bottleId: string, path: string, args: string[]) => __TAURI_INVOKE<string>("installer_run", { bottleId, path, args }),
+	/**  Looks for installed programs in a bottle (and extracts their icons). */
+	programsDiscover: (bottleId: string) => __TAURI_INVOKE<DiscoveredProgram[]>("programs_discover", { bottleId }),
+	programsAdd: (bottleId: string, programs: ProgramDef[]) => __TAURI_INVOKE<Bottle_Serialize>("programs_add", { bottleId, programs }),
+	/**  Removes a program's tile. The program stays installed in the bottle. */
+	programRemove: (bottleId: string, index: number) => __TAURI_INVOKE<Bottle_Serialize>("program_remove", { bottleId, index }),
+	/**  A bottle's programs, with icons as `data:` URLs. */
+	programsList: (bottleId: string) => __TAURI_INVOKE<ProgramView[]>("programs_list", { bottleId }),
+	/**  Starts a program. Output arrives as `run://log`, the end as `run://exit`. */
+	programLaunch: (bottleId: string, programIndex: number) => __TAURI_INVOKE<RunInfo>("program_launch", { bottleId, programIndex }),
+	/**  Stops a running program. Other programs in the bottle keep running. */
+	programStop: (runId: string) => __TAURI_INVOKE<null>("program_stop", { runId }),
+	/**  Programs started from Vinter that are still running. */
+	runsList: () => __TAURI_INVOKE<RunInfo[]>("runs_list"),
+	logsList: (bottleId: string) => __TAURI_INVOKE<LogEntry[]>("logs_list", { bottleId }),
+	logRead: (bottleId: string, logId: string) => __TAURI_INVOKE<string>("log_read", { bottleId, logId }),
 };
 
 /** Events */
 export const events = {
 	jobDone: makeEvent<JobDone>("job://done"),
 	jobProgress: makeEvent<JobProgress>("job://progress"),
+	runExit: makeEvent<RunExit>("run://exit"),
+	runLog: makeEvent<RunLog>("run://log"),
 };
 
 /* Types */
@@ -140,6 +164,21 @@ export type CommandError = {
 	message: string,
 };
 
+/**  A program found in a bottle, offered to the user as a checkbox. */
+export type DiscoveredProgram = {
+	name: string,
+	/**  Windows path of the `.exe`. */
+	exe: string,
+	args: string[],
+	/**  PNG path relative to the bottle folder, if an icon was found. */
+	icon: string | null,
+	/**  The icon as a `data:` URL, for showing it in the UI. */
+	icon_data_url: string | null,
+	source: Source,
+	/**  Already one of the bottle's programs. */
+	already_added: boolean,
+};
+
 export type Flavor = "stable" | "devel" | "staging" | "crossover" | "gptk";
 
 /**  Graphics translation layer. Only stored in M2; applied in M4. */
@@ -161,6 +200,17 @@ export type JobProgress = {
 	percent: number | null,
 };
 
+/**  One log file, as listed in the UI. */
+export type LogEntry = {
+	/**  File name; pass it to [`read`]. */
+	id: string,
+	/**  What ran, e.g. "wineboot" or "7-Zip File Manager". */
+	label: string,
+	/**  RFC 3339 start time. */
+	started_at: string,
+	size: number,
+};
+
 /**  A program shown in a bottle. */
 export type ProgramDef = {
 	name: string,
@@ -170,6 +220,39 @@ export type ProgramDef = {
 	/**  PNG path relative to the bottle folder. */
 	icon?: string | null,
 	pinned?: boolean,
+};
+
+/**  A bottle's program as shown on its tile. */
+export type ProgramView = {
+	index: number,
+	name: string,
+	exe: string,
+	icon_data_url: string | null,
+};
+
+export type RunExit = {
+	run_id: string,
+	/**  Exit code, or null if the program was stopped by a signal. */
+	code: number | null,
+};
+
+/**  A program started from Vinter that is still running. */
+export type RunInfo = {
+	run_id: string,
+	bottle_id: string,
+	program_index: number,
+	name: string,
+	pid: number,
+	/**  RFC 3339 start time. */
+	started_at: string,
+	/**  Log file of this run, for `log_read`. */
+	log_id: string,
+};
+
+export type RunLog = {
+	run_id: string,
+	line: string,
+	stream: Stream,
 };
 
 /**  An installed runtime. */
@@ -252,11 +335,21 @@ export type RuntimeLink =
 /**  The upstream release page of the build. */
 "release";
 
+/**  How a program was found. */
+export type Source = 
+/**  A Start Menu or Desktop shortcut. */
+"shortcut" | 
+/**  An `.exe` in Program Files without a shortcut. */
+"executable";
+
 /**  A bottle whose setup has started in the background. */
 export type StartedBottle = {
 	bottle_id: string,
 	job_id: string,
 };
+
+/**  Output stream of a log line. */
+export type Stream = "stdout" | "stderr";
 
 export type SystemStatus = {
 	/**  Version of `vinter-core`. */

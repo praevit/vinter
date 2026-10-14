@@ -1,7 +1,9 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use vinter_core::AppPaths;
+
+use crate::commands::programs::RunInfo;
 
 /// Shared app state, managed by Tauri.
 pub struct AppState {
@@ -10,6 +12,8 @@ pub struct AppState {
     pub installing: Mutex<HashSet<String>>,
     /// Ids of bottles with a running setup, duplicate or settings job.
     pub busy_bottles: Mutex<HashSet<String>>,
+    /// Programs started from Vinter that are still running, by run id.
+    pub runs: Mutex<HashMap<String, RunInfo>>,
 }
 
 impl AppState {
@@ -18,6 +22,7 @@ impl AppState {
             paths,
             installing: Mutex::default(),
             busy_bottles: Mutex::default(),
+            runs: Mutex::default(),
         }
     }
 

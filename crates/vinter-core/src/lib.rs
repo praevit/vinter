@@ -8,6 +8,7 @@ pub mod bottle;
 pub mod error;
 pub mod paths;
 pub mod process;
+pub mod programs;
 pub mod runtime;
 pub mod system;
 

@@ -21,6 +21,8 @@ vinter-core = { workspace = true, features = ["specta"] }
 tauri = { workspace = true, features = [] }
 serde.workspace = true
 tauri-plugin-opener.workspace = true
+tauri-plugin-dialog.workspace = true
+humantime.workspace = true
 uuid.workspace = true
 specta.workspace = true
 specta-typescript.workspace = true

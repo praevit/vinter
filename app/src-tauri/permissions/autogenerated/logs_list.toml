@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-logs-list"
+description = "Enables the logs_list command without any pre-configured scope."
+commands.allow = ["logs_list"]
+
+[[permission]]
+identifier = "deny-logs-list"
+description = "Denies the logs_list command without any pre-configured scope."
+commands.deny = ["logs_list"]
