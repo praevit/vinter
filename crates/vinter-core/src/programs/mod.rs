@@ -230,7 +230,13 @@ pub fn launch(
 
     let (log, _) = logs::create(&dir, &program.name)?;
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
-    cmd.arg(&program.exe).args(&program.args);
+    // Skip empty or NUL-containing arguments; programs added before the
+    // shortcut fix may have a stray "\0" argument saved.
+    let args = program
+        .args
+        .iter()
+        .filter(|a| !a.is_empty() && !a.contains('\0'));
+    cmd.arg(&program.exe).args(args);
     if let Some(folder) = exe.parent() {
         // Many programs expect to start in their own folder.
         cmd.current_dir(folder);
@@ -380,7 +386,13 @@ fn read_shortcut(prefix: &Path, lnk: &Path) -> Option<(PathBuf, Vec<String>)> {
         Some((target, relative, args))
     })
     .ok()??;
-    let (target, relative, args) = parsed;
+    // Shortcut strings may carry their NUL terminator (Wine writes an
+    // "empty" argument string as a lone `\0`); cut at the first NUL.
+    let (target, relative, args) = (
+        parsed.0.map(|s| until_nul(&s)),
+        parsed.1.map(|s| until_nul(&s)),
+        parsed.2.map(|s| until_nul(&s)),
+    );
 
     let resolved = target
         .and_then(|t| winpath::to_unix(prefix, &t))
@@ -394,6 +406,10 @@ fn read_shortcut(prefix: &Path, lnk: &Path) -> Option<(PathBuf, Vec<String>)> {
         })?;
     let args = args.map(|a| split_args(&a)).unwrap_or_default();
     Some((resolved, args))
+}
+
+fn until_nul(s: &str) -> String {
+    s.split('\0').next().unwrap_or_default().to_string()
 }
 
 /// Splits a Windows command line into arguments (double quotes group).

@@ -117,6 +117,13 @@ fn discovers_shortcuts_then_unclaimed_program_folders() {
     // Wine's own stubs are never offered.
     touch(&c.join("Program Files/Windows NT/Accessories/wordpad.exe"));
     touch(&c.join("Program Files/Internet Explorer/iexplore.exe"));
+    // Wine writes "no arguments" as a lone NUL; it must not become an argument.
+    touch(&c.join("Program Files/Notepad++/notepad++.exe"));
+    make_lnk(
+        &c.join("ProgramData/Microsoft/Windows/Start Menu/Programs/Notepad++.lnk"),
+        r"C:\Program Files\Notepad++\notepad++.exe",
+        "\0",
+    );
     // A desktop shortcut to a missing file is ignored.
     make_lnk(
         &c.join("users/Public/Desktop/Gone.lnk"),
@@ -138,6 +145,11 @@ fn discovers_shortcuts_then_unclaimed_program_folders() {
                 Source::Shortcut
             ),
             (
+                "Notepad++",
+                r"C:\Program Files\Notepad++\notepad++.exe",
+                Source::Shortcut
+            ),
+            (
                 "game",
                 r"C:\Program Files (x86)\Game\game.exe",
                 Source::Executable
@@ -145,6 +157,7 @@ fn discovers_shortcuts_then_unclaimed_program_folders() {
         ]
     );
     assert_eq!(found[0].args, ["--open", r"C:\My Files"]);
+    assert!(found[1].args.is_empty(), "{:?}", found[1].args);
     assert!(found.iter().all(|p| !p.already_added && p.icon.is_none()));
 }
 
@@ -246,7 +259,8 @@ fn launches_programs_in_their_folder_and_logs_output() {
         vec![ProgramDef {
             name: "My App".into(),
             exe: r"C:\Program Files\App\app.exe".into(),
-            args: vec!["--fast".into()],
+            // "\0" mimics entries saved before the NUL fix; it must be skipped.
+            args: vec!["--fast".into(), "\0".into()],
             icon: None,
             pinned: false,
         }],
