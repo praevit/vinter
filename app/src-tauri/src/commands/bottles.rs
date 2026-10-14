@@ -4,6 +4,7 @@ use tauri_plugin_opener::OpenerExt;
 use vinter_core::bottle::{self, Bottle, BottleSummary, Graphics, NewBottle, Tool, WindowsVersion};
 
 use super::{CommandResult, blocking};
+use crate::focus;
 use crate::jobs::{self, JobId};
 use crate::state::AppState;
 
@@ -203,13 +204,22 @@ pub async fn bottle_open_drive_c(
     Ok(())
 }
 
-/// Opens a built-in Wine tool in the bottle.
+/// Opens a built-in Wine tool in the bottle and brings its window to the front.
 #[tauri::command]
 #[specta::specta]
-pub async fn bottle_tool(state: State<'_, AppState>, id: String, tool: Tool) -> CommandResult<()> {
+pub async fn bottle_tool(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    tool: Tool,
+) -> CommandResult<()> {
     let paths = state.paths.clone();
     blocking(move || {
+        let bottle = bottle::get(&paths, &id)?;
+        let runtime = vinter_core::runtime::get(&paths, &bottle.runtime)?;
+        let watch = focus::Watch::start(&app, &runtime.path);
         bottle::run_tool(&paths, &id, tool)?;
+        watch.focus_new_app();
         Ok(())
     })
     .await

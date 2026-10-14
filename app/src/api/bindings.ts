@@ -38,7 +38,7 @@ export const commands = {
 	bottleDelete: (id: string) => __TAURI_INVOKE<null>("bottle_delete", { id }),
 	/**  Opens the bottle's C: drive in Finder (or the file manager on Linux). */
 	bottleOpenDriveC: (id: string) => __TAURI_INVOKE<null>("bottle_open_drive_c", { id }),
-	/**  Opens a built-in Wine tool in the bottle. */
+	/**  Opens a built-in Wine tool in the bottle and brings its window to the front. */
 	bottleTool: (id: string, tool: Tool) => __TAURI_INVOKE<null>("bottle_tool", { id, tool }),
 	/**  Stops every Wine process in the bottle (`wineserver -k`). */
 	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),

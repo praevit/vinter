@@ -3,6 +3,7 @@
 
 mod commands;
 mod events;
+mod focus;
 mod jobs;
 mod state;
 
