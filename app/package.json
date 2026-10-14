@@ -2,6 +2,13 @@
   "name": "vinter",
   "private": true,
   "version": "0.1.0",
+  "homepage": "https://getvinter.app",
+  "author": "Vinter <hello@getvinter.app>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/praevit/vinter.git",
+    "directory": "app"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

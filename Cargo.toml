@@ -6,6 +6,9 @@ members = ["crates/vinter-core", "crates/vinter-cli", "app/src-tauri"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
+authors = ["Vinter <hello@getvinter.app>"]
+homepage = "https://getvinter.app"
+repository = "https://github.com/praevit/vinter"
 rust-version = "1.85"
 
 [workspace.dependencies]

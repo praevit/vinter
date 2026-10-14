@@ -28,6 +28,8 @@
     "active": true,
     "targets": "all",
     "category": "Utility",
+    "homepage": "https://getvinter.app",
+    "publisher": "Vinter",
     "shortDescription": "Windows apps, poured onto your Mac.",
     "icon": [
       "icons/32x32.png",

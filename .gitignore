@@ -1,6 +1,12 @@
-/target
+# Rust build output (workspace and any stray per-crate builds)
+target/
+# Frontend
 node_modules/
-/app/dist/
-/app/src-tauri/gen/schemas/
+dist/
+# Tauri-generated files (capability schemas, mobile projects)
+/app/src-tauri/gen/
+# OS / editor
 .DS_Store
 *.log
+# Partial downloads, if a data folder is ever pointed inside the repo
+*.part
