@@ -47,6 +47,7 @@ fn install_fake_runtime(paths: &AppPaths, id: &str, wine: &str) {
         license: "LGPL-2.1-or-later".into(),
         source_url: "https://example.invalid".into(),
         arch: std::env::consts::ARCH.into(),
+        graphics: vec![crate::bottle::Graphics::Wined3d],
     };
     std::fs::write(
         dir.join(runtime::RECORD_FILE),
@@ -268,6 +269,47 @@ fn interrupted_setup_is_reported() {
         run_tool(&paths, "half", Tool::Notepad),
         Err(Error::BottleNotReady(_))
     ));
+}
+
+#[test]
+fn env_and_override_editors_validate_input() {
+    use std::collections::BTreeMap;
+    let (_tmp, paths) = setup();
+    let d = paths.bottles_dir().join("x");
+    std::fs::create_dir_all(&d).unwrap();
+    Bottle {
+        id: "x".into(),
+        name: "X".into(),
+        runtime: "fake".into(),
+        created_at: now(),
+        windows_version: WindowsVersion::Win10,
+        graphics: Graphics::Wined3d,
+        recipe: None,
+        env: Default::default(),
+        dll_overrides: Default::default(),
+        programs: vec![],
+    }
+    .save(&d)
+    .unwrap();
+
+    let map = |pairs: &[(&str, &str)]| -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    };
+    let b = set_dll_overrides(&paths, "x", map(&[("d3d11", "n,b"), ("mscoree", "")])).unwrap();
+    assert_eq!(b.dll_overrides["d3d11"], "n,b");
+    assert!(set_dll_overrides(&paths, "x", map(&[("d3d11", "sometimes")])).is_err());
+    assert!(set_dll_overrides(&paths, "x", map(&[("../evil", "n")])).is_err());
+
+    let b = set_env(&paths, "x", map(&[("WINEESYNC", "1"), ("DXVK_HUD", "fps")])).unwrap();
+    assert_eq!(b.env["DXVK_HUD"], "fps");
+    assert!(set_env(&paths, "x", map(&[("WINEPREFIX", "/tmp")])).is_err());
+    assert!(set_env(&paths, "x", map(&[("1BAD", "x")])).is_err());
+    assert!(set_env(&paths, "x", map(&[("A B", "x")])).is_err());
+    assert!(set_env(&paths, "x", map(&[("OK", "a\0b")])).is_err());
+    assert_eq!(get(&paths, "x").unwrap().env.len(), 2);
 }
 
 #[test]

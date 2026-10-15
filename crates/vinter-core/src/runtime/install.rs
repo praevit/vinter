@@ -1,59 +1,11 @@
 //! Download, verify and extract a runtime.
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
 
-use serde::Serialize;
-use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-use super::{ArchiveFormat, LICENSE_FILE, RECORD_FILE, Runtime, RuntimeInfo, RuntimeRecord};
+use super::{LICENSE_FILE, RECORD_FILE, Runtime, RuntimeInfo, RuntimeRecord};
+use crate::download::{self, InstallProgress, InstallStage};
 use crate::error::{IoResultExt, validate_id};
 use crate::{AppPaths, Error, Result};
-
-/// How often progress is reported while a stage is running.
-const PROGRESS_INTERVAL: Duration = Duration::from_millis(150);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-pub enum InstallStage {
-    Downloading,
-    Verifying,
-    Extracting,
-    Finishing,
-}
-
-impl InstallStage {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Downloading => "Downloading",
-            Self::Verifying => "Verifying checksum",
-            Self::Extracting => "Extracting",
-            Self::Finishing => "Finishing",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstallProgress {
-    pub stage: InstallStage,
-    /// Bytes processed in this stage.
-    pub done: u64,
-    pub total: Option<u64>,
-}
-
-impl InstallProgress {
-    /// Progress of this stage from 0.0 to 1.0, if the total is known.
-    pub fn fraction(&self) -> Option<f64> {
-        self.total
-            .filter(|t| *t > 0)
-            .map(|t| (self.done as f64 / t as f64).min(1.0))
-    }
-}
 
 /// Downloads `info`'s archive, verifies it and installs it.
 /// The archive is deleted afterwards, whether or not the install worked.
@@ -66,9 +18,9 @@ where
 
     let downloads = paths.downloads_dir();
     tokio::fs::create_dir_all(&downloads).await.at(&downloads)?;
-    let archive = downloads.join(format!("{}.{}", info.id, extension(info.format)));
+    let archive = downloads.join(format!("{}.{}", info.id, info.format.extension()));
 
-    download(&info.url, &archive, info.size, &mut on_progress).await?;
+    download::download(&info.url, &archive, info.size, &mut on_progress).await?;
     let result = install_from_archive(paths, info, &archive, &mut on_progress).await;
     let _ = tokio::fs::remove_file(&archive).await;
     result
@@ -88,14 +40,7 @@ where
     validate_id(&info.id)?;
     ensure_not_installed(paths, &info.id)?;
 
-    let actual = sha256_file(archive, on_progress).await?;
-    if !actual.eq_ignore_ascii_case(&info.sha256) {
-        let _ = tokio::fs::remove_file(archive).await;
-        return Err(Error::ChecksumMismatch {
-            expected: info.sha256.clone(),
-            actual,
-        });
-    }
+    download::verify(archive, &info.sha256, on_progress).await?;
 
     let runtimes_dir = paths.runtimes_dir();
     tokio::fs::create_dir_all(&runtimes_dir)
@@ -121,29 +66,7 @@ async fn extract_and_finish<P>(
 where
     P: FnMut(InstallProgress) + Send,
 {
-    let total = tokio::fs::metadata(archive).await.at(archive)?.len();
-    let read = Arc::new(AtomicU64::new(0));
-    let mut task = tokio::task::spawn_blocking({
-        let (archive, staging, read) = (archive.to_path_buf(), staging.to_path_buf(), read.clone());
-        let format = info.format;
-        move || extract(&archive, &staging, format, &read)
-    });
-    let report = |on_progress: &mut P| {
-        on_progress(InstallProgress {
-            stage: InstallStage::Extracting,
-            done: read.load(Ordering::Relaxed),
-            total: Some(total),
-        })
-    };
-    report(on_progress);
-    let joined = loop {
-        tokio::select! {
-            joined = &mut task => break joined,
-            _ = tokio::time::sleep(PROGRESS_INTERVAL) => report(on_progress),
-        }
-    };
-    joined.map_err(|e| Error::BadArchive(format!("extraction stopped: {e}")))??;
-    report(on_progress);
+    download::extract_with_progress(archive, staging, info.format, on_progress).await?;
 
     on_progress(InstallProgress {
         stage: InstallStage::Finishing,
@@ -169,6 +92,7 @@ where
         license: info.license.clone(),
         source_url: info.source_url.clone(),
         arch: info.arch.clone(),
+        graphics: info.graphics.clone(),
     };
     let toml = toml::to_string_pretty(&record).expect("runtime record serializes");
     write(staging.join(RECORD_FILE), toml).await?;
@@ -192,157 +116,12 @@ async fn write(path: PathBuf, contents: impl AsRef<[u8]>) -> Result<()> {
     tokio::fs::write(&path, contents).await.at(&path)
 }
 
-fn extension(format: ArchiveFormat) -> &'static str {
-    match format {
-        ArchiveFormat::TarXz => "tar.xz",
-        ArchiveFormat::TarGz => "tar.gz",
-    }
-}
-
-/// Streams `url` to `dest`, writing to `dest.part` first.
-async fn download<P>(url: &str, dest: &Path, expected_size: u64, on_progress: &mut P) -> Result<()>
-where
-    P: FnMut(InstallProgress) + Send,
-{
-    let mut part = dest.as_os_str().to_owned();
-    part.push(".part");
-    let part = PathBuf::from(part);
-
-    let result = download_to(url, &part, expected_size, on_progress).await;
-    match result {
-        Ok(()) => tokio::fs::rename(&part, dest).await.at(dest),
-        Err(e) => {
-            let _ = tokio::fs::remove_file(&part).await;
-            Err(e)
-        }
-    }
-}
-
-async fn download_to<P>(
-    url: &str,
-    part: &Path,
-    expected_size: u64,
-    on_progress: &mut P,
-) -> Result<()>
-where
-    P: FnMut(InstallProgress) + Send,
-{
-    let failed = |e: reqwest::Error| Error::Download(e.to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("Vinter/", env!("CARGO_PKG_VERSION")))
-        .connect_timeout(Duration::from_secs(30))
-        .read_timeout(Duration::from_secs(60))
-        .build()
-        .map_err(failed)?;
-    let mut response = client
-        .get(url)
-        .send()
-        .await
-        .and_then(|r| r.error_for_status())
-        .map_err(failed)?;
-    let total = response.content_length().or(Some(expected_size));
-
-    let mut file = tokio::fs::File::create(part).await.at(part)?;
-    let mut done = 0u64;
-    let mut last_report = Instant::now();
-    on_progress(InstallProgress {
-        stage: InstallStage::Downloading,
-        done,
-        total,
-    });
-    while let Some(chunk) = response.chunk().await.map_err(failed)? {
-        file.write_all(&chunk).await.at(part)?;
-        done += chunk.len() as u64;
-        if last_report.elapsed() >= PROGRESS_INTERVAL {
-            last_report = Instant::now();
-            on_progress(InstallProgress {
-                stage: InstallStage::Downloading,
-                done,
-                total,
-            });
-        }
-    }
-    file.flush().await.at(part)?;
-    on_progress(InstallProgress {
-        stage: InstallStage::Downloading,
-        done,
-        total: Some(done),
-    });
-    Ok(())
-}
-
-/// Lowercase hex sha256 of a file.
-async fn sha256_file<P>(path: &Path, on_progress: &mut P) -> Result<String>
-where
-    P: FnMut(InstallProgress) + Send,
-{
-    let mut file = tokio::fs::File::open(path).await.at(path)?;
-    let total = file.metadata().await.at(path)?.len();
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; 1 << 20];
-    let mut done = 0u64;
-    let mut last_report = Instant::now();
-    loop {
-        let n = file.read(&mut buf).await.at(path)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-        done += n as u64;
-        if last_report.elapsed() >= PROGRESS_INTERVAL {
-            last_report = Instant::now();
-            on_progress(InstallProgress {
-                stage: InstallStage::Verifying,
-                done,
-                total: Some(total),
-            });
-        }
-    }
-    on_progress(InstallProgress {
-        stage: InstallStage::Verifying,
-        done,
-        total: Some(total),
-    });
-    Ok(hex::encode(hasher.finalize()))
-}
-
-/// Unpacks a tar archive into `dest`. `tar::Archive::unpack` refuses entries
-/// that would land outside `dest` (`..`, absolute paths, symlinked parents).
-fn extract(archive: &Path, dest: &Path, format: ArchiveFormat, read: &AtomicU64) -> Result<()> {
-    let file = std::fs::File::open(archive).at(archive)?;
-    let counting = CountingReader {
-        inner: std::io::BufReader::new(file),
-        read,
-    };
-    let decoder: Box<dyn Read> = match format {
-        ArchiveFormat::TarXz => Box::new(liblzma::read::XzDecoder::new_multi_decoder(counting)),
-        ArchiveFormat::TarGz => Box::new(flate2::read::MultiGzDecoder::new(counting)),
-    };
-    std::fs::create_dir_all(dest).at(dest)?;
-    let mut tar = tar::Archive::new(decoder);
-    tar.set_preserve_permissions(true);
-    tar.set_unpack_xattrs(false);
-    tar.unpack(dest)
-        .map_err(|e| Error::BadArchive(format!("could not extract: {e}")))
-}
-
-/// Counts compressed bytes read, for extraction progress.
-struct CountingReader<'a, R> {
-    inner: R,
-    read: &'a AtomicU64,
-}
-
-impl<R: Read> Read for CountingReader<'_, R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let n = self.inner.read(buf)?;
-        self.read.fetch_add(n as u64, Ordering::Relaxed);
-        Ok(n)
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use sha2::{Digest, Sha256};
+
     use super::*;
+    use crate::download::ArchiveFormat;
     use crate::runtime::{self, Flavor};
 
     const WINE_SCRIPT: &[u8] = b"#!/bin/sh\necho wine-11.0-test\n";
@@ -388,6 +167,7 @@ mod tests {
             source_url: "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.0".into(),
             release_url: "https://example.invalid".into(),
             needs_rosetta: false,
+            graphics: vec![crate::bottle::Graphics::Wined3d],
         }
     }
 

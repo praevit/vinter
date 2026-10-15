@@ -22,7 +22,6 @@ const FLAVORS: Record<Flavor, string> = {
   stable: "Stable",
   devel: "Development",
   staging: "Staging",
-  crossover: "CX",
   gptk: "GPTK",
 };
 

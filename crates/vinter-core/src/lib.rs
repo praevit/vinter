@@ -5,7 +5,9 @@
 //! Tauri app and the `vinter` CLI.
 
 pub mod bottle;
+pub mod download;
 pub mod error;
+pub mod graphics;
 pub mod paths;
 pub mod process;
 pub mod programs;

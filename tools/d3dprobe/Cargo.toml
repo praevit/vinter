@@ -1,0 +1,20 @@
+[package]
+name = "d3dprobe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Tiny Windows program that creates a Direct3D 11 device and reports the GPU. Vinter runs it inside a bottle to test the graphics backend."
+publish = false
+
+# Not part of the main workspace: it only builds for Windows.
+[workspace]
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+panic = "abort"

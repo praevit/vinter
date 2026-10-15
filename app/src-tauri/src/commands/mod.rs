@@ -1,6 +1,7 @@
 //! Tauri commands. Each one is a thin wrapper over `vinter-core`.
 
 pub mod bottles;
+pub mod graphics;
 pub mod programs;
 pub mod runtimes;
 pub mod system;

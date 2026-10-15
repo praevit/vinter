@@ -34,6 +34,7 @@ pub fn wine_env(
         .chain(base_overrides)
         .map(|(dll, mode)| (dll.to_string(), mode.to_string()))
         .collect();
+    overrides.extend(crate::graphics::launch_overrides(bottle.graphics));
     overrides.extend(bottle.dll_overrides.clone());
 
     let mut env = vec![
@@ -45,12 +46,14 @@ pub fn wine_env(
     if !overrides.is_empty() {
         env.push(("WINEDLLOVERRIDES".into(), dll_overrides_string(&overrides)));
     }
-    for (key, value) in &bottle.env {
+    let backend_env = crate::graphics::launch_env(bottle.graphics);
+    let user_env = bottle.env.iter().map(|(k, v)| (k.clone(), v.clone()));
+    for (key, value) in backend_env.into_iter().chain(user_env) {
         if key == "WINEPREFIX" {
             continue;
         }
-        env.retain(|(k, _)| k != key);
-        env.push((key.clone(), value.clone()));
+        env.retain(|(k, _)| *k != key);
+        env.push((key, value));
     }
     env
 }
@@ -83,7 +86,22 @@ pub fn command(
 
 /// Runs `cmd` to completion with output appended to `log`.
 /// Fails on a non-zero exit or after `timeout`, quoting the end of the log.
-pub fn run_and_wait(mut cmd: Command, log: &Path, what: &str, timeout: Duration) -> Result<()> {
+pub fn run_and_wait(cmd: Command, log: &Path, what: &str, timeout: Duration) -> Result<()> {
+    match run_status(cmd, log, what, timeout)? {
+        Some(0) => Ok(()),
+        Some(code) => Err(failed(what, format!("exited with code {code}"), log)),
+        None => Err(failed(what, "was stopped by a signal".into(), log)),
+    }
+}
+
+/// Like [`run_and_wait`], but returns the exit code (`None` for a signal)
+/// instead of failing on a non-zero exit.
+pub fn run_status(
+    mut cmd: Command,
+    log: &Path,
+    what: &str,
+    timeout: Duration,
+) -> Result<Option<i32>> {
     let file = std::fs::File::options()
         .create(true)
         .append(true)
@@ -101,8 +119,7 @@ pub fn run_and_wait(mut cmd: Command, log: &Path, what: &str, timeout: Duration)
     let started = Instant::now();
     loop {
         match child.try_wait() {
-            Ok(Some(status)) if status.success() => return Ok(()),
-            Ok(Some(status)) => return Err(failed(what, format!("exited with {status}"), log)),
+            Ok(Some(status)) => return Ok(status.code()),
             Ok(None) if started.elapsed() > timeout => {
                 let _ = child.kill();
                 let _ = child.wait();
@@ -302,6 +319,31 @@ mod tests {
             get(&env, "WINEDLLOVERRIDES"),
             Some("d3d11=native,builtin;mscoree=builtin;mshtml=;winemenubuilder.exe=d")
         );
+    }
+
+    #[test]
+    fn backend_settings_sit_between_base_and_bottle() {
+        let mut b = bottle();
+        b.graphics = Graphics::Dxvk;
+        let env = wine_env(Path::new("/p"), &b, &[]);
+        assert_eq!(get(&env, "DXVK_LOG_PATH"), Some("none"));
+        let overrides = get(&env, "WINEDLLOVERRIDES").unwrap();
+        assert!(overrides.contains("d3d11=n,b"), "{overrides}");
+
+        // The bottle's own settings win over the backend's.
+        b.dll_overrides.insert("d3d11".into(), "b".into());
+        b.env.insert("DXVK_LOG_PATH".into(), "/tmp".into());
+        let env = wine_env(Path::new("/p"), &b, &[]);
+        assert!(get(&env, "WINEDLLOVERRIDES").unwrap().contains("d3d11=b;"));
+        assert_eq!(get(&env, "DXVK_LOG_PATH"), Some("/tmp"));
+
+        // wined3d adds nothing.
+        b.graphics = Graphics::Wined3d;
+        b.env.clear();
+        b.dll_overrides.clear();
+        let env = wine_env(Path::new("/p"), &b, &[]);
+        assert_eq!(get(&env, "WINEDLLOVERRIDES"), Some("winemenubuilder.exe=d"));
+        assert_eq!(get(&env, "DXVK_LOG_PATH"), None);
     }
 
     #[test]

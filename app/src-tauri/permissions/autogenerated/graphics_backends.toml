@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-graphics-backends"
+description = "Enables the graphics_backends command without any pre-configured scope."
+commands.allow = ["graphics_backends"]
+
+[[permission]]
+identifier = "deny-graphics-backends"
+description = "Denies the graphics_backends command without any pre-configured scope."
+commands.deny = ["graphics_backends"]

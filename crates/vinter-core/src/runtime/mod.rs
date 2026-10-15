@@ -7,9 +7,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::bottle::Graphics;
+pub use crate::download::{InstallProgress, InstallStage};
 use crate::error::{IoResultExt, validate_id};
 use crate::{AppPaths, Error, Result};
-pub use install::{InstallProgress, InstallStage, install, install_from_archive};
+pub use install::{install, install_from_archive};
 pub use manifest::{ArchiveFormat, Flavor, RuntimeInfo};
 
 /// File written into every installed runtime folder.
@@ -38,6 +40,14 @@ pub struct RuntimeRecord {
     /// every build offered then was x86_64.
     #[serde(default = "default_arch")]
     pub arch: String,
+    /// Graphics backends this runtime supports. Records written before M4
+    /// lack it; every runtime offered then supported wined3d and DXVK.
+    #[serde(default = "default_graphics")]
+    pub graphics: Vec<Graphics>,
+}
+
+fn default_graphics() -> Vec<Graphics> {
+    vec![Graphics::Wined3d, Graphics::Dxvk]
 }
 
 fn default_arch() -> String {
@@ -68,6 +78,8 @@ pub struct Runtime {
     pub arch: String,
     /// x86_64 build on Apple Silicon: runs only with Rosetta 2.
     pub needs_rosetta: bool,
+    /// Graphics backends it supports.
+    pub graphics: Vec<Graphics>,
 }
 
 impl Runtime {
@@ -83,6 +95,7 @@ impl Runtime {
             source_url: record.source_url,
             needs_rosetta: arch_needs_rosetta(&record.arch),
             arch: record.arch,
+            graphics: record.graphics,
             path,
         }
     }

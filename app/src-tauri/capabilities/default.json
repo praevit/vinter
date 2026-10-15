@@ -35,6 +35,9 @@
     "allow-program-stop",
     "allow-runs-list",
     "allow-logs-list",
-    "allow-log-read"
+    "allow-log-read",
+    "allow-graphics-backends",
+    "allow-bottle-set-graphics",
+    "allow-bottle-test-graphics"
   ]
 }

@@ -47,6 +47,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::programs::runs_list,
             commands::programs::logs_list,
             commands::programs::log_read,
+            commands::graphics::graphics_backends,
+            commands::graphics::bottle_set_graphics,
+            commands::graphics::bottle_test_graphics,
         ])
         .events(collect_events![
             events::JobProgress,

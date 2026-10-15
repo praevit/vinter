@@ -18,6 +18,8 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useInstalledRuntimes } from "../api/runtimes";
+import { GraphicsSection } from "../components/GraphicsSection";
+import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
 import { ProgramsTab } from "../components/ProgramsTab";
 import { ProgressBar } from "../components/ProgressBar";
@@ -103,7 +105,17 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
           )}
           {tab === "logs" && <LogsTab key={logToShow} bottleId={bottle.id} initial={logToShow} />}
           {tab === "tools" && <Tools bottle={bottle} needsRosetta={runtime?.needs_rosetta ?? false} />}
-          {tab === "settings" && <Settings bottle={bottle} onNavigate={onNavigate} />}
+          {tab === "settings" && (
+            <Settings
+              bottle={bottle}
+              needsRosetta={runtime?.needs_rosetta ?? false}
+              onNavigate={onNavigate}
+              onShowLog={(id) => {
+                setLogToShow(id);
+                setTab("logs");
+              }}
+            />
+          )}
         </>
       )}
     </Page>
@@ -195,9 +207,22 @@ function Tools({ bottle, needsRosetta }: { bottle: BottleDetails; needsRosetta: 
   );
 }
 
-function Settings({ bottle, onNavigate }: { bottle: BottleDetails; onNavigate: (r: Route) => void }) {
+function Settings({
+  bottle,
+  needsRosetta,
+  onNavigate,
+  onShowLog,
+}: {
+  bottle: BottleDetails;
+  needsRosetta: boolean;
+  onNavigate: (r: Route) => void;
+  onShowLog: (logId: string) => void;
+}) {
   const { data: runtimes } = useInstalledRuntimes();
   const update = useUpdateBottle(bottle.id);
+  const updateOverrides = useUpdateBottle(bottle.id);
+  const updateEnv = useUpdateBottle(bottle.id);
+  const none = { name: null, runtime: null, env: null, dll_overrides: null };
   const jobs = useJobs();
   const queryClient = useQueryClient();
   const [name, setName] = useState(bottle.name);
@@ -226,7 +251,7 @@ function Settings({ bottle, onNavigate }: { bottle: BottleDetails; onNavigate: (
           <input className={field} value={name} maxLength={64} onChange={(e) => setName(e.target.value)} />
           <Button
             disabled={update.isPending || !name.trim() || name.trim() === bottle.name}
-            onClick={() => update.mutate({ name, runtime: null })}
+            onClick={() => update.mutate({ ...none, name })}
           >
             Rename
           </Button>
@@ -238,7 +263,7 @@ function Settings({ bottle, onNavigate }: { bottle: BottleDetails; onNavigate: (
           className={field}
           value={bottle.runtime}
           disabled={update.isPending}
-          onChange={(e) => update.mutate({ name: null, runtime: e.target.value })}
+          onChange={(e) => update.mutate({ ...none, runtime: e.target.value })}
         >
           {!runtimes?.some((r) => r.id === bottle.runtime) && (
             <option value={bottle.runtime}>{bottle.runtime} (not installed)</option>
@@ -272,6 +297,41 @@ function Settings({ bottle, onNavigate }: { bottle: BottleDetails; onNavigate: (
       </Label>
       {changingWindows && <p className={subtle}>Applying the Windows version…</p>}
       {winJob?.done && !winJob.done.ok && <ErrorText>{winJob.done.error}</ErrorText>}
+
+      <div className="border-t border-frost-200 pt-5 dark:border-slate-deep-700">
+        <GraphicsSection
+          bottleId={bottle.id}
+          current={bottle.graphics}
+          needsRosetta={needsRosetta}
+          onShowLog={onShowLog}
+        />
+      </div>
+
+      <details className="flex flex-col gap-5 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
+        <summary className="cursor-pointer text-sm font-medium">Advanced</summary>
+        <div className="mt-4 flex flex-col gap-6">
+          <KeyValueEditor
+            title="DLL overrides"
+            help="Which DLLs load Wine's version (b), the program's own (n), or n,b / b,n. Leave the mode empty to disable a DLL. These win over the graphics backend's."
+            keyPlaceholder="d3d11"
+            valuePlaceholder="n,b"
+            values={bottle.dll_overrides}
+            saving={updateOverrides.isPending}
+            error={updateOverrides.error ? errorMessage(updateOverrides.error) : undefined}
+            onSave={(dll_overrides) => updateOverrides.mutate({ ...none, dll_overrides })}
+          />
+          <KeyValueEditor
+            title="Environment variables"
+            help="Extra variables for every program in this bottle, applied last. Example: DXVK_HUD=fps shows a frame counter with DXVK."
+            keyPlaceholder="DXVK_HUD"
+            valuePlaceholder="fps"
+            values={bottle.env}
+            saving={updateEnv.isPending}
+            error={updateEnv.error ? errorMessage(updateEnv.error) : undefined}
+            onSave={(env) => updateEnv.mutate({ ...none, env })}
+          />
+        </div>
+      </details>
 
       <section className="flex flex-col gap-2 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <h2 className="text-sm font-medium">Duplicate</h2>

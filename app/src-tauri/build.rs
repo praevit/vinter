@@ -31,6 +31,9 @@ fn main() {
             "runs_list",
             "logs_list",
             "log_read",
+            "graphics_backends",
+            "bottle_set_graphics",
+            "bottle_test_graphics",
         ]),
     ))
     .expect("failed to run tauri-build");

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
@@ -92,11 +94,15 @@ pub fn bottle_create(
     Ok(StartedBottle { bottle_id, job_id })
 }
 
-/// Fields to change; missing ones are left alone.
+/// Fields to change; missing (null) ones are left alone.
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct BottlePatch {
     pub name: Option<String>,
     pub runtime: Option<String>,
+    /// Replaces all extra environment variables.
+    pub env: Option<BTreeMap<String, String>>,
+    /// Replaces all DLL overrides.
+    pub dll_overrides: Option<BTreeMap<String, String>>,
 }
 
 #[tauri::command]
@@ -117,6 +123,12 @@ pub async fn bottle_update(
         }
         if let Some(runtime) = patch.runtime {
             bottle = bottle::set_runtime(&paths, &id, &runtime)?;
+        }
+        if let Some(env) = patch.env {
+            bottle = bottle::set_env(&paths, &id, env)?;
+        }
+        if let Some(overrides) = patch.dll_overrides {
+            bottle = bottle::set_dll_overrides(&paths, &id, overrides)?;
         }
         Ok(bottle)
     })

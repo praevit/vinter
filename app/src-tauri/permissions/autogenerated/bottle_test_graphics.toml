@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-test-graphics"
+description = "Enables the bottle_test_graphics command without any pre-configured scope."
+commands.allow = ["bottle_test_graphics"]
+
+[[permission]]
+identifier = "deny-bottle-test-graphics"
+description = "Denies the bottle_test_graphics command without any pre-configured scope."
+commands.deny = ["bottle_test_graphics"]

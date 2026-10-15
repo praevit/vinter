@@ -1,0 +1,12 @@
+[build]
+target = "x86_64-pc-windows-msvc"
+
+[target.x86_64-pc-windows-msvc]
+# Rust's bundled LLD: no Visual Studio or Windows SDK needed. Imports use
+# `raw-dylib`, so no import libraries either.
+linker = "rust-lld"
+rustflags = [
+  "-C", "link-arg=/ENTRY:mainCRTStartup",
+  "-C", "link-arg=/SUBSYSTEM:CONSOLE",
+  "-C", "link-arg=/NODEFAULTLIB",
+]

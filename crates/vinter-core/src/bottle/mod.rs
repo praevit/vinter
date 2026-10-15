@@ -274,6 +274,80 @@ pub fn set_runtime(paths: &AppPaths, id: &str, runtime_id: &str) -> Result<Bottl
     Ok(bottle)
 }
 
+/// Replaces the bottle's DLL overrides. Modes: `n`, `b`, `n,b`, `b,n`,
+/// `native`, `builtin`, `native,builtin`, `builtin,native`, or empty (disabled).
+pub fn set_dll_overrides(
+    paths: &AppPaths,
+    id: &str,
+    overrides: std::collections::BTreeMap<String, String>,
+) -> Result<Bottle> {
+    const MODES: &[&str] = &[
+        "",
+        "n",
+        "b",
+        "n,b",
+        "b,n",
+        "native",
+        "builtin",
+        "native,builtin",
+        "builtin,native",
+    ];
+    for (dll, mode) in &overrides {
+        let dll_ok = !dll.is_empty()
+            && dll.len() <= 64
+            && dll
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
+        if !dll_ok {
+            return Err(Error::InvalidSetting(format!("{dll:?} is not a DLL name")));
+        }
+        if !MODES.contains(&mode.as_str()) {
+            return Err(Error::InvalidSetting(format!(
+                "{mode:?} is not a valid mode for {dll}; use n, b, n,b, b,n or leave it empty to disable"
+            )));
+        }
+    }
+    let mut bottle = get(paths, id)?;
+    bottle.dll_overrides = overrides;
+    bottle.save(&dir(paths, id)?)?;
+    Ok(bottle)
+}
+
+/// Replaces the bottle's extra environment variables (applied last).
+pub fn set_env(
+    paths: &AppPaths,
+    id: &str,
+    env: std::collections::BTreeMap<String, String>,
+) -> Result<Bottle> {
+    for (key, value) in &env {
+        let key_ok = key
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && key.len() <= 128;
+        if !key_ok {
+            return Err(Error::InvalidSetting(format!(
+                "{key:?} is not a variable name"
+            )));
+        }
+        if key == "WINEPREFIX" {
+            return Err(Error::InvalidSetting(
+                "WINEPREFIX is managed by Vinter".into(),
+            ));
+        }
+        if value.contains('\0') {
+            return Err(Error::InvalidSetting(format!(
+                "the value of {key} contains a NUL byte"
+            )));
+        }
+    }
+    let mut bottle = get(paths, id)?;
+    bottle.env = env;
+    bottle.save(&dir(paths, id)?)?;
+    Ok(bottle)
+}
+
 /// Applies a Windows version with `winecfg /v`, then saves it. Blocks for a few seconds.
 pub fn set_windows_version(paths: &AppPaths, id: &str, version: WindowsVersion) -> Result<Bottle> {
     let mut bottle = get(paths, id)?;

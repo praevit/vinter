@@ -168,7 +168,7 @@ mod tests {
     const PLAN_EXAMPLE: &str = r#"
 id = "8f2c"
 name = "Office 2016"
-runtime = "wine-crossover-24.0.x"
+runtime = "wine-stable-11.0-macos"
 created_at = "2026-10-14T20:00:00Z"
 windows_version = "win10"
 graphics = "dxmt"

@@ -18,17 +18,10 @@ pub enum Flavor {
     Stable,
     Devel,
     Staging,
-    Crossover,
     Gptk,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-pub enum ArchiveFormat {
-    TarXz,
-    TarGz,
-}
+pub use crate::download::ArchiveFormat;
 
 /// One downloadable Wine build.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +48,8 @@ pub struct RuntimeInfo {
     pub source_url: String,
     /// Upstream release page of the build.
     pub release_url: String,
+    /// Graphics backends the build supports.
+    pub graphics: Vec<crate::bottle::Graphics>,
     /// Filled in for this machine: x86_64 build on Apple Silicon.
     #[serde(default, skip_deserializing)]
     pub needs_rosetta: bool,

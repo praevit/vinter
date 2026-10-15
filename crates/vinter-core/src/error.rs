@@ -78,6 +78,15 @@ pub enum Error {
     #[error("installer not found: {}", .0.display())]
     InstallerNotFound(PathBuf),
 
+    #[error("{0}")]
+    BackendUnavailable(String),
+
+    #[error("{0} is not downloaded yet")]
+    ComponentMissing(String),
+
+    #[error("invalid setting: {0}")]
+    InvalidSetting(String),
+
     #[error("could not move the bottle to the Trash: {0}")]
     Trash(String),
 

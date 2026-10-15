@@ -242,6 +242,7 @@ fn fake_runtime(paths: &AppPaths) {
         license: "LGPL-2.1-or-later".into(),
         source_url: "https://example.invalid".into(),
         arch: std::env::consts::ARCH.into(),
+        graphics: vec![crate::bottle::Graphics::Wined3d],
     };
     std::fs::write(dir.join("runtime.toml"), toml::to_string(&record).unwrap()).unwrap();
 }

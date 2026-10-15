@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use vinter_core::AppPaths;
 use vinter_core::bottle::{self, Graphics, NewBottle, Tool, WindowsVersion};
+use vinter_core::graphics::{self, Backend};
 use vinter_core::process::logs;
 use vinter_core::programs;
 use vinter_core::runtime::{self, InstallProgress, InstallStage};
@@ -118,6 +119,26 @@ enum BottleCommand {
     Run { bottle: String, program: usize },
     /// List a bottle's logs, or print one.
     Logs { bottle: String, log: Option<String> },
+    /// Show the graphics backends, or switch to one (downloading it if needed).
+    Graphics {
+        bottle: String,
+        /// wined3d, dxvk, dxmt or d3dmetal.
+        #[arg(value_parser = parse_backend)]
+        backend: Option<Backend>,
+    },
+    /// Run a small Direct3D 11 program in the bottle and report what answered.
+    TestGraphics { bottle: String },
+    /// Set environment variables (KEY=VALUE), or remove them (KEY=).
+    Env { bottle: String, vars: Vec<String> },
+    /// Set DLL overrides (dll=mode, e.g. d3d11=n,b), or remove them (dll).
+    Override {
+        bottle: String,
+        overrides: Vec<String>,
+    },
+}
+
+fn parse_backend(s: &str) -> Result<Backend, String> {
+    Backend::parse(s).ok_or_else(|| "expected wined3d, dxvk, dxmt or d3dmetal".into())
 }
 
 fn parse_windows_version(s: &str) -> Result<WindowsVersion, String> {
@@ -153,7 +174,7 @@ async fn main() -> Result<()> {
             }
             RuntimeCommand::Exec { id, command } => runtime_exec(&paths, &id, &command),
         },
-        Command::Bottle(cmd) => bottle_command(&paths, cmd),
+        Command::Bottle(cmd) => bottle_command(&paths, cmd).await,
         Command::InstallRosetta => {
             println!("Installing Rosetta 2. macOS may ask for an administrator password.");
             rosetta::install()?;
@@ -261,7 +282,7 @@ fn runtime_exec(paths: &AppPaths, id: &str, command: &[String]) -> Result<()> {
     std::process::exit(status.code().unwrap_or(1));
 }
 
-fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
+async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
     let id = |key: &str| bottle::resolve(paths, key).map(|b| b.id);
     match cmd {
         BottleCommand::List => {
@@ -397,6 +418,100 @@ fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
             println!("Started {} (pid {}).", launched.name, launched.pid);
             let code = rx.recv().unwrap_or(None);
             println!("{} exited with {:?}.", launched.name, code);
+        }
+        BottleCommand::Graphics {
+            bottle: key,
+            backend,
+        } => {
+            let b = bottle::get(paths, &id(&key)?)?;
+            let rt = runtime::get(paths, &b.runtime)?;
+            match backend {
+                None => {
+                    for info in graphics::backends(paths, &rt) {
+                        let mark = if info.backend == b.graphics { "*" } else { " " };
+                        let state = match (&info.reason, &info.component, info.component_installed)
+                        {
+                            (Some(reason), _, _) => format!("unavailable: {reason}"),
+                            (None, Some(c), false) => {
+                                format!("available ({} download, {})", mb(c.size), c.name)
+                            }
+                            (None, Some(c), true) => format!("available ({})", c.name),
+                            (None, None, _) => "available (built in)".into(),
+                        };
+                        println!("{mark} {:<10} {state}", info.backend.id());
+                    }
+                }
+                Some(backend) => {
+                    let info = graphics::backends(paths, &rt)
+                        .into_iter()
+                        .find(|i| i.backend == backend)
+                        .expect("every backend is listed");
+                    if let Some(c) = info.component.filter(|_| info.reason.is_none()) {
+                        println!("Getting {} ({})", c.name, c.url);
+                        graphics::component::ensure(paths, &c, |p: InstallProgress| {
+                            print_progress(p)
+                        })
+                        .await?;
+                        println!();
+                    }
+                    graphics::apply(paths, &b.id, backend)?;
+                    println!("{} now uses {}.", b.name, backend.name());
+                }
+            }
+        }
+        BottleCommand::TestGraphics { bottle: key } => {
+            let r = graphics::test(paths, &id(&key)?)?;
+            println!("Backend:       {}", r.backend.name());
+            println!("Direct3D 11:   {}", if r.ok { "works" } else { "failed" });
+            println!(
+                "Answered by:   {}",
+                r.renderer.as_deref().unwrap_or("unknown")
+            );
+            println!(
+                "Feature level: {}",
+                r.feature_level.as_deref().unwrap_or("-")
+            );
+            println!("GPU:           {}", r.adapter.as_deref().unwrap_or("-"));
+            if !r.matches_backend {
+                println!(
+                    "Warning: the bottle is set to {}, but it did not answer.",
+                    r.backend.name()
+                );
+            }
+            println!("Log:           {}", r.log_id);
+        }
+        BottleCommand::Env { bottle: key, vars } => {
+            let b = bottle::get(paths, &id(&key)?)?;
+            let mut env = b.env.clone();
+            for var in vars {
+                let (k, v) = var
+                    .split_once('=')
+                    .context("use KEY=VALUE, or KEY= to remove")?;
+                if v.is_empty() {
+                    env.remove(k);
+                } else {
+                    env.insert(k.to_string(), v.to_string());
+                }
+            }
+            for (k, v) in &bottle::set_env(paths, &b.id, env)?.env {
+                println!("{k}={v}");
+            }
+        }
+        BottleCommand::Override {
+            bottle: key,
+            overrides,
+        } => {
+            let b = bottle::get(paths, &id(&key)?)?;
+            let mut map = b.dll_overrides.clone();
+            for o in overrides {
+                match o.split_once('=') {
+                    Some((dll, mode)) => map.insert(dll.to_string(), mode.to_string()),
+                    None => map.remove(&o),
+                };
+            }
+            for (dll, mode) in &bottle::set_dll_overrides(paths, &b.id, map)?.dll_overrides {
+                println!("{dll}={mode}");
+            }
         }
         BottleCommand::Logs { bottle: key, log } => {
             let dir = bottle::dir(paths, &id(&key)?)?;

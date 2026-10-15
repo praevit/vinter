@@ -64,6 +64,12 @@ export const commands = {
 	runsList: () => __TAURI_INVOKE<RunInfo[]>("runs_list"),
 	logsList: (bottleId: string) => __TAURI_INVOKE<LogEntry[]>("logs_list", { bottleId }),
 	logRead: (bottleId: string, logId: string) => __TAURI_INVOKE<string>("log_read", { bottleId, logId }),
+	/**  Graphics backends for a bottle, with availability and download info. */
+	graphicsBackends: (bottleId: string) => __TAURI_INVOKE<BackendInfo[]>("graphics_backends", { bottleId }),
+	/**  Switches a bottle's backend, downloading its component first if needed. */
+	bottleSetGraphics: (bottleId: string, backend: Graphics) => __TAURI_INVOKE<string>("bottle_set_graphics", { bottleId, backend }),
+	/**  Runs a small Direct3D 11 program in the bottle and reports what answered. */
+	bottleTestGraphics: (bottleId: string) => __TAURI_INVOKE<GraphicsReport>("bottle_test_graphics", { bottleId }),
 };
 
 /** Events */
@@ -76,6 +82,21 @@ export const events = {
 
 /* Types */
 export type ArchiveFormat = "tar_xz" | "tar_gz";
+
+/**  What the UI shows for one backend in a bottle. */
+export type BackendInfo = {
+	backend: Graphics,
+	name: string,
+	description: string,
+	/**  Usable with this bottle's runtime on this machine. */
+	available: boolean,
+	/**  Why not, when `available` is false. */
+	reason: string | null,
+	/**  The download it needs, if any. */
+	component: ComponentInfo | null,
+	/**  That download is already installed. */
+	component_installed: boolean,
+};
 
 /**  Contents of `bottle.toml`. */
 export type Bottle = Bottle_Serialize | Bottle_Deserialize;
@@ -101,10 +122,14 @@ export type BottleListItem = {
 	status: BottleStatus,
 } & BottleSummary;
 
-/**  Fields to change; missing ones are left alone. */
+/**  Fields to change; missing (null) ones are left alone. */
 export type BottlePatch = {
 	name: string | null,
 	runtime: string | null,
+	/**  Replaces all extra environment variables. */
+	env: { [key in string]: string } | null,
+	/**  Replaces all DLL overrides. */
+	dll_overrides: { [key in string]: string } | null,
 };
 
 export type BottleStatus = "ready" | 
@@ -164,6 +189,26 @@ export type CommandError = {
 	message: string,
 };
 
+/**  One downloadable component, from the embedded `components.json`. */
+export type ComponentInfo = {
+	id: string,
+	backend: Graphics,
+	name: string,
+	version: string,
+	os: string,
+	url: string,
+	sha256: string,
+	size: number,
+	format: ArchiveFormat,
+	/**  Top folder inside the archive, holding `x64/` and `x32/`. */
+	root: string,
+	/**  DLL names (without `.dll`) it provides in both `x64/` and `x32/`. */
+	dlls: string[],
+	license: string,
+	source_url: string,
+	release_url: string,
+};
+
 /**  A program found in a bottle, offered to the user as a checkbox. */
 export type DiscoveredProgram = {
 	name: string,
@@ -179,10 +224,28 @@ export type DiscoveredProgram = {
 	already_added: boolean,
 };
 
-export type Flavor = "stable" | "devel" | "staging" | "crossover" | "gptk";
+export type Flavor = "stable" | "devel" | "staging" | "gptk";
 
 /**  Graphics translation layer. Only stored in M2; applied in M4. */
 export type Graphics = "wined3d" | "dxvk" | "dxmt" | "d3dmetal";
+
+/**  Result of a graphics test. */
+export type GraphicsReport = {
+	/**  The bottle's backend at the time of the test. */
+	backend: Graphics,
+	/**  A Direct3D 11 device was created. */
+	ok: boolean,
+	/**  Which implementation answered, e.g. "DXVK" or "Wine (wined3d)". */
+	renderer: string | null,
+	/**  e.g. "11_0". */
+	feature_level: string | null,
+	/**  GPU name as the renderer reports it. */
+	adapter: string | null,
+	/**  The loaded d3d11.dll came from the backend the bottle is set to. */
+	matches_backend: boolean,
+	/**  Log of the test, for `log_read`. */
+	log_id: string,
+};
 
 export type JobDone = {
 	job_id: string,
@@ -272,6 +335,8 @@ export type Runtime = {
 	arch: string,
 	/**  x86_64 build on Apple Silicon: runs only with Rosetta 2. */
 	needs_rosetta: boolean,
+	/**  Graphics backends it supports. */
+	graphics: Graphics[],
 };
 
 /**  One downloadable Wine build. */
@@ -300,6 +365,8 @@ export type RuntimeInfo_Deserialize = {
 	source_url: string,
 	/**  Upstream release page of the build. */
 	release_url: string,
+	/**  Graphics backends the build supports. */
+	graphics: Graphics[],
 };
 
 /**  One downloadable Wine build. */
@@ -325,6 +392,8 @@ export type RuntimeInfo_Serialize = {
 	source_url: string,
 	/**  Upstream release page of the build. */
 	release_url: string,
+	/**  Graphics backends the build supports. */
+	graphics: Graphics[],
 	/**  Filled in for this machine: x86_64 build on Apple Silicon. */
 	needs_rosetta: boolean,
 };

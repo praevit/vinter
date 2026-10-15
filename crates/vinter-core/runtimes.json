@@ -15,7 +15,11 @@
       "wine_bin": "Wine Stable.app/Contents/Resources/wine/bin/wine",
       "license": "LGPL-2.1-or-later",
       "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.0",
-      "release_url": "https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1"
+      "release_url": "https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.0_1",
+      "graphics": [
+        "wined3d",
+        "dxvk"
+      ]
     },
     {
       "id": "wine-devel-11.18-macos",
@@ -31,7 +35,11 @@
       "wine_bin": "Wine Devel.app/Contents/Resources/wine/bin/wine",
       "license": "LGPL-2.1-or-later",
       "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.18",
-      "release_url": "https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.18"
+      "release_url": "https://github.com/Gcenx/macOS_Wine_builds/releases/tag/11.18",
+      "graphics": [
+        "wined3d",
+        "dxvk"
+      ]
     },
     {
       "id": "wine-stable-11.0-linux",
@@ -47,7 +55,11 @@
       "wine_bin": "wine-11.0-amd64-wow64/bin/wine",
       "license": "LGPL-2.1-or-later",
       "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.0",
-      "release_url": "https://github.com/Kron4ek/Wine-Builds/releases/tag/11.0"
+      "release_url": "https://github.com/Kron4ek/Wine-Builds/releases/tag/11.0",
+      "graphics": [
+        "wined3d",
+        "dxvk"
+      ]
     },
     {
       "id": "wine-devel-11.19-linux",
@@ -63,7 +75,11 @@
       "wine_bin": "wine-11.19-amd64-wow64/bin/wine",
       "license": "LGPL-2.1-or-later",
       "source_url": "https://gitlab.winehq.org/wine/wine/-/tree/wine-11.19",
-      "release_url": "https://github.com/Kron4ek/Wine-Builds/releases/tag/11.19"
+      "release_url": "https://github.com/Kron4ek/Wine-Builds/releases/tag/11.19",
+      "graphics": [
+        "wined3d",
+        "dxvk"
+      ]
     }
   ]
 }

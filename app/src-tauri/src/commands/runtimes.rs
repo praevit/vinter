@@ -53,7 +53,7 @@ pub fn runtime_install(
     }))
 }
 
-fn report(job: &jobs::JobReporter, p: InstallProgress) {
+pub(crate) fn report(job: &jobs::JobReporter, p: InstallProgress) {
     let message = match (p.stage, p.total) {
         (InstallStage::Finishing, _) => String::new(),
         (_, Some(total)) => format!("{} of {}", mb(p.done), mb(total)),
