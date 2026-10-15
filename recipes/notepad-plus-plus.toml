@@ -1,0 +1,27 @@
+id = "notepad-plus-plus"
+name = "Notepad++"
+description = "Free source code and text editor."
+homepage = "https://notepad-plus-plus.org"
+license = "GPL-3.0"
+runtime_flavor = "stable"
+windows_version = "win10"
+graphics = "wined3d"
+
+[installer]
+kind = "download"
+url = "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.9.8.1/npp.8.9.8.1.Installer.x64.exe"
+sha256 = "26f3bcced788fadbac4e7e577b430ea2ce6060cf3bcad993ef4612ecd7d743da"
+size = 6963432
+
+# Smoother text, like Windows' ClearType.
+[[steps]]
+type = "registry"
+file = "fontsmooth-rgb.reg"
+
+[[steps]]
+type = "run_installer"
+args = ["/S"]
+
+[[programs]]
+name = "Notepad++"
+exe = 'C:\Program Files\Notepad++\notepad++.exe'

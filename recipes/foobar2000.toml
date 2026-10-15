@@ -1,0 +1,25 @@
+id = "foobar2000"
+name = "foobar2000"
+description = "Music player. You download its installer yourself."
+homepage = "https://www.foobar2000.org"
+license = "Freeware"
+runtime_flavor = "stable"
+windows_version = "win10"
+
+# Its installer changes with every release and is not ours to mirror,
+# so the user picks the file they downloaded.
+[installer]
+kind = "user_provided"
+hint = "Download the 64-bit installer from foobar2000.org/download, then choose it here."
+
+[[steps]]
+type = "registry"
+file = "fontsmooth-rgb.reg"
+
+[[steps]]
+type = "run_installer"
+args = ["/S"]
+
+[[programs]]
+name = "foobar2000"
+exe = 'C:\Program Files\foobar2000\foobar2000.exe'

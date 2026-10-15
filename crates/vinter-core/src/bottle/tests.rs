@@ -65,6 +65,7 @@ fn setup() -> (tempfile::TempDir, AppPaths) {
 
 fn new_bottle(name: &str, runtime: &str) -> NewBottle {
     NewBottle {
+        id: None,
         name: name.into(),
         runtime: runtime.into(),
         windows_version: WindowsVersion::Win10,

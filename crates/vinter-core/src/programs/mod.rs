@@ -277,10 +277,26 @@ pub fn run_installer(
 
     let (log, _) = logs::create(&dir, "installer")?;
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
-    if has_extension(installer, "msi") {
-        cmd.args(["msiexec", "/i"]);
-    }
-    cmd.arg(installer).args(args);
+    // Wine's msiexec crashes on long host paths (seen with a 153-character
+    // path: msi.dll read part of the file name as a pointer). MSI packages are
+    // self-contained, so run them from a short path inside the bottle.
+    // .exe installers stay put: many need files next to them.
+    let staged_msi = if has_extension(installer, "msi") {
+        let name = installer.file_name().unwrap_or_default();
+        let folder = prefix.join("drive_c/windows/Temp/vinter");
+        std::fs::create_dir_all(&folder).at(&folder)?;
+        let staged = folder.join(name);
+        std::fs::copy(installer, &staged).at(&staged)?;
+        cmd.args(["msiexec", "/i"]).arg(format!(
+            r"C:\windows\Temp\vinter\{}",
+            name.to_string_lossy()
+        ));
+        Some(staged)
+    } else {
+        cmd.arg(installer);
+        None
+    };
+    cmd.args(args);
     if let Some(folder) = installer.parent() {
         cmd.current_dir(folder);
     }
@@ -295,7 +311,11 @@ pub fn run_installer(
         },
     )?;
     on_started(pid);
-    Ok(rx.recv().unwrap_or(None))
+    let code = rx.recv().unwrap_or(None);
+    if let Some(staged) = staged_msi {
+        let _ = std::fs::remove_file(staged);
+    }
+    Ok(code)
 }
 
 fn ready_bottle(paths: &AppPaths, bottle_id: &str) -> Result<Bottle> {
@@ -322,6 +342,12 @@ pub fn icon_data_url(paths: &AppPaths, bottle_id: &str, icon: &str) -> Option<St
         .join(ICONS_DIR)
         .join(name);
     std::fs::read(path).ok().map(|png| icons::data_url(&png))
+}
+
+/// Extracts `exe`'s icon into the bottle and returns its `icons/...` path.
+pub fn save_icon_for(paths: &AppPaths, bottle_id: &str, exe: &Path) -> Option<String> {
+    let dir = bottle::dir(paths, bottle_id).ok()?;
+    save_icon(&dir, exe).ok()?.0
 }
 
 /// Extracts and saves `exe`'s icon as `icons/<hash>.png`.

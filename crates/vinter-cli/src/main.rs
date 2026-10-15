@@ -9,6 +9,7 @@ use vinter_core::bottle::{self, Graphics, NewBottle, Tool, WindowsVersion};
 use vinter_core::graphics::{self, Backend};
 use vinter_core::process::logs;
 use vinter_core::programs;
+use vinter_core::recipe::{self, ApplyOptions, RecipeProgress};
 use vinter_core::runtime::{self, InstallProgress, InstallStage};
 use vinter_core::system::{CheckStatus, rosetta, system_checks};
 
@@ -37,6 +38,9 @@ enum Command {
     /// Manage bottles (Wine prefixes). Bottles can be named by id, id prefix or name.
     #[command(subcommand)]
     Bottle(BottleCommand),
+    /// App recipes: list them, check one, or set up an app from one.
+    #[command(subcommand)]
+    Recipe(RecipeCommand),
     /// Install Rosetta 2 (Apple Silicon only). Running this accepts Apple's license.
     InstallRosetta,
 }
@@ -137,6 +141,37 @@ enum BottleCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum RecipeCommand {
+    /// List recipes (built-in and your own).
+    List,
+    /// Show a recipe's steps.
+    Show { id: String },
+    /// Validate a recipe file and print any problems.
+    Check { file: std::path::PathBuf },
+    /// Create a bottle from a recipe and set the app up.
+    Apply {
+        id: String,
+        /// Name of the new bottle (default: the recipe's name).
+        #[arg(long)]
+        name: Option<String>,
+        /// Installer file (needed for user-provided installers).
+        #[arg(long)]
+        installer: Option<std::path::PathBuf>,
+        /// Agree to winetricks downloads (may include Microsoft software).
+        #[arg(long)]
+        accept_downloads: bool,
+    },
+    /// Continue a recipe that stopped in a bottle.
+    Resume {
+        bottle: String,
+        #[arg(long)]
+        installer: Option<std::path::PathBuf>,
+        #[arg(long)]
+        accept_downloads: bool,
+    },
+}
+
 fn parse_backend(s: &str) -> Result<Backend, String> {
     Backend::parse(s).ok_or_else(|| "expected wined3d, dxvk, dxmt or d3dmetal".into())
 }
@@ -175,6 +210,7 @@ async fn main() -> Result<()> {
             RuntimeCommand::Exec { id, command } => runtime_exec(&paths, &id, &command),
         },
         Command::Bottle(cmd) => bottle_command(&paths, cmd).await,
+        Command::Recipe(cmd) => recipe_command(&paths, cmd).await,
         Command::InstallRosetta => {
             println!("Installing Rosetta 2. macOS may ask for an administrator password.");
             rosetta::install()?;
@@ -313,6 +349,7 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
             windows,
         } => {
             let new = NewBottle {
+                id: None,
                 name,
                 runtime,
                 windows_version: windows,
@@ -526,6 +563,79 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
                     }
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+async fn recipe_command(paths: &AppPaths, cmd: RecipeCommand) -> Result<()> {
+    let show_progress = |p: RecipeProgress| {
+        let pct = p.percent.map(|x| format!(" {x:>3.0}%")).unwrap_or_default();
+        print!(
+            "\r[{}/{}] {:<44} {:<40}{pct}",
+            p.task, p.tasks, p.label, p.detail
+        );
+        let _ = std::io::stdout().flush();
+    };
+    match cmd {
+        RecipeCommand::List => {
+            let (recipes, broken) = recipe::list(paths);
+            for r in recipes {
+                let s = r.summary();
+                let origin = if s.builtin { "built-in" } else { "yours" };
+                println!(
+                    "{:<20} {:<16} {:<9} {}",
+                    s.id, s.name, origin, s.description
+                );
+            }
+            for b in broken {
+                println!("BROKEN {}: {}", b.file, b.error);
+            }
+        }
+        RecipeCommand::Show { id } => {
+            let r = recipe::find(paths, &id)?;
+            println!(
+                "{} ({})\n{}\n",
+                r.recipe.name, r.recipe.id, r.recipe.description
+            );
+            for (i, step) in r.recipe.steps.iter().enumerate() {
+                println!("{:>2}. {}", i + 1, step.label());
+            }
+        }
+        RecipeCommand::Check { file } => {
+            let text = std::fs::read_to_string(&file)?;
+            let r = recipe::parse(&text, recipe::Origin::User(file.clone()))?;
+            println!("{} is valid ({} steps).", r.recipe.id, r.recipe.steps.len());
+        }
+        RecipeCommand::Apply {
+            id,
+            name,
+            installer,
+            accept_downloads,
+        } => {
+            let r = recipe::find(paths, &id)?;
+            let opts = ApplyOptions {
+                bottle_id: None,
+                bottle_name: name.unwrap_or_else(|| r.recipe.name.clone()),
+                installer,
+                accept_downloads,
+            };
+            let b = recipe::apply(paths, &r, opts, show_progress).await?;
+            println!(
+                "\nDone: bottle {} ({}) with {} program(s).",
+                b.name,
+                b.id,
+                b.programs.len()
+            );
+        }
+        RecipeCommand::Resume {
+            bottle: key,
+            installer,
+            accept_downloads,
+        } => {
+            let id = bottle::resolve(paths, &key)?.id;
+            let b = recipe::resume(paths, &id, installer, accept_downloads, show_progress).await?;
+            println!("\nDone: {} with {} program(s).", b.name, b.programs.len());
         }
     }
     Ok(())

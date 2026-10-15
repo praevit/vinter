@@ -1,0 +1,122 @@
+use std::path::PathBuf;
+
+use serde::Serialize;
+use tauri::{AppHandle, Manager, State};
+use tauri_plugin_opener::OpenerExt;
+use vinter_core::recipe::{
+    self, ApplyOptions, BrokenRecipe, RecipeProgress, RecipeState, RecipeSummary,
+};
+
+use super::CommandResult;
+use super::bottles::StartedBottle;
+use crate::jobs::{self, JobId, JobReporter};
+use crate::state::AppState;
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct RecipeList {
+    pub recipes: Vec<RecipeSummary>,
+    /// User recipe files that could not be loaded, with the reason.
+    pub broken: Vec<BrokenRecipe>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn recipes_list(state: State<'_, AppState>) -> RecipeList {
+    let (recipes, broken) = recipe::list(&state.paths);
+    RecipeList {
+        recipes: recipes.iter().map(|r| r.summary()).collect(),
+        broken,
+    }
+}
+
+fn report(job: &JobReporter, p: RecipeProgress) {
+    let mut message = format!("Step {} of {}", p.task, p.tasks);
+    if !p.detail.is_empty() {
+        message.push_str(" · ");
+        message.push_str(&p.detail);
+    }
+    job.progress(&p.label, message, p.percent);
+}
+
+/// Sets an app up from a recipe in a new bottle. The bottle id is returned
+/// right away; the bottle appears once its runtime and installer are ready.
+#[tauri::command]
+#[specta::specta]
+pub fn recipe_apply(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    recipe_id: String,
+    bottle_name: String,
+    installer_path: Option<String>,
+    accept_downloads: bool,
+) -> CommandResult<StartedBottle> {
+    let loaded = recipe::find(&state.paths, &recipe_id)?;
+    let bottle_id = uuid::Uuid::new_v4().to_string();
+    state.mark_busy(&bottle_id);
+    let paths = state.paths.clone();
+    let opts = ApplyOptions {
+        bottle_id: Some(bottle_id.clone()),
+        bottle_name,
+        installer: installer_path.map(PathBuf::from),
+        accept_downloads,
+    };
+    let id = bottle_id.clone();
+    let job_id = jobs::spawn(&app, |job| {
+        let app = app.clone();
+        async move {
+            let result = recipe::apply(&paths, &loaded, opts, |p| report(&job, p)).await;
+            app.state::<AppState>().clear_busy(&id);
+            result.map(|_| ()).map_err(|e| e.to_string())
+        }
+    });
+    Ok(StartedBottle { bottle_id, job_id })
+}
+
+/// The unfinished recipe in a bottle, if setting it up stopped.
+#[tauri::command]
+#[specta::specta]
+pub fn recipe_state(state: State<'_, AppState>, bottle_id: String) -> Option<RecipeState> {
+    recipe::state(&state.paths, &bottle_id)
+}
+
+/// Continues an unfinished recipe from the step where it stopped.
+#[tauri::command]
+#[specta::specta]
+pub fn recipe_resume(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bottle_id: String,
+    installer_path: Option<String>,
+    accept_downloads: bool,
+) -> CommandResult<JobId> {
+    if !state.mark_busy(&bottle_id) {
+        return Err("This bottle is busy. Try again in a moment.".into());
+    }
+    let paths = state.paths.clone();
+    Ok(jobs::spawn(&app, |job| {
+        let app = app.clone();
+        async move {
+            let result = recipe::resume(
+                &paths,
+                &bottle_id,
+                installer_path.map(PathBuf::from),
+                accept_downloads,
+                |p| report(&job, p),
+            )
+            .await;
+            app.state::<AppState>().clear_busy(&bottle_id);
+            result.map(|_| ()).map_err(|e| e.to_string())
+        }
+    }))
+}
+
+/// Opens the folder for your own recipes (creating it if needed).
+#[tauri::command]
+#[specta::specta]
+pub fn recipes_open_folder(app: AppHandle, state: State<'_, AppState>) -> CommandResult<()> {
+    let dir = recipe::user_dir(&state.paths);
+    std::fs::create_dir_all(&dir)?;
+    app.opener()
+        .open_path(dir.display().to_string(), None::<&str>)?;
+    Ok(())
+}

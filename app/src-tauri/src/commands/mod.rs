@@ -3,6 +3,7 @@
 pub mod bottles;
 pub mod graphics;
 pub mod programs;
+pub mod recipes;
 pub mod runtimes;
 pub mod system;
 

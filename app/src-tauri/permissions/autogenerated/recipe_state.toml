@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recipe-state"
+description = "Enables the recipe_state command without any pre-configured scope."
+commands.allow = ["recipe_state"]
+
+[[permission]]
+identifier = "deny-recipe-state"
+description = "Denies the recipe_state command without any pre-configured scope."
+commands.deny = ["recipe_state"]

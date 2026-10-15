@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
 import { BottleView } from "./pages/BottleView";
+import { InstallApp } from "./pages/InstallApp";
 import { NewBottle } from "./pages/NewBottle";
 import { Runtimes } from "./pages/Runtimes";
 import { System } from "./pages/System";
@@ -25,6 +26,8 @@ export function App() {
           <BottleView key={current.id} id={current.id} onNavigate={setRoute} />
         ) : current.page === "new-bottle" ? (
           <NewBottle onNavigate={setRoute} />
+        ) : current.page === "install-app" ? (
+          <InstallApp onNavigate={setRoute} />
         ) : current.page === "runtimes" ? (
           <Runtimes />
         ) : current.page === "system" ? (

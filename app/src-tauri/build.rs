@@ -34,6 +34,11 @@ fn main() {
             "graphics_backends",
             "bottle_set_graphics",
             "bottle_test_graphics",
+            "recipes_list",
+            "recipe_apply",
+            "recipe_state",
+            "recipe_resume",
+            "recipes_open_folder",
         ]),
     ))
     .expect("failed to run tauri-build");

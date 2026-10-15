@@ -1,10 +1,11 @@
-import { Activity, AlertTriangle, LoaderCircle, Plus, Wine, type LucideIcon } from "lucide-react";
+import { Activity, AlertTriangle, LoaderCircle, PackagePlus, Plus, Wine, type LucideIcon } from "lucide-react";
 import { useBottles } from "../api/bottles";
 
 export type Route =
   | { page: "home" }
   | { page: "bottle"; id: string }
   | { page: "new-bottle" }
+  | { page: "install-app" }
   | { page: "runtimes" }
   | { page: "system" };
 
@@ -40,6 +41,8 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
         <img src="/vinter.svg" alt="" className="size-7" draggable={false} />
         <span className="font-semibold tracking-tight">Vinter</span>
       </button>
+
+      <NavItem to={{ page: "install-app" }} label="Install an App" Icon={PackagePlus} />
 
       <div className="flex min-h-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between px-2">

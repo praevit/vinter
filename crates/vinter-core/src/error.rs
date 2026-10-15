@@ -87,6 +87,26 @@ pub enum Error {
     #[error("invalid setting: {0}")]
     InvalidSetting(String),
 
+    #[error("invalid recipe: {0}")]
+    InvalidRecipe(String),
+
+    #[error("no recipe {0:?}")]
+    RecipeNotFound(String),
+
+    #[error(
+        "this recipe uses winetricks to install {0}, which may download software from Microsoft and others under their own licenses; agree to continue"
+    )]
+    ConsentRequired(String),
+
+    #[error("this recipe needs an installer file. {0}")]
+    InstallerRequired(String),
+
+    #[error("{step} failed: {message}")]
+    RecipeStepFailed { step: String, message: String },
+
+    #[error("bottle {0:?} has no unfinished recipe")]
+    NothingToResume(String),
+
     #[error("could not move the bottle to the Trash: {0}")]
     Trash(String),
 

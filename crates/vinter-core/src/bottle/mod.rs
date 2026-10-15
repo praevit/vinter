@@ -84,6 +84,8 @@ impl Tool {
 /// Settings for a new bottle.
 #[derive(Debug, Clone)]
 pub struct NewBottle {
+    /// Id to use (so a caller can follow the bottle before it exists); generated if `None`.
+    pub id: Option<String>,
     pub name: String,
     pub runtime: String,
     pub windows_version: WindowsVersion,
@@ -191,8 +193,20 @@ pub fn prepare_create(paths: &AppPaths, new: NewBottle) -> Result<Bottle> {
     let rt = runtime::get(paths, &new.runtime)?;
     rt.check_can_run()?;
 
+    let id = match new.id {
+        Some(id) => {
+            validate_id(&id)?;
+            if dir(paths, &id)?.exists() {
+                return Err(Error::InvalidName(format!(
+                    "a bottle with id {id} already exists"
+                )));
+            }
+            id
+        }
+        None => uuid::Uuid::new_v4().to_string(),
+    };
     let bottle = Bottle {
-        id: uuid::Uuid::new_v4().to_string(),
+        id,
         name,
         runtime: rt.id.clone(),
         created_at: now(),
@@ -281,6 +295,17 @@ pub fn set_dll_overrides(
     id: &str,
     overrides: std::collections::BTreeMap<String, String>,
 ) -> Result<Bottle> {
+    for (dll, mode) in &overrides {
+        validate_override(dll, mode)?;
+    }
+    let mut bottle = get(paths, id)?;
+    bottle.dll_overrides = overrides;
+    bottle.save(&dir(paths, id)?)?;
+    Ok(bottle)
+}
+
+/// Checks one DLL override (also used for recipes).
+pub fn validate_override(dll: &str, mode: &str) -> Result<()> {
     const MODES: &[&str] = &[
         "",
         "n",
@@ -292,25 +317,20 @@ pub fn set_dll_overrides(
         "native,builtin",
         "builtin,native",
     ];
-    for (dll, mode) in &overrides {
-        let dll_ok = !dll.is_empty()
-            && dll.len() <= 64
-            && dll
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
-        if !dll_ok {
-            return Err(Error::InvalidSetting(format!("{dll:?} is not a DLL name")));
-        }
-        if !MODES.contains(&mode.as_str()) {
-            return Err(Error::InvalidSetting(format!(
-                "{mode:?} is not a valid mode for {dll}; use n, b, n,b, b,n or leave it empty to disable"
-            )));
-        }
+    let dll_ok = !dll.is_empty()
+        && dll.len() <= 64
+        && dll
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'));
+    if !dll_ok {
+        return Err(Error::InvalidSetting(format!("{dll:?} is not a DLL name")));
     }
-    let mut bottle = get(paths, id)?;
-    bottle.dll_overrides = overrides;
-    bottle.save(&dir(paths, id)?)?;
-    Ok(bottle)
+    if !MODES.contains(&mode) {
+        return Err(Error::InvalidSetting(format!(
+            "{mode:?} is not a valid mode for {dll}; use n, b, n,b, b,n or leave it empty to disable"
+        )));
+    }
+    Ok(())
 }
 
 /// Replaces the bottle's extra environment variables (applied last).
@@ -320,32 +340,38 @@ pub fn set_env(
     env: std::collections::BTreeMap<String, String>,
 ) -> Result<Bottle> {
     for (key, value) in &env {
-        let key_ok = key
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-            && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-            && key.len() <= 128;
-        if !key_ok {
-            return Err(Error::InvalidSetting(format!(
-                "{key:?} is not a variable name"
-            )));
-        }
-        if key == "WINEPREFIX" {
-            return Err(Error::InvalidSetting(
-                "WINEPREFIX is managed by Vinter".into(),
-            ));
-        }
-        if value.contains('\0') {
-            return Err(Error::InvalidSetting(format!(
-                "the value of {key} contains a NUL byte"
-            )));
-        }
+        validate_env_var(key, value)?;
     }
     let mut bottle = get(paths, id)?;
     bottle.env = env;
     bottle.save(&dir(paths, id)?)?;
     Ok(bottle)
+}
+
+/// Checks one environment variable (also used for recipes).
+pub fn validate_env_var(key: &str, value: &str) -> Result<()> {
+    let key_ok = key
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && key.len() <= 128;
+    if !key_ok {
+        return Err(Error::InvalidSetting(format!(
+            "{key:?} is not a variable name"
+        )));
+    }
+    if key == "WINEPREFIX" {
+        return Err(Error::InvalidSetting(
+            "WINEPREFIX is managed by Vinter".into(),
+        ));
+    }
+    if value.contains('\0') {
+        return Err(Error::InvalidSetting(format!(
+            "the value of {key} contains a NUL byte"
+        )));
+    }
+    Ok(())
 }
 
 /// Applies a Windows version with `winecfg /v`, then saves it. Blocks for a few seconds.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recipes-open-folder"
+description = "Enables the recipes_open_folder command without any pre-configured scope."
+commands.allow = ["recipes_open_folder"]
+
+[[permission]]
+identifier = "deny-recipes-open-folder"
+description = "Denies the recipes_open_folder command without any pre-configured scope."
+commands.deny = ["recipes_open_folder"]

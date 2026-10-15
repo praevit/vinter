@@ -312,10 +312,15 @@ fn runs_msi_installers_through_msiexec() {
     let dir = bottle::dir(&paths, &id).unwrap();
     let logs = process::logs::list(&dir).unwrap();
     let text = process::logs::read(&dir, &logs[0].id).unwrap();
+    // MSIs run from a short path inside the bottle (Wine's msiexec crashes on long ones).
     assert!(
-        text.contains("args: msiexec /i") && text.contains("Setup Thing.msi /quiet"),
+        text.contains(r"args: msiexec /i C:\windows\Temp\vinter\Setup Thing.msi /quiet"),
         "{text}"
     );
+    let staged = bottle::dir(&paths, &id)
+        .unwrap()
+        .join("prefix/drive_c/windows/Temp/vinter/Setup Thing.msi");
+    assert!(!staged.exists(), "the staged copy is removed afterwards");
     assert!(matches!(
         run_installer(&paths, &id, &tmp.path().join("missing.exe"), &[], |_| {}),
         Err(Error::InstallerNotFound(_))

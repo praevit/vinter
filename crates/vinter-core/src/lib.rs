@@ -11,6 +11,7 @@ pub mod graphics;
 pub mod paths;
 pub mod process;
 pub mod programs;
+pub mod recipe;
 pub mod runtime;
 pub mod system;
 

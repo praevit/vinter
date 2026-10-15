@@ -34,6 +34,38 @@ pub fn to_unix(prefix: &Path, windows: &str) -> Option<PathBuf> {
     Some(path)
 }
 
+/// Like [`to_unix`], for a file that may not exist yet: existing folders are
+/// matched case-insensitively, the rest is used as written.
+pub fn to_unix_for_write(prefix: &Path, windows: &str) -> Option<PathBuf> {
+    let windows = windows.trim().trim_matches('"');
+    let rest = windows
+        .strip_prefix("C:\\")
+        .or_else(|| windows.strip_prefix("c:\\"))?;
+    let parts: Vec<&str> = rest
+        .split('\\')
+        .filter(|p| !p.is_empty() && *p != ".")
+        .collect();
+    if parts.is_empty() || parts.contains(&"..") {
+        return None;
+    }
+    let mut path = prefix.join("drive_c");
+    let mut existing = true;
+    for part in parts {
+        if existing {
+            if let Some(found) = to_unix(
+                prefix,
+                &to_windows(prefix, &path.join(part)).unwrap_or_default(),
+            ) {
+                path = found;
+                continue;
+            }
+            existing = false;
+        }
+        path.push(part);
+    }
+    Some(path)
+}
+
 /// The Windows path of a file inside the prefix's `drive_c`.
 pub fn to_windows(prefix: &Path, unix: &Path) -> Option<String> {
     let rel = unix.strip_prefix(prefix.join("drive_c")).ok()?;
@@ -74,5 +106,13 @@ mod tests {
         assert!(to_unix(prefix, r"D:\x.exe").is_none());
         assert!(to_unix(prefix, r"C:\Program Files\..\..\etc").is_none());
         assert!(to_windows(prefix, Path::new("/etc/passwd")).is_none());
+
+        // For writing: existing folders keep their case, new parts are added.
+        assert_eq!(
+            to_unix_for_write(prefix, r"C:\program files\7-zip\new\x.ini").unwrap(),
+            prefix.join("drive_c/Program Files/7-Zip/new/x.ini")
+        );
+        assert!(to_unix_for_write(prefix, r"C:\a\..\..\etc").is_none());
+        assert!(to_unix_for_write(prefix, r"D:\x").is_none());
     }
 }

@@ -72,6 +72,7 @@ pub fn bottle_create(
     windows_version: WindowsVersion,
 ) -> CommandResult<StartedBottle> {
     let new = NewBottle {
+        id: None,
         name,
         runtime: runtime_id,
         windows_version,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recipes-list"
+description = "Enables the recipes_list command without any pre-configured scope."
+commands.allow = ["recipes_list"]
+
+[[permission]]
+identifier = "deny-recipes-list"
+description = "Denies the recipes_list command without any pre-configured scope."
+commands.deny = ["recipes_list"]

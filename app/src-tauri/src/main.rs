@@ -50,6 +50,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::graphics::graphics_backends,
             commands::graphics::bottle_set_graphics,
             commands::graphics::bottle_test_graphics,
+            commands::recipes::recipes_list,
+            commands::recipes::recipe_apply,
+            commands::recipes::recipe_state,
+            commands::recipes::recipe_resume,
+            commands::recipes::recipes_open_folder,
         ])
         .events(collect_events![
             events::JobProgress,

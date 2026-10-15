@@ -1,4 +1,4 @@
-import { Plus, Wine } from "lucide-react";
+import { PackagePlus, Plus, Wine } from "lucide-react";
 import { useBottles } from "../api/bottles";
 import { useInstalledRuntimes } from "../api/runtimes";
 import type { Route } from "../components/Sidebar";
@@ -26,9 +26,14 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
           <Wine className="size-4" /> Install a runtime
         </Button>
       ) : (
-        <Button variant="primary" onClick={() => onNavigate({ page: "new-bottle" })}>
-          <Plus className="size-4" /> New bottle
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="primary" onClick={() => onNavigate({ page: "install-app" })}>
+            <PackagePlus className="size-4" /> Install an App
+          </Button>
+          <Button onClick={() => onNavigate({ page: "new-bottle" })}>
+            <Plus className="size-4" /> New bottle
+          </Button>
+        </div>
       )}
     </div>
   );

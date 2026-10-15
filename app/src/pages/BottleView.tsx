@@ -17,7 +17,9 @@ import {
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
+import { useRecipeState } from "../api/recipes";
 import { useInstalledRuntimes } from "../api/runtimes";
+import { RecipeResume } from "../components/RecipeResume";
 import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
@@ -39,6 +41,7 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
   const status = list?.find((b) => b.id === id)?.status;
   const setup = jobs.job(bottleJobKey(id));
   const runtime = runtimes?.find((r) => r.id === bottle?.runtime);
+  const { data: recipeState } = useRecipeState(id);
 
   if (error) return <Page><ErrorText>{errorMessage(error)}</ErrorText></Page>;
   if (!bottle) return null;
@@ -53,7 +56,9 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
       </header>
 
       {status === "setting_up" || (setup && isRunning(setup)) ? (
-        <SetupProgress step={setup?.step} />
+        <SetupProgress step={setup?.step} message={setup?.message} />
+      ) : recipeState ? (
+        <RecipeResume bottleId={bottle.id} state={recipeState} />
       ) : setup?.done && !setup.done.ok ? (
         <Notice>
           <p className="font-medium">Setting up this bottle failed.</p>
@@ -134,14 +139,14 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SetupProgress({ step }: { step?: string }) {
+function SetupProgress({ step, message }: { step?: string; message?: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-frost-200 p-4 dark:border-slate-deep-700">
       <p className="text-sm font-medium">Setting up this bottle…</p>
       <ProgressBar percent={null} />
       <p className={subtle}>
-        {step && step !== "Starting" ? `${step}. ` : ""}The first setup with a runtime can take a
-        minute.
+        {step && step !== "Starting" ? `${step}. ` : ""}
+        {message ? `${message}. ` : ""}The first setup with a runtime can take a minute.
       </p>
     </div>
   );

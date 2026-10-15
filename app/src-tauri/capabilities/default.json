@@ -38,6 +38,11 @@
     "allow-log-read",
     "allow-graphics-backends",
     "allow-bottle-set-graphics",
-    "allow-bottle-test-graphics"
+    "allow-bottle-test-graphics",
+    "allow-recipes-list",
+    "allow-recipe-apply",
+    "allow-recipe-state",
+    "allow-recipe-resume",
+    "allow-recipes-open-folder"
   ]
 }

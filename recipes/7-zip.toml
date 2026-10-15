@@ -1,0 +1,21 @@
+id = "7-zip"
+name = "7-Zip"
+description = "File archiver for 7z, ZIP, RAR and many more formats."
+homepage = "https://www.7-zip.org"
+license = "LGPL-2.1-or-later"
+runtime_flavor = "stable"
+windows_version = "win10"
+
+[installer]
+kind = "download"
+url = "https://www.7-zip.org/a/7z2604-x64.exe"
+sha256 = "d54bf805f9f3704d1e8db2fa3498ae7ef2df0312b40b558e7c71c734430a665d"
+size = 1664082
+
+[[steps]]
+type = "run_installer"
+args = ["/S"]
+
+[[programs]]
+name = "7-Zip File Manager"
+exe = 'C:\Program Files\7-Zip\7zFM.exe'

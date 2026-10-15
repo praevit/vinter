@@ -70,6 +70,26 @@ export const commands = {
 	bottleSetGraphics: (bottleId: string, backend: Graphics) => __TAURI_INVOKE<string>("bottle_set_graphics", { bottleId, backend }),
 	/**  Runs a small Direct3D 11 program in the bottle and reports what answered. */
 	bottleTestGraphics: (bottleId: string) => __TAURI_INVOKE<GraphicsReport>("bottle_test_graphics", { bottleId }),
+	recipesList: () => __TAURI_INVOKE<RecipeList>("recipes_list"),
+	/**
+	 *  Sets an app up from a recipe in a new bottle. The bottle id is returned
+	 *  right away; the bottle appears once its runtime and installer are ready.
+	 */
+	recipeApply: (recipeId: string, bottleName: string, installerPath: string | null, acceptDownloads: boolean) => __TAURI_INVOKE<StartedBottle>("recipe_apply", { recipeId, bottleName, installerPath, acceptDownloads }),
+	/**  The unfinished recipe in a bottle, if setting it up stopped. */
+	recipeState: (bottleId: string) => __TAURI_INVOKE<{
+	recipe_id: string,
+	recipe_name: string,
+	completed_steps: number,
+	total_steps: number,
+	error: string | null,
+	/**  Resuming needs the user to pick the installer again. */
+	needs_installer: boolean,
+} | null>("recipe_state", { bottleId }),
+	/**  Continues an unfinished recipe from the step where it stopped. */
+	recipeResume: (bottleId: string, installerPath: string | null, acceptDownloads: boolean) => __TAURI_INVOKE<string>("recipe_resume", { bottleId, installerPath, acceptDownloads }),
+	/**  Opens the folder for your own recipes (creating it if needed). */
+	recipesOpenFolder: () => __TAURI_INVOKE<null>("recipes_open_folder"),
 };
 
 /** Events */
@@ -168,6 +188,12 @@ export type Bottle_Serialize = {
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
 	programs: ProgramDef[],
+};
+
+/**  A user recipe that could not be loaded. */
+export type BrokenRecipe = {
+	file: string,
+	error: string,
 };
 
 export type Check = {
@@ -291,6 +317,43 @@ export type ProgramView = {
 	name: string,
 	exe: string,
 	icon_data_url: string | null,
+};
+
+export type RecipeList = {
+	recipes: RecipeSummary[],
+	/**  User recipe files that could not be loaded, with the reason. */
+	broken: BrokenRecipe[],
+};
+
+/**  An unfinished recipe in a bottle. */
+export type RecipeState = {
+	recipe_id: string,
+	recipe_name: string,
+	completed_steps: number,
+	total_steps: number,
+	error: string | null,
+	/**  Resuming needs the user to pick the installer again. */
+	needs_installer: boolean,
+};
+
+/**  What the "Install an App" list shows. */
+export type RecipeSummary = {
+	id: string,
+	name: string,
+	description: string,
+	homepage: string | null,
+	license: string | null,
+	builtin: boolean,
+	/**  "download", "user_provided" or "none". */
+	installer_kind: string,
+	/**  For user-provided installers: what to download. */
+	installer_hint: string | null,
+	/**  Download size of the installer, if known. */
+	download_size: number | null,
+	/**  Winetricks verbs that need the user's consent. */
+	winetricks_verbs: string[],
+	graphics: Graphics,
+	step_count: number,
 };
 
 export type RunExit = {
