@@ -72,16 +72,19 @@ export function ProgramsTab({
   );
 }
 
-function ProgramTile({
+export function ProgramTile({
   bottleId,
   program,
   needsRosetta,
   onShowLog,
+  bottle,
 }: {
   bottleId: string;
   program: ProgramView;
   needsRosetta: boolean;
   onShowLog: (logId: string) => void;
+  /** Shown under the name (on the home page), with a link to the bottle. */
+  bottle?: { name: string; open: () => void };
 }) {
   const { runs, add } = useRuns();
   const ensureRosetta = useEnsureRosetta();
@@ -145,6 +148,11 @@ function ProgramTile({
       <span className="line-clamp-2 text-sm font-medium" title={program.exe}>
         {program.name}
       </span>
+      {bottle && (
+        <button type="button" onClick={bottle.open} className={`${subtle} -mt-1.5 hover:underline`}>
+          {bottle.name}
+        </button>
+      )}
 
       {confirmRemove ? (
         <div className="flex gap-1">
