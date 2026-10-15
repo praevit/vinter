@@ -4,8 +4,9 @@ import { useBottles } from "../api/bottles";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { Dialog } from "./Dialog";
 import { InstallDialog } from "./InstallDialog";
+import { Select } from "./Select";
 import type { Route } from "./Sidebar";
-import { Button, Label, field, subtle } from "./ui";
+import { Button, Label, subtle } from "./ui";
 
 /**
  * A .exe or .msi opened with Vinter (Finder, Open With, drag and drop):
@@ -60,13 +61,11 @@ export function OpenFileDialog({
               installed on your Mac itself.
             </p>
             <Label title="Bottle">
-              <select className={field} value={chosen?.id} onChange={(e) => setBottleId(e.target.value)}>
-                {ready.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={chosen?.id ?? ""}
+                onChange={setBottleId}
+                options={ready.map((b) => ({ value: b.id, label: b.name }))}
+              />
             </Label>
           </>
         )}

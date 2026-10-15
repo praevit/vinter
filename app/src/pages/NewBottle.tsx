@@ -9,6 +9,7 @@ import { useSettings } from "../api/settings";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
+import { Select } from "../components/Select";
 
 export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
   const { data: runtimes } = useInstalledRuntimes();
@@ -80,31 +81,15 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
       </Label>
 
       <Label title="Runtime">
-        <select
-          className={field}
+        <Select
           value={runtime?.id ?? ""}
-          onChange={(e) => setRuntimeId(e.target.value)}
-        >
-          {runtimes?.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          options={runtimes?.map((r) => ({ value: r.id, label: r.name })) ?? []}
+          onChange={setRuntimeId}
+        />
       </Label>
 
       <Label title="Windows version">
-        <select
-          className={field}
-          value={windows}
-          onChange={(e) => setWindows(e.target.value as WindowsVersion)}
-        >
-          {WINDOWS_VERSIONS.map((v) => (
-            <option key={v.value} value={v.value}>
-              {v.label}
-            </option>
-          ))}
-        </select>
+        <Select value={windows} options={WINDOWS_VERSIONS} onChange={setWindows} />
       </Label>
 
       {error && <ErrorText>{error}</ErrorText>}

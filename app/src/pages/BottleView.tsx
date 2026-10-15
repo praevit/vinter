@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Copy, FolderOpen, Square, Trash2 } from "lucide-react";
-import { commands, type Tool, type WindowsVersion } from "../api/bindings";
+import { commands, type Tool } from "../api/bindings";
 import {
   TOOLS,
   WINDOWS_VERSIONS,
@@ -30,6 +30,7 @@ import { ProgramsTab } from "../components/ProgramsTab";
 import { ProgressBar } from "../components/ProgressBar";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field, subtle } from "../components/ui";
+import { Select } from "../components/Select";
 
 type Tab = "programs" | "tools" | "logs" | "settings";
 
@@ -270,41 +271,29 @@ function Settings({
       </Label>
 
       <Label title="Runtime">
-        <select
-          className={field}
+        <Select
           value={bottle.runtime}
           disabled={update.isPending}
-          onChange={(e) => update.mutate({ ...none, runtime: e.target.value })}
-        >
-          {!runtimes?.some((r) => r.id === bottle.runtime) && (
-            <option value={bottle.runtime}>{bottle.runtime} (not installed)</option>
-          )}
-          {runtimes?.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+          onChange={(runtime) => update.mutate({ ...none, runtime })}
+          options={[
+            ...(runtimes?.some((r) => r.id === bottle.runtime)
+              ? []
+              : [{ value: bottle.runtime, label: `${bottle.runtime} (not installed)` }]),
+            ...(runtimes?.map((r) => ({ value: r.id, label: r.name })) ?? []),
+          ]}
+        />
       </Label>
       {update.error && <ErrorText>{errorMessage(update.error)}</ErrorText>}
 
       <Label title="Windows version">
-        <select
-          className={field}
+        <Select
           value={bottle.windows_version}
           disabled={changingWindows}
-          onChange={(e) =>
-            jobs.start(windowsJobKey(bottle.id), () =>
-              commands.bottleSetWindowsVersion(bottle.id, e.target.value as WindowsVersion),
-            )
+          options={WINDOWS_VERSIONS}
+          onChange={(version) =>
+            jobs.start(windowsJobKey(bottle.id), () => commands.bottleSetWindowsVersion(bottle.id, version))
           }
-        >
-          {WINDOWS_VERSIONS.map((v) => (
-            <option key={v.value} value={v.value}>
-              {v.label}
-            </option>
-          ))}
-        </select>
+        />
       </Label>
       {changingWindows && <p className={subtle}>Applying the Windows version…</p>}
       {winJob?.done && !winJob.done.ok && <ErrorText>{winJob.done.error}</ErrorText>}

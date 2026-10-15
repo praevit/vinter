@@ -6,7 +6,8 @@ import { errorMessage } from "../api/errors";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { useSaveSettings, useSettings } from "../api/settings";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
-import { ErrorText, field, subtle } from "../components/ui";
+import { Select } from "../components/Select";
+import { ErrorText, subtle } from "../components/ui";
 
 export function Settings() {
   const { data: view } = useSettings();
@@ -66,18 +67,14 @@ export function Settings() {
       <Group title="New bottles">
         <div className="flex flex-col gap-1.5 px-5 py-3.5">
           <span className="text-sm font-medium">Runtime</span>
-          <select
-            className={field}
+          <Select
             value={settings.default_runtime ?? ""}
-            onChange={(e) => set({ default_runtime: e.target.value || null })}
-          >
-            <option value="">The newest installed one</option>
-            {runtimes?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+            onChange={(id) => set({ default_runtime: id || null })}
+            options={[
+              { value: "", label: "The newest installed one" },
+              ...(runtimes?.map((r) => ({ value: r.id, label: r.name })) ?? []),
+            ]}
+          />
           <span className={subtle}>Apps set up with one click pick the runtime their recipe needs.</span>
         </div>
         <div className="px-5 py-3.5">
