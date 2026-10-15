@@ -1,0 +1,52 @@
+# Builds Vinter Wine (upstream Wine plus wine/patches) for macOS.
+# Run it by hand from the Actions tab. With "publish", the archive goes to a
+# pre-release named wine-<version>-<build> (pre-releases never become the
+# "latest" release that app updates and download links use).
+name: Vinter Wine
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Wine version, e.g. 11.0
+        required: true
+        default: "11.0"
+      build:
+        description: Build number for this version (start at 1)
+        required: true
+        default: "1"
+      publish:
+        description: Publish as a pre-release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    # The last Intel image GitHub offers; Wine for macOS is still x86_64.
+    runs-on: macos-15-intel
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: wine/build.sh "${{ inputs.version }}" "${{ inputs.build }}" out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vinter-wine-${{ inputs.version }}-${{ inputs.build }}
+          path: out/*
+          retention-days: 14
+
+      - name: Publish
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: wine-${{ inputs.version }}-${{ inputs.build }}
+        run: |
+          gh release create "$TAG" out/* \
+            --prerelease \
+            --title "Vinter Wine ${{ inputs.version }}-${{ inputs.build }}" \
+            --notes "Wine ${{ inputs.version }} for macOS (x86_64, macOS 15 or later) with the patches in wine/patches/${{ inputs.version }}. Source and license details are in share/vinter inside the archive."
