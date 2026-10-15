@@ -239,6 +239,7 @@ pub fn finish_create(
         rt.check_can_run()?;
         on_step("Creating Wine prefix");
         boot_prefix(&rt, &dir, bottle)?;
+        keep_desktop_in_bottle(&dir.join(PREFIX_DIR))?;
         on_step("Setting Windows version");
         apply_windows_version(&rt, &dir, bottle)?;
         if needs_registry(&BottleOptions::default(), &bottle.options) {
@@ -332,6 +333,26 @@ pub fn set_options(paths: &AppPaths, id: &str, options: BottleOptions) -> Result
     bottle.options = options;
     bottle.save(&dir)?;
     Ok(bottle)
+}
+
+/// Gives each Windows user in the prefix a Desktop folder of its own. Wine
+/// links it to the Mac's Desktop, where installers then drop `.lnk`
+/// shortcuts. Documents, Downloads and the like stay linked. Anything already
+/// on the Mac's Desktop is untouched; only the link is replaced.
+pub fn keep_desktop_in_bottle(prefix: &Path) -> Result<()> {
+    let users = prefix.join("drive_c").join("users");
+    let Ok(entries) = std::fs::read_dir(&users) else {
+        return Ok(());
+    };
+    for user in entries.filter_map(|e| e.ok()) {
+        let desktop = user.path().join("Desktop");
+        let is_link = std::fs::symlink_metadata(&desktop).is_ok_and(|m| m.file_type().is_symlink());
+        if is_link {
+            std::fs::remove_file(&desktop).at(&desktop)?;
+            std::fs::create_dir(&desktop).at(&desktop)?;
+        }
+    }
+    Ok(())
 }
 
 /// Waits until Wine has written the registry and its server has exited.

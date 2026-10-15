@@ -1,0 +1,21 @@
+id = "total-commander"
+name = "Total Commander"
+description = "Two-pane file manager. Shareware: free to try for 30 days."
+homepage = "https://www.ghisler.com"
+license = "Proprietary (shareware)"
+runtime_flavor = "stable"
+windows_version = "win10"
+
+[installer]
+kind = "download"
+url = "https://totalcommander.ch/1158/tcmd1158x64.exe"
+sha256 = "2281f3827a8746a597a75287f521690f1291bdb535d7e1269768dbe077a13ed4"
+size = 7461312
+
+[[steps]]
+type = "run_installer"
+args = ["/AHMGDU"]
+
+[[programs]]
+name = "Total Commander"
+exe = 'C:\Program Files\totalcmd\TOTALCMD64.EXE'

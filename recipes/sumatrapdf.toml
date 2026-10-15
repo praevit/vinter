@@ -1,0 +1,21 @@
+id = "sumatrapdf"
+name = "SumatraPDF"
+description = "Fast, small reader for PDF, ePub, comic books and more."
+homepage = "https://www.sumatrapdfreader.org"
+license = "GPL-3.0"
+runtime_flavor = "stable"
+windows_version = "win10"
+
+[installer]
+kind = "download"
+url = "https://www.sumatrapdfreader.org/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe"
+sha256 = "1eee71cccd2ea6e94d5bcea54ee2f759844da3e1a0ee2f6045035b1d17b94381"
+size = 11075960
+
+[[steps]]
+type = "run_installer"
+args = ["-s", "-all-users"]
+
+[[programs]]
+name = "SumatraPDF"
+exe = 'C:\Program Files\SumatraPDF\SumatraPDF.exe'

@@ -327,6 +327,8 @@ pub fn run_installer(
     rt.check_can_run()?;
     let dir = bottle::dir(paths, bottle_id)?;
     let prefix = dir.join(PREFIX_DIR);
+    // Also for bottles made before Vinter did this at creation.
+    bottle::keep_desktop_in_bottle(&prefix)?;
 
     let (log, _) = logs::create(&dir, "installer")?;
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");

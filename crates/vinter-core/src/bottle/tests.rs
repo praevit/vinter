@@ -377,3 +377,29 @@ fn options_are_saved_and_written_to_the_registry_on_macos() {
 fn bottle_dir_has_reg_file(paths: &AppPaths, id: &str) -> bool {
     dir(paths, id).unwrap().join(".options.reg").exists()
 }
+
+#[test]
+fn desktop_link_becomes_a_folder_of_its_own() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mac_desktop = tmp.path().join("MacDesktop");
+    std::fs::create_dir_all(&mac_desktop).unwrap();
+    std::fs::write(mac_desktop.join("mine.txt"), "keep").unwrap();
+    let prefix = tmp.path().join("prefix");
+    let user = prefix.join("drive_c/users/me");
+    std::fs::create_dir_all(&user).unwrap();
+    std::os::unix::fs::symlink(&mac_desktop, user.join("Desktop")).unwrap();
+    std::os::unix::fs::symlink(&mac_desktop, user.join("Documents")).unwrap();
+
+    keep_desktop_in_bottle(&prefix).unwrap();
+    let desktop = std::fs::symlink_metadata(user.join("Desktop")).unwrap();
+    assert!(desktop.is_dir() && !desktop.file_type().is_symlink());
+    assert!(
+        std::fs::symlink_metadata(user.join("Documents"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert!(mac_desktop.join("mine.txt").exists());
+    // Running it again changes nothing.
+    keep_desktop_in_bottle(&prefix).unwrap();
+}

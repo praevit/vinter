@@ -1,0 +1,21 @@
+id = "winrar"
+name = "WinRAR"
+description = "Archive manager for RAR, ZIP and other formats. Shareware: free to try for 40 days."
+homepage = "https://www.rarlab.com"
+license = "Proprietary (shareware)"
+runtime_flavor = "stable"
+windows_version = "win10"
+
+[installer]
+kind = "download"
+url = "https://www.rarlab.com/rar/winrar-x64-723.exe"
+sha256 = "8ff0daf3ed564cc743c0e23ff2e253997ffc74460f9673f0b6dd037b2db4ce7b"
+size = 3775056
+
+[[steps]]
+type = "run_installer"
+args = ["/S"]
+
+[[programs]]
+name = "WinRAR"
+exe = 'C:\Program Files\WinRAR\WinRAR.exe'

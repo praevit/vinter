@@ -26,6 +26,9 @@ const BUILTIN_RECIPES: &[&str] = &[
     include_str!("../../../../recipes/7-zip.toml"),
     include_str!("../../../../recipes/putty.toml"),
     include_str!("../../../../recipes/foobar2000.toml"),
+    include_str!("../../../../recipes/winrar.toml"),
+    include_str!("../../../../recipes/sumatrapdf.toml"),
+    include_str!("../../../../recipes/total-commander.toml"),
 ];
 const BUILTIN_FILES: &[(&str, &[u8])] = &[(
     "fontsmooth-rgb.reg",
@@ -430,7 +433,18 @@ mod tests {
         let (recipes, broken) = list(&AppPaths::with_data_dir(tmp.path()));
         assert!(broken.is_empty());
         let ids: Vec<_> = recipes.iter().map(|r| r.recipe.id.as_str()).collect();
-        assert_eq!(ids, ["7-zip", "foobar2000", "notepad-plus-plus", "putty"]);
+        assert_eq!(
+            ids,
+            [
+                "7-zip",
+                "foobar2000",
+                "notepad-plus-plus",
+                "putty",
+                "sumatrapdf",
+                "total-commander",
+                "winrar"
+            ]
+        );
         for r in &recipes {
             // Built-ins never need Microsoft downloads (no winetricks).
             assert!(r.winetricks_verbs().is_empty(), "{}", r.recipe.id);
