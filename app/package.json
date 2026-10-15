@@ -1,7 +1,7 @@
 {
   "name": "vinter",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "homepage": "https://getvinter.app",
   "author": "Vinter <hello@getvinter.app>",
   "license": "GPL-3.0-or-later",
