@@ -17,11 +17,14 @@ GH=https://github.com/praevit/vinter
 fetch() {
   local host=$1 path=$2 url
   if [[ -n "$LOCAL" ]]; then url="http://$LOCAL$path"; else url="https://$host$path"; fi
-  local tmp; tmp=$(mktemp)
-  HEADERS=$(curl -s -D - -o "$tmp" -H "Host: $host" --max-time 15 "$url" | tr -d '\r')
-  BODY=$(cat "$tmp"); rm -f "$tmp"
+  local tmp err; tmp=$(mktemp); err=$(mktemp)
+  HEADERS=$(curl -sS -D - -o "$tmp" -H "Host: $host" --max-time 15 "$url" 2>"$err" | tr -d '\r')
+  BODY=$(cat "$tmp")
   STATUS=$(printf '%s\n' "$HEADERS" | head -1 | awk '{print $2}')
   LOCATION=$(printf '%s\n' "$HEADERS" | awk -F': ' 'tolower($1)=="location"{print $2}')
+  # No HTTP response at all: say why (DNS, TLS, timeout...).
+  if [[ -z "$STATUS" ]]; then STATUS="none"; LOCATION="($(tr -d '\n' <"$err" | sed 's/^curl: //'))"; fi
+  rm -f "$tmp" "$err"
 }
 
 ok()  { pass=$((pass+1)); printf 'PASS  %s\n' "$1"; }
