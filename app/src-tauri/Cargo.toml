@@ -38,3 +38,9 @@ tauri-plugin-single-instance.workspace = true
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSApplication", "NSResponder", "NSRunningApplication", "NSWorkspace"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# tauri-plugin-deep-link 2.6.2 builds `ini::ParseOption` with a struct literal;
+# rust-ini 0.21.3 added fields to it, which breaks the Linux build. Unpin once
+# the plugin is updated.
+rust-ini = "=0.21.1"
