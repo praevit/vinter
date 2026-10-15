@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-program-update"
+description = "Enables the program_update command without any pre-configured scope."
+commands.allow = ["program_update"]
+
+[[permission]]
+identifier = "deny-program-update"
+description = "Denies the program_update command without any pre-configured scope."
+commands.deny = ["program_update"]

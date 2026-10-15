@@ -47,6 +47,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::programs::programs_discover,
             commands::programs::programs_add,
             commands::programs::program_remove,
+            commands::programs::program_update,
+            commands::programs::program_choose_icon,
             commands::programs::programs_list,
             commands::programs::program_launch,
             commands::programs::program_stop,

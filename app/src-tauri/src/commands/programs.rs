@@ -33,6 +33,7 @@ pub struct ProgramView {
     pub index: u32,
     pub name: String,
     pub exe: String,
+    pub args: Vec<String>,
     pub icon_data_url: Option<String>,
     /// Has a launcher (Spotlight/Launchpad on macOS, app menu on Linux).
     pub pinned: bool,
@@ -139,6 +140,75 @@ pub async fn program_remove(
     .await
 }
 
+/// Renames a program or changes its launch arguments.
+#[tauri::command]
+#[specta::specta]
+pub async fn program_update(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+    name: String,
+    args: Vec<String>,
+) -> CommandResult<Bottle> {
+    let paths = state.paths.clone();
+    let patch = programs::ProgramPatch {
+        name: Some(name),
+        args: Some(args),
+        icon_from: None,
+    };
+    blocking(move || update_and_sync(&paths, &bottle_id, index as usize, patch)).await
+}
+
+/// Lets the user pick a new icon (an image, or an .exe to take it from) with
+/// the system file dialog. `None` if the dialog was cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn program_choose_icon(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+) -> CommandResult<Option<Bottle>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        let picked = app
+            .dialog()
+            .file()
+            .set_title("Choose an icon")
+            .add_filter(
+                "Images and programs",
+                &[
+                    "png", "jpg", "jpeg", "ico", "exe", "PNG", "JPG", "ICO", "EXE",
+                ],
+            )
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok());
+        let Some(path) = picked else {
+            return Ok(None);
+        };
+        let patch = programs::ProgramPatch {
+            icon_from: Some(path.display().to_string()),
+            ..Default::default()
+        };
+        update_and_sync(&paths, &bottle_id, index as usize, patch).map(Some)
+    })
+    .await
+}
+
+/// Updates a program, then its launcher (which shows its name and icon).
+fn update_and_sync(
+    paths: &vinter_core::AppPaths,
+    bottle_id: &str,
+    index: usize,
+    patch: programs::ProgramPatch,
+) -> CommandResult<Bottle> {
+    let bottle = programs::update(paths, bottle_id, index, patch)?;
+    if bottle.programs[index].pinned {
+        vinter_core::launcher::sync_bottle(paths, bottle_id, &crate::startup::launcher_target()?)?;
+    }
+    Ok(bottle)
+}
+
 /// A bottle's programs, with icons as `data:` URLs.
 #[tauri::command]
 #[specta::specta]
@@ -157,6 +227,7 @@ pub async fn programs_list(
                 index: i as u32,
                 name: p.name.clone(),
                 exe: p.exe.clone(),
+                args: p.args.clone(),
                 pinned: p.pinned,
                 icon_data_url: p
                     .icon

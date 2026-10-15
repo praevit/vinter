@@ -59,6 +59,29 @@ export const commands = {
 	programsAdd: (bottleId: string, programs: ProgramDef[]) => __TAURI_INVOKE<Bottle_Serialize>("programs_add", { bottleId, programs }),
 	/**  Removes a program's tile. The program stays installed in the bottle. */
 	programRemove: (bottleId: string, index: number) => __TAURI_INVOKE<Bottle_Serialize>("program_remove", { bottleId, index }),
+	/**  Renames a program or changes its launch arguments. */
+	programUpdate: (bottleId: string, index: number, name: string, args: string[]) => __TAURI_INVOKE<Bottle_Serialize>("program_update", { bottleId, index, name, args }),
+	/**
+	 *  Lets the user pick a new icon (an image, or an .exe to take it from) with
+	 *  the system file dialog. `None` if the dialog was cancelled.
+	 */
+	programChooseIcon: (bottleId: string, index: number) => __TAURI_INVOKE<{
+	id: string,
+	name: string,
+	/**  Id of the runtime it runs with. */
+	runtime: string,
+	/**  RFC 3339 timestamp. */
+	created_at: string,
+	windows_version: WindowsVersion,
+	graphics: Graphics,
+	/**  Recipe that set it up, if any. */
+	recipe: string | null,
+	/**  Extra environment variables. Applied last, so they win. */
+	env: { [key in string]: string },
+	dll_overrides: { [key in string]: string },
+	options: BottleOptions,
+	programs: ProgramDef[],
+} | null>("program_choose_icon", { bottleId, index }),
 	/**  A bottle's programs, with icons as `data:` URLs. */
 	programsList: (bottleId: string) => __TAURI_INVOKE<ProgramView[]>("programs_list", { bottleId }),
 	/**  Starts a program. Output arrives as `run://log`, the end as `run://exit`. */
@@ -375,6 +398,7 @@ export type ProgramView = {
 	index: number,
 	name: string,
 	exe: string,
+	args: string[],
 	icon_data_url: string | null,
 	/**  Has a launcher (Spotlight/Launchpad on macOS, app menu on Linux). */
 	pinned: boolean,

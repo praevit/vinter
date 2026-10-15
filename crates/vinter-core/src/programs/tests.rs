@@ -335,3 +335,50 @@ fn icon_paths_cannot_escape_the_icons_folder() {
     assert!(icon_data_url(&paths, &id, "icons/../../x.png").is_none());
     assert!(icon_data_url(&paths, &id, "icons/missing.png").is_none());
 }
+
+#[test]
+fn update_renames_changes_args_and_icon() {
+    let (tmp, paths, id, _c) = fake_bottle();
+    add(
+        &paths,
+        &id,
+        vec![ProgramDef {
+            name: "App".into(),
+            exe: r"C:\App\app.exe".into(),
+            args: vec![],
+            icon: None,
+            pinned: false,
+        }],
+    )
+    .unwrap();
+    let image = tmp.path().join("logo.png");
+    image::RgbaImage::new(32, 32).save(&image).unwrap();
+
+    let b = update(
+        &paths,
+        &id,
+        0,
+        ProgramPatch {
+            name: Some("  My App ".into()),
+            args: Some(vec!["--fast".into(), "a b".into()]),
+            icon_from: Some(image.display().to_string()),
+        },
+    )
+    .unwrap();
+    let p = &b.programs[0];
+    assert_eq!(p.name, "My App");
+    assert_eq!(p.args, ["--fast", "a b"]);
+    let icon = p.icon.as_deref().unwrap();
+    assert!(icon_data_url(&paths, &id, icon).is_some());
+
+    // Nothing given: nothing changes.
+    let same = update(&paths, &id, 0, ProgramPatch::default()).unwrap();
+    assert_eq!(same.programs[0], *p);
+    // Bad input is refused.
+    let bad_name = ProgramPatch {
+        name: Some("  ".into()),
+        ..Default::default()
+    };
+    assert!(update(&paths, &id, 0, bad_name).is_err());
+    assert!(update(&paths, &id, 5, ProgramPatch::default()).is_err());
+}

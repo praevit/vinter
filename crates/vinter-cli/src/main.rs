@@ -152,6 +152,19 @@ enum BottleCommand {
         bottle: String,
         overrides: Vec<String>,
     },
+    /// Rename a program, set its launch arguments or its icon.
+    EditProgram {
+        bottle: String,
+        program: usize,
+        #[arg(long)]
+        name: Option<String>,
+        /// Launch arguments (replaces the current ones); give none to clear.
+        #[arg(long, num_args = 0.., allow_hyphen_values = true)]
+        args: Option<Vec<String>>,
+        /// An image (.png, .jpg, .ico) or .exe to take the icon from.
+        #[arg(long)]
+        icon: Option<std::path::PathBuf>,
+    },
     /// Add a launcher for a program (~/Applications/Vinter on macOS, the app menu on Linux).
     Pin { bottle: String, program: usize },
     /// Remove a program's launcher.
@@ -535,6 +548,26 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
                 );
             }
             println!("Log:           {}", r.log_id);
+        }
+        BottleCommand::EditProgram {
+            bottle: key,
+            program,
+            name,
+            args,
+            icon,
+        } => {
+            let id = id(&key)?;
+            let patch = programs::ProgramPatch {
+                name,
+                args,
+                icon_from: icon.map(|p| p.display().to_string()),
+            };
+            let b = programs::update(paths, &id, program, patch)?;
+            if b.programs[program].pinned {
+                vinter_core::launcher::sync_bottle(paths, &id, &launcher_target()?)?;
+            }
+            let p = &b.programs[program];
+            println!("{}: {} {}", p.name, p.exe, p.args.join(" "));
         }
         BottleCommand::Options {
             bottle: key,

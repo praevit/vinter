@@ -184,6 +184,59 @@ pub fn add(paths: &AppPaths, bottle_id: &str, programs: Vec<ProgramDef>) -> Resu
     Ok(bottle)
 }
 
+/// Changes to a program; `None` leaves a field as it is.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct ProgramPatch {
+    pub name: Option<String>,
+    pub args: Option<Vec<String>>,
+    /// An image (`.png`, `.jpg`, `.ico`) or `.exe` to take the icon from.
+    pub icon_from: Option<String>,
+}
+
+/// Renames a program, changes its arguments or its icon. Launchers are not
+/// rebuilt here; callers sync them (they depend on name and icon).
+pub fn update(
+    paths: &AppPaths,
+    bottle_id: &str,
+    index: usize,
+    patch: ProgramPatch,
+) -> Result<Bottle> {
+    let mut bottle = bottle::get(paths, bottle_id)?;
+    let dir = bottle::dir(paths, bottle_id)?;
+    let program = bottle
+        .programs
+        .get_mut(index)
+        .ok_or(Error::ProgramNotFound(index))?;
+    if let Some(name) = patch.name {
+        let name = name.trim();
+        if name.is_empty() || name.contains(['\0', '/', ':']) {
+            return Err(Error::InvalidProgram(name.to_string()));
+        }
+        program.name = name.to_string();
+    }
+    if let Some(args) = patch.args {
+        if args.iter().any(|a| a.contains('\0')) {
+            return Err(Error::InvalidProgram(program.name.clone()));
+        }
+        program.args = args;
+    }
+    if let Some(from) = patch.icon_from {
+        let from = Path::new(&from);
+        let png = icons::png_from_file(from)?.ok_or_else(|| {
+            Error::InvalidSetting(format!("{} has no image Vinter can use", from.display()))
+        })?;
+        let name = format!("{:016x}.png", fnv1a(&png));
+        let icons = dir.join(ICONS_DIR);
+        std::fs::create_dir_all(&icons).at(&icons)?;
+        let path = icons.join(&name);
+        std::fs::write(&path, &png).at(&path)?;
+        program.icon = Some(format!("{ICONS_DIR}/{name}"));
+    }
+    bottle.save(&dir)?;
+    Ok(bottle)
+}
+
 /// Removes a program from a bottle (the files stay installed).
 pub fn remove(paths: &AppPaths, bottle_id: &str, index: usize) -> Result<Bottle> {
     let mut bottle = bottle::get(paths, bottle_id)?;

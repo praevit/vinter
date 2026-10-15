@@ -26,6 +26,8 @@ fn main() {
             "programs_discover",
             "programs_add",
             "program_remove",
+            "program_update",
+            "program_choose_icon",
             "programs_list",
             "program_launch",
             "program_stop",

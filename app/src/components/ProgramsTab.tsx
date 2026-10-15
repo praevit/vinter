@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AppWindow, LoaderCircle, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
+import { AppWindow, LoaderCircle, Pencil, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { pinLabel, useAppInfo } from "../api/app";
 import { commands, type ProgramView } from "../api/bindings";
@@ -8,6 +8,7 @@ import { isRunning, useJobs } from "../api/jobs";
 import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { latestRun, useRuns } from "../api/runs";
+import { EditProgramDialog } from "./EditProgramDialog";
 import { InstallDialog, ProgramIcon } from "./InstallDialog";
 import { Button, ErrorText, subtle } from "./ui";
 
@@ -92,6 +93,7 @@ export function ProgramTile({
   const [error, setError] = useState<string>();
   const [starting, setStarting] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [editing, setEditing] = useState(false);
   const { data: app } = useAppInfo();
   const queryClient = useQueryClient();
 
@@ -124,6 +126,15 @@ export function ProgramTile({
 
   return (
     <li className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center dark:border-slate-deep-700 dark:bg-slate-deep-900">
+      <button
+        type="button"
+        title="Edit name, arguments and icon"
+        aria-label="Edit"
+        onClick={() => setEditing(true)}
+        className="absolute top-1.5 right-7 rounded p-0.5 text-frost-400 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:hover:bg-slate-deep-800"
+      >
+        <Pencil className="size-3.5" />
+      </button>
       <button
         type="button"
         title="Remove from this bottle (keeps it installed)"
@@ -179,6 +190,7 @@ export function ProgramTile({
         </button>
       )}
       {(error || remove.error) && <ErrorText>{error ?? errorMessage(remove.error)}</ErrorText>}
+      {editing && <EditProgramDialog bottleId={bottleId} program={program} onClose={() => setEditing(false)} />}
     </li>
   );
 }

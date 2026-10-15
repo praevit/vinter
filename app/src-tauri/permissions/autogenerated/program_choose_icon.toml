@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-program-choose-icon"
+description = "Enables the program_choose_icon command without any pre-configured scope."
+commands.allow = ["program_choose_icon"]
+
+[[permission]]
+identifier = "deny-program-choose-icon"
+description = "Denies the program_choose_icon command without any pre-configured scope."
+commands.deny = ["program_choose_icon"]
