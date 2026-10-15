@@ -250,22 +250,44 @@ pub async fn program_launch(
     bottle_id: String,
     program_index: u32,
 ) -> CommandResult<RunInfo> {
-    tauri::async_runtime::spawn_blocking(move || launch_program(&app, bottle_id, program_index))
-        .await?
+    tauri::async_runtime::spawn_blocking(move || {
+        launch_program(&app, bottle_id, program_index, false)
+    })
+    .await?
 }
 
 /// Starts a program and tracks it (shared by the UI, deep links and `--run`).
-/// Blocks briefly while the process starts.
+/// Blocks briefly while the process starts. With `splash`, a small "Opening
+/// …" window shows until the program's window appears (for launches from
+/// outside Vinter's window: launchers and the menu bar).
 pub(crate) fn launch_program(
     app: &AppHandle,
     bottle_id: String,
     program_index: u32,
+    splash: bool,
 ) -> CommandResult<RunInfo> {
     let paths = app.state::<AppState>().paths.clone();
     let bottle = bottle::get(&paths, &bottle_id)?;
     let runtime = runtime::get(&paths, &bottle.runtime)?;
     let run_id = uuid::Uuid::new_v4().to_string();
     let watch = focus::Watch::start(app, &runtime.path);
+    let splash = splash.then(|| {
+        let program = bottle.programs.get(program_index as usize);
+        let icon = program
+            .and_then(|p| p.icon.as_deref())
+            .and_then(|icon| programs::icon_data_url(&paths, &bottle_id, icon));
+        let name = program.map_or("the program", |p| p.name.as_str());
+        crate::windows::show_launching(app, name, icon)
+    });
+    let close_splash = {
+        let (app, label) = (app.clone(), splash.clone());
+        move || {
+            if let Some(label) = &label {
+                crate::windows::close_launching(&app, label);
+            }
+        }
+    };
+    let close_on_exit = close_splash.clone();
 
     let (log_app, exit_app) = (app.clone(), app.clone());
     let (log_run, exit_run) = (run_id.clone(), run_id.clone());
@@ -282,6 +304,7 @@ pub(crate) fn launch_program(
             .emit(&log_app);
         },
         move |code| {
+            close_on_exit();
             let state = exit_app.state::<AppState>();
             let (run, none_left) = {
                 let mut runs = state.runs.lock().unwrap();
@@ -314,8 +337,24 @@ pub(crate) fn launch_program(
                 exit_app.exit(0);
             }
         },
-    )?;
-    watch.focus_new_app();
+    );
+    let launched = match launched {
+        Ok(l) => l,
+        Err(e) => {
+            close_splash();
+            return Err(e.into());
+        }
+    };
+    if splash.is_some() {
+        // Wait longer than usual: a cold start under Rosetta takes a while.
+        watch.focus_new_app_then(240, move |_| {
+            // Let the program's window settle before the splash goes.
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            close_splash();
+        });
+    } else {
+        watch.focus_new_app();
+    }
 
     let info = RunInfo {
         run_id: run_id.clone(),

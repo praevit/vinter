@@ -44,6 +44,40 @@ fn show_small(app: &AppHandle, label: &str, title: &str, (width, height): (f64, 
     }
 }
 
+/// A small "Opening …" window while a program started from a launcher or the
+/// menu bar gets going. Returns its label, for [`close_launching`].
+pub fn show_launching(app: &AppHandle, name: &str, icon: Option<String>) -> String {
+    let label = format!("launch-{}", uuid::Uuid::new_v4().simple());
+    let data = serde_json::json!({ "name": name, "icon": icon });
+    let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+        .initialization_script(format!(
+            "window.__VINTER_WINDOW__ = 'launch'; window.__VINTER_LAUNCH__ = {data};"
+        ))
+        .title(format!("Opening {name}"))
+        .inner_size(320.0, 92.0)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .focused(false)
+        .center();
+    if let Err(e) = builder.build() {
+        eprintln!("vinter: no launch window: {e}");
+    }
+    label
+}
+
+/// Closes a window from [`show_launching`] (if it is still open).
+pub fn close_launching(app: &AppHandle, label: &str) {
+    if let Some(w) = app.get_webview_window(label) {
+        let _ = w.destroy();
+    }
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
     use objc2_app_kit::NSApplication;

@@ -7,6 +7,7 @@ import { RunsProvider } from "./api/runs";
 import { ToastProvider } from "./api/toasts";
 import { App } from "./App";
 import { AboutWindow } from "./pages/AboutWindow";
+import { LaunchWindow } from "./pages/LaunchWindow";
 import { UpdatesWindow } from "./pages/UpdatesWindow";
 import "./index.css";
 
@@ -14,10 +15,12 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
 
-// The same bundle serves the small About and update windows (see `windows.rs`).
+// The same bundle serves the small About, update and launch windows (see `windows.rs`).
 const windowKind = (window as { __VINTER_WINDOW__?: string }).__VINTER_WINDOW__;
 const root =
-  windowKind === "about" ? (
+  windowKind === "launch" ? (
+    <LaunchWindow />
+  ) : windowKind === "about" ? (
     <AboutWindow />
   ) : windowKind === "updates" ? (
     <JobsProvider>

@@ -23,3 +23,17 @@ html {
 body {
   @apply bg-frost-50 text-slate-deep-900 antialiased select-none dark:bg-slate-deep-950 dark:text-frost-100;
 }
+
+/* The moving bar in the "Opening …" window. */
+@keyframes launch-slide {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.animate-launch {
+  animation: launch-slide 1.3s ease-in-out infinite;
+}

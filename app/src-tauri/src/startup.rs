@@ -195,7 +195,7 @@ fn run(app: &AppHandle, bottle_id: String, index: usize) {
         .store(true, Ordering::SeqCst);
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        if let Err(e) = launch_program(&app, bottle_id, index as u32) {
+        if let Err(e) = launch_program(&app, bottle_id, index as u32, true) {
             notify(&app, format!("Could not start the program: {}", e.message));
         }
     });

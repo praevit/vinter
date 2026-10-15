@@ -42,17 +42,29 @@ impl Watch {
 
     /// Polls for up to 15 s in the background; returns immediately.
     pub fn focus_new_app(self) {
+        self.focus_new_app_then(60, |_| {});
+    }
+
+    /// Like [`Self::focus_new_app`], polling up to `polls` × 250 ms, then calls
+    /// `done` with whether a new app appeared (on Linux right away, with false).
+    pub fn focus_new_app_then(self, polls: u32, done: impl FnOnce(bool) + Send + 'static) {
         #[cfg(target_os = "macos")]
         std::thread::spawn(move || {
-            for _ in 0..60 {
+            for _ in 0..polls {
                 std::thread::sleep(std::time::Duration::from_millis(250));
                 let (dir, before) = (self.runtime_dir.clone(), self.before.clone());
                 let focused = on_main(&self.app, move || macos::focus_first_new(&dir, &before));
                 if focused != Some(false) {
-                    return;
+                    return done(focused.unwrap_or(false));
                 }
             }
+            done(false);
         });
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = polls;
+            done(false);
+        }
     }
 }
 

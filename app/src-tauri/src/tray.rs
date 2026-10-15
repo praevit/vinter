@@ -254,7 +254,7 @@ fn on_menu_event(app: &AppHandle, event: MenuEvent) {
             };
             let app = app.clone();
             tauri::async_runtime::spawn_blocking(move || {
-                if let Err(e) = launch_program(&app, bottle_id, index) {
+                if let Err(e) = launch_program(&app, bottle_id, index, true) {
                     startup::notify(&app, format!("Could not start the program: {}", e.message));
                 }
             });
