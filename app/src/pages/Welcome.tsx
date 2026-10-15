@@ -1,11 +1,12 @@
-import { PackagePlus, Plus, Wine } from "lucide-react";
+import { useState } from "react";
+import { PackagePlus, Plus, Search, Wine } from "lucide-react";
 import { useBottles } from "../api/bottles";
 import type { BottleListItem } from "../api/bindings";
 import { usePrograms } from "../api/programs";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { ProgramTile } from "../components/ProgramsTab";
 import type { Route } from "../components/Sidebar";
-import { Button } from "../components/ui";
+import { Button, field, subtle } from "../components/ui";
 
 /** Home page: your apps, or the next step for new users. */
 export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
@@ -13,6 +14,8 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
   const { data: runtimes } = useInstalledRuntimes();
   const noRuntime = runtimes?.length === 0;
   const withApps = bottles?.filter((b) => b.status === "ready" && b.program_count > 0) ?? [];
+  const appCount = withApps.reduce((n, b) => n + b.program_count, 0);
+  const [query, setQuery] = useState("");
 
   const actions = (
     <div className="flex gap-2">
@@ -32,16 +35,30 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
           <h1 className="text-2xl font-semibold tracking-tight">Your apps</h1>
           {actions}
         </header>
+        {appCount > 4 && (
+          <label className="relative">
+            <Search className="pointer-events-none absolute top-2 left-2.5 size-4 text-frost-400" />
+            <input
+              className={`${field} pl-8`}
+              placeholder="Search your apps"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search your apps"
+            />
+          </label>
+        )}
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
           {withApps.map((b) => (
             <BottleApps
               key={b.id}
+              query={query}
               bottle={b}
               needsRosetta={runtimes?.find((r) => r.id === b.runtime)?.needs_rosetta ?? false}
               onOpen={() => onNavigate({ page: "bottle", id: b.id })}
             />
           ))}
         </ul>
+        {query && <p className={subtle}>Showing apps whose name or bottle matches "{query}".</p>}
       </div>
     );
   }
@@ -71,23 +88,29 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
 /** One bottle's programs, as tiles in the home page grid. */
 function BottleApps({
   bottle,
+  query,
   needsRosetta,
   onOpen,
 }: {
   bottle: BottleListItem;
+  query: string;
   needsRosetta: boolean;
   onOpen: () => void;
 }) {
   const { data: programs } = usePrograms(bottle.id);
-  return programs?.map((p) => (
-    <ProgramTile
-      key={`${p.index}-${p.exe}`}
-      bottleId={bottle.id}
-      program={p}
-      needsRosetta={needsRosetta}
-      // The log is in the bottle's Logs tab.
-      onShowLog={onOpen}
-      bottle={{ name: bottle.name, open: onOpen }}
-    />
-  ));
+  const q = query.trim().toLowerCase();
+  const bottleMatches = bottle.name.toLowerCase().includes(q);
+  return programs
+    ?.filter((p) => !q || bottleMatches || p.name.toLowerCase().includes(q))
+    .map((p) => (
+      <ProgramTile
+        key={`${p.index}-${p.exe}`}
+        bottleId={bottle.id}
+        program={p}
+        needsRosetta={needsRosetta}
+        // The log is in the bottle's Logs tab.
+        onShowLog={onOpen}
+        bottle={{ name: bottle.name, open: onOpen }}
+      />
+    ));
 }

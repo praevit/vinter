@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Activity, AlertTriangle, Info, LoaderCircle, PackagePlus, Plus, Settings, Wine, type LucideIcon } from "lucide-react";
 import { useBottles } from "../api/bottles";
 
@@ -19,7 +20,9 @@ const item = (active: boolean) =>
   }`;
 
 export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: Route) => void }) {
-  const { data: bottles } = useBottles();
+  const { data: allBottles } = useBottles();
+  const [filter, setFilter] = useState("");
+  const bottles = allBottles?.filter((b) => b.name.toLowerCase().includes(filter.trim().toLowerCase()));
 
   const NavItem = ({ to, label, Icon }: { to: Route; label: string; Icon: LucideIcon }) => (
     <button
@@ -58,8 +61,17 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
             <Plus className="size-4" />
           </button>
         </div>
+        {(allBottles?.length ?? 0) > 6 && (
+          <input
+            className="mx-1 rounded-md border border-frost-300 bg-white px-2 py-1 text-xs outline-none focus:border-wine-500 dark:border-slate-deep-700 dark:bg-slate-deep-950"
+            placeholder="Filter bottles"
+            aria-label="Filter bottles"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        )}
         <div className="flex flex-col gap-0.5 overflow-y-auto">
-          {bottles?.length === 0 && (
+          {allBottles?.length === 0 && (
             <p className="px-2 py-1 text-xs text-frost-400">No bottles yet.</p>
           )}
           {bottles?.map((b) => {
