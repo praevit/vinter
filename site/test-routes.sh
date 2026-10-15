@@ -73,10 +73,17 @@ expect getvinter.app /contact                         302 "mailto:hello@getvinte
 expect getvinter.app /Contact/                        302 "mailto:hello@getvinter.app"
 expect getvinter.app "/contact?subject=Hello"         302 "mailto:hello@getvinter.app?subject=Hello"
 
+echo "== Support links go to GitHub Sponsors"
+for p in /support /support/ /Sponsor /donate /DONATE/; do
+  expect getvinter.app "$p" 302 "https://github.com/sponsors/praevit"
+done
+expect getvinter.app "/support?ref=app"               302 "https://github.com/sponsors/praevit?ref=app"
+
 echo "== Look-alikes are not short links"
 expect getvinter.app /downloads                       404
 expect getvinter.app /githubx                         404
 expect getvinter.app /contacts                        404
+expect getvinter.app /supporters                      404
 
 echo "== No header injection through the path"
 fetch getvinter.app "/github/%0d%0aSet-Cookie:%20pwned=1"

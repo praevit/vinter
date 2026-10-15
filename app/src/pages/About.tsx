@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, FolderOpen, LoaderCircle, RefreshCw } from "lucide-react";
+import { ExternalLink, FolderOpen, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { commands, type AppLink, type UpdateInfo } from "../api/bindings";
 import { useAppInfo } from "../api/app";
 import { errorMessage } from "../api/errors";
@@ -41,6 +41,17 @@ export function About() {
           <p className={subtle}>Version {info?.version}</p>
         </div>
       </header>
+
+      <section className="flex flex-col items-start gap-2">
+        <h2 className="text-sm font-medium">Support Vinter</h2>
+        <p className={subtle}>
+          Vinter is free. If it saves you a Windows license or a virtual machine, you can sponsor its
+          development on GitHub.
+        </p>
+        <Button variant="primary" onClick={() => open("support")}>
+          <Heart className="size-4" /> Support Vinter
+        </Button>
+      </section>
 
       <section className="flex flex-col items-start gap-2">
         <h2 className="text-sm font-medium">Updates</h2>

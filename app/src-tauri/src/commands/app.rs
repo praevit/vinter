@@ -37,6 +37,8 @@ pub enum AppLink {
     Website,
     Source,
     Issues,
+    /// GitHub Sponsors, through getvinter.app/support so the target can change.
+    Support,
     DataFolder,
     LaunchersFolder,
     WineLicense,
@@ -53,6 +55,7 @@ pub fn app_open_link(
         AppLink::Website => "https://getvinter.app",
         AppLink::Source => "https://getvinter.app/github",
         AppLink::Issues => "https://getvinter.app/issues",
+        AppLink::Support => "https://getvinter.app/support",
         AppLink::WineLicense => "https://www.winehq.org/license",
         AppLink::DataFolder | AppLink::LaunchersFolder => {
             let dir = match link {

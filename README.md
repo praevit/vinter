@@ -116,6 +116,11 @@ Bug reports and recipes for apps you got working are very welcome:
 [open an issue](https://github.com/praevit/vinter/issues). Please include the
 debug report from the bottle's **Logs** tab.
 
+## Supporting Vinter
+
+Vinter is free. If it is useful to you, you can
+[sponsor its development on GitHub](https://github.com/sponsors/praevit).
+
 ## License
 
 Vinter is free software: you can redistribute it and/or modify it under the

@@ -128,7 +128,9 @@ export type AppInfo = {
 };
 
 /**  Fixed places the About screen can open. */
-export type AppLink = "website" | "source" | "issues" | "data_folder" | "launchers_folder" | "wine_license";
+export type AppLink = "website" | "source" | "issues" | 
+/**  GitHub Sponsors, through getvinter.app/support so the target can change. */
+"support" | "data_folder" | "launchers_folder" | "wine_license";
 
 export type ArchiveFormat = "tar_xz" | "tar_gz";
 
