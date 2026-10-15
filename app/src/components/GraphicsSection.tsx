@@ -166,7 +166,9 @@ function Report({ report, onShowLog }: { report: GraphicsReport; onShowLog: (id:
         ) : (
           <TriangleAlert className="size-4 text-amber-600 dark:text-amber-400" />
         )}
-        {!report.ok
+        {report.draws === false
+          ? "Direct3D 11 started, but could not draw to a window."
+          : !report.ok
           ? "Direct3D 11 did not start."
           : report.matches_backend
             ? `Direct3D 11 works with ${report.renderer}.`

@@ -8,9 +8,13 @@
 //! feature_level=0xb000
 //! adapter=Apple M4 Pro
 //! vendor=0x106b
+//! swapchain=0x00000000
+//! present=0x00000000
 //! ```
 //!
-//! Exit code 0 if a device was created, 1 otherwise.
+//! The swap chain and present lines come from a small window it opens for an
+//! instant: they show that the backend can draw to the screen, not only
+//! create a device. Exit code 0 if a device was created, 1 otherwise.
 //! `no_std` so it builds on macOS/Linux with only `rustup target add
 //! x86_64-pc-windows-msvc`. Rebuild and update the embedded copy with
 //! `tools/d3dprobe/build.sh`.
@@ -42,6 +46,47 @@ const IID_IDXGI_FACTORY1: Guid = Guid {
     data4: [0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87],
 };
 
+/// IID_IDXGIFactory {7b7166ec-21c7-44ae-b21a-c9ae321ae369}
+const IID_IDXGI_FACTORY: Guid = Guid {
+    data1: 0x7b7166ec,
+    data2: 0x21c7,
+    data3: 0x44ae,
+    data4: [0xb2, 0x1a, 0xc9, 0xae, 0x32, 0x1a, 0xe3, 0x69],
+};
+
+#[repr(C)]
+struct SwapChainDesc {
+    width: u32,
+    height: u32,
+    refresh_numerator: u32,
+    refresh_denominator: u32,
+    format: u32,
+    scanline_ordering: u32,
+    scaling: u32,
+    sample_count: u32,
+    sample_quality: u32,
+    buffer_usage: u32,
+    buffer_count: u32,
+    output_window: Handle,
+    windowed: i32,
+    swap_effect: u32,
+    flags: u32,
+}
+
+#[repr(C)]
+struct WndClassW {
+    style: u32,
+    wnd_proc: *const c_void,
+    cls_extra: i32,
+    wnd_extra: i32,
+    instance: Handle,
+    icon: Handle,
+    cursor: Handle,
+    background: Handle,
+    menu_name: *const u16,
+    class_name: *const u16,
+}
+
 #[repr(C)]
 struct AdapterDesc1 {
     description: [u16; 128],
@@ -60,12 +105,39 @@ struct AdapterDesc1 {
 const STD_OUTPUT_HANDLE: u32 = -11i32 as u32;
 const D3D_DRIVER_TYPE_HARDWARE: u32 = 1;
 const D3D11_SDK_VERSION: u32 = 7;
+const DXGI_FORMAT_R8G8B8A8_UNORM: u32 = 28;
+const DXGI_USAGE_RENDER_TARGET_OUTPUT: u32 = 0x20;
+const WS_POPUP_VISIBLE: u32 = 0x8000_0000 | 0x1000_0000;
+/// "d3dprobe" as UTF-16, NUL-terminated.
+const CLASS_NAME: [u16; 9] = [100, 51, 100, 112, 114, 111, 98, 101, 0];
 
 #[link(name = "kernel32", kind = "raw-dylib")]
 unsafe extern "system" {
     fn GetStdHandle(which: u32) -> Handle;
     fn WriteFile(file: Handle, buf: *const u8, len: u32, written: *mut u32, overlapped: *mut c_void) -> i32;
     fn ExitProcess(code: u32) -> !;
+    fn GetModuleHandleW(name: *const u16) -> Handle;
+}
+
+#[link(name = "user32", kind = "raw-dylib")]
+unsafe extern "system" {
+    fn RegisterClassW(class: *const WndClassW) -> u16;
+    fn CreateWindowExW(
+        ex_style: u32,
+        class: *const u16,
+        title: *const u16,
+        style: u32,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        parent: Handle,
+        menu: Handle,
+        instance: Handle,
+        param: *mut c_void,
+    ) -> Handle;
+    fn DefWindowProcW(window: Handle, msg: u32, wparam: usize, lparam: isize) -> isize;
+    fn DestroyWindow(window: Handle) -> i32;
 }
 
 #[link(name = "d3d11", kind = "raw-dylib")]
@@ -146,6 +218,83 @@ fn print_adapter(out: &mut Stdout) {
     let _ = writeln!(out, "\nvendor={:#06x}", desc.vendor_id);
 }
 
+/// Opens a small window, makes a swap chain for it and presents one frame.
+fn print_present(out: &mut Stdout, device: *mut c_void) {
+    let mut factory = null_mut();
+    // SAFETY: valid IID and out-pointer.
+    let hr = unsafe { CreateDXGIFactory1(&IID_IDXGI_FACTORY, &mut factory) };
+    if hr < 0 || factory.is_null() {
+        return;
+    }
+    // SAFETY: plain Win32 calls with valid, NUL-terminated strings.
+    let window = unsafe {
+        let instance = GetModuleHandleW(core::ptr::null());
+        let class = WndClassW {
+            style: 0,
+            wnd_proc: DefWindowProcW as *const c_void,
+            cls_extra: 0,
+            wnd_extra: 0,
+            instance,
+            icon: null_mut(),
+            cursor: null_mut(),
+            background: null_mut(),
+            menu_name: core::ptr::null(),
+            class_name: CLASS_NAME.as_ptr(),
+        };
+        RegisterClassW(&class);
+        CreateWindowExW(
+            0,
+            CLASS_NAME.as_ptr(),
+            CLASS_NAME.as_ptr(),
+            WS_POPUP_VISIBLE,
+            0,
+            0,
+            64,
+            64,
+            null_mut(),
+            null_mut(),
+            instance,
+            null_mut(),
+        )
+    };
+    if window.is_null() {
+        let _ = writeln!(out, "window=failed");
+        return;
+    }
+    let desc = SwapChainDesc {
+        width: 64,
+        height: 64,
+        refresh_numerator: 0,
+        refresh_denominator: 1,
+        format: DXGI_FORMAT_R8G8B8A8_UNORM,
+        scanline_ordering: 0,
+        scaling: 0,
+        sample_count: 1,
+        sample_quality: 0,
+        buffer_usage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
+        buffer_count: 1,
+        output_window: window,
+        windowed: 1,
+        swap_effect: 0,
+        flags: 0,
+    };
+    // IDXGIFactory::CreateSwapChain is vtable slot 10, IDXGISwapChain::Present slot 8.
+    type CreateSwapChain =
+        unsafe extern "system" fn(*mut c_void, *mut c_void, *const SwapChainDesc, *mut *mut c_void) -> Hresult;
+    type Present = unsafe extern "system" fn(*mut c_void, u32, u32) -> Hresult;
+    let mut swapchain = null_mut();
+    // SAFETY: factory is a live IDXGIFactory, device a live ID3D11Device.
+    let hr = unsafe { method::<CreateSwapChain>(factory, 10)(factory, device, &desc, &mut swapchain) };
+    let _ = writeln!(out, "swapchain={:#010x}", hr as u32);
+    if hr >= 0 && !swapchain.is_null() {
+        // SAFETY: swapchain is a live IDXGISwapChain.
+        let hr = unsafe { method::<Present>(swapchain, 8)(swapchain, 0, 0) };
+        let _ = writeln!(out, "present={:#010x}", hr as u32);
+    }
+    // SAFETY: window was created above.
+    unsafe { DestroyWindow(window) };
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn mainCRTStartup() -> ! {
     // SAFETY: plain Win32 call.
@@ -172,6 +321,9 @@ pub extern "system" fn mainCRTStartup() -> ! {
         let _ = writeln!(out, "feature_level={level:#06x}");
     }
     print_adapter(&mut out);
+    if hr >= 0 && !device.is_null() {
+        print_present(&mut out, device);
+    }
     // SAFETY: plain Win32 call.
     unsafe { ExitProcess(if hr >= 0 && !device.is_null() { 0 } else { 1 }) }
 }

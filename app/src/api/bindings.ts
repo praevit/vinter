@@ -416,8 +416,16 @@ export type Graphics = "wined3d" | "dxvk" | "dxmt" | "d3dmetal";
 export type GraphicsReport = {
 	/**  The bottle's backend at the time of the test. */
 	backend: Graphics,
-	/**  A Direct3D 11 device was created. */
+	/**
+	 *  A Direct3D 11 device was created and (if the probe tried) it drew a
+	 *  frame to a window.
+	 */
 	ok: boolean,
+	/**
+	 *  The probe made a swap chain for a window and presented a frame.
+	 *  `None` if it did not get that far.
+	 */
+	draws: boolean | null,
 	/**  Which implementation answered, e.g. "DXVK" or "Wine (wined3d)". */
 	renderer: string | null,
 	/**  e.g. "11_0". */

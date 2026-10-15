@@ -25,8 +25,12 @@ const TIMEOUT: Duration = Duration::from_secs(90);
 pub struct GraphicsReport {
     /// The bottle's backend at the time of the test.
     pub backend: Backend,
-    /// A Direct3D 11 device was created.
+    /// A Direct3D 11 device was created and (if the probe tried) it drew a
+    /// frame to a window.
     pub ok: bool,
+    /// The probe made a swap chain for a window and presented a frame.
+    /// `None` if it did not get that far.
+    pub draws: Option<bool>,
     /// Which implementation answered, e.g. "DXVK" or "Wine (wined3d)".
     pub renderer: Option<String>,
     /// e.g. "11_0".
@@ -107,7 +111,11 @@ fn parse(text: &str, backend: Backend, code: Option<i32>, log_id: String) -> Gra
         .find_map(|l| l.split("Device name:").nth(1))
         .map(|s| s.trim_start_matches([' ', ':']).trim().to_string());
 
-    let ok = code == Some(0) && value("d3d11_create").as_deref() == Some("0x00000000");
+    let device_ok = code == Some(0) && value("d3d11_create").as_deref() == Some("0x00000000");
+    let draws = value("swapchain").map(|swapchain| {
+        swapchain == "0x00000000" && value("present").as_deref() == Some("0x00000000")
+    });
+    let ok = device_ok && draws != Some(false);
     let renderer = d3d11.as_deref().map(|kind| match (kind, backend) {
         ("builtin", _) => "Wine (wined3d)".to_string(),
         ("native", Backend::Dxvk) => "DXVK".to_string(),
@@ -122,6 +130,7 @@ fn parse(text: &str, backend: Backend, code: Option<i32>, log_id: String) -> Gra
     GraphicsReport {
         backend,
         ok,
+        draws,
         renderer,
         feature_level: value("feature_level").map(|l| feature_level_name(&l)),
         adapter: dxvk_device.or_else(|| value("adapter")),
@@ -199,6 +208,22 @@ vendor=0x10de
             "x.log".into(),
         );
         assert!(!r.ok && r.feature_level.is_none() && r.renderer.is_none());
+    }
+
+    #[test]
+    fn a_device_that_cannot_draw_is_a_failure() {
+        let drew = format!("{WINED3D}swapchain=0x00000000\npresent=0x00000000\n");
+        let r = parse(&drew, Backend::Wined3d, Some(0), "x.log".into());
+        assert!(r.ok && r.draws == Some(true));
+        // DXMT on a Wine without the symbols it needs: no metal view.
+        let no_view = format!("{WINED3D}swapchain=0x887a0001\n");
+        let r = parse(&no_view, Backend::Wined3d, Some(0), "x.log".into());
+        assert!(!r.ok && r.draws == Some(false));
+        // An older probe (no window test) is judged on the device alone.
+        assert_eq!(
+            parse(WINED3D, Backend::Wined3d, Some(0), "x.log".into()).draws,
+            None
+        );
     }
 
     #[test]

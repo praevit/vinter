@@ -539,6 +539,16 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
             let r = graphics::test(paths, &id(&key)?)?;
             println!("Backend:       {}", r.backend.name());
             println!("Direct3D 11:   {}", if r.ok { "works" } else { "failed" });
+            if let Some(draws) = r.draws {
+                println!(
+                    "Draws:         {}",
+                    if draws {
+                        "yes"
+                    } else {
+                        "no (cannot draw to a window)"
+                    }
+                );
+            }
             println!(
                 "Answered by:   {}",
                 r.renderer.as_deref().unwrap_or("unknown")
