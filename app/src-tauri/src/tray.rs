@@ -10,12 +10,17 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 use vinter_core::bottle;
 
+use tauri_specta::Event;
+
 use crate::commands::programs::launch_program;
+use crate::events::{Navigate, NavigateTo};
 use crate::startup;
 use crate::state::AppState;
 
 const TRAY_ID: &str = "vinter";
 const OPEN: &str = "open";
+const ABOUT: &str = "about";
+const UPDATES: &str = "updates";
 const QUIT: &str = "quit";
 /// Program items have the id `run/<bottle>/<index>`.
 const RUN_PREFIX: &str = "run/";
@@ -68,14 +73,28 @@ fn entries(app: &AppHandle) -> Vec<Entry> {
 }
 
 fn build_menu(app: &AppHandle, entries: &[Entry]) -> tauri::Result<Menu<Wry>> {
-    let mut menu = MenuBuilder::new(app).text(OPEN, "Open Vinter").separator();
-    if entries.is_empty() {
-        menu = menu.item(&MenuItem::new(app, "No apps yet", false, None::<&str>)?);
-    }
+    let mut menu = MenuBuilder::new(app)
+        .text(OPEN, "Show Vinter")
+        .separator()
+        .item(&MenuItem::new(
+            app,
+            if entries.is_empty() {
+                "No apps yet"
+            } else {
+                "Apps"
+            },
+            false,
+            None::<&str>,
+        )?);
     for e in entries {
         menu = menu.text(format!("{RUN_PREFIX}{}/{}", e.bottle_id, e.index), &e.label);
     }
-    menu.separator().text(QUIT, "Quit Vinter").build()
+    menu.separator()
+        .text(ABOUT, "About Vinter")
+        .text(UPDATES, "Check for Updates…")
+        .separator()
+        .text(QUIT, "Quit Vinter")
+        .build()
 }
 
 /// Adds the icon. On failure Vinter works as before, without one.
@@ -108,12 +127,18 @@ mod app_menu {
     use tauri::{AppHandle, Wry};
 
     const HIDE: &str = "app-menu-hide";
+    const UPDATES: &str = "app-menu-updates";
     const QUIT: &str = "app-menu-quit";
 
     pub fn install(app: &AppHandle) -> tauri::Result<()> {
         // Tauri's standard menu, with the app menu's last item (Quit) replaced.
         let menu: Menu<Wry> = Menu::default(app)?;
         if let Some(app_submenu) = menu.items()?.first().and_then(|i| i.as_submenu().cloned()) {
+            // After "About Vinter".
+            app_submenu.insert(
+                &MenuItem::with_id(app, UPDATES, "Check for Updates…", true, None::<&str>)?,
+                1,
+            )?;
             let last = app_submenu.items()?.len().saturating_sub(1);
             app_submenu.remove_at(last)?;
             app_submenu.append(&MenuItem::with_id(
@@ -135,6 +160,7 @@ mod app_menu {
         app.set_menu(menu)?;
         app.on_menu_event(|app, event| match event.id().as_ref() {
             HIDE => crate::startup::hide_main_window(app),
+            UPDATES => super::navigate(app, crate::events::NavigateTo::CheckUpdates),
             QUIT => app.exit(0),
             _ => {}
         });
@@ -166,9 +192,17 @@ pub fn refresh(app: &AppHandle) {
     }
 }
 
+/// Shows the window on a page.
+pub fn navigate(app: &AppHandle, to: NavigateTo) {
+    startup::show_main_window(app);
+    let _ = Navigate { to }.emit(app);
+}
+
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         OPEN => startup::show_main_window(app),
+        ABOUT => navigate(app, NavigateTo::About),
+        UPDATES => navigate(app, NavigateTo::CheckUpdates),
         QUIT => app.exit(0),
         id => {
             let Some((bottle_id, index)) = id

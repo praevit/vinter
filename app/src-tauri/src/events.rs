@@ -63,3 +63,19 @@ pub struct JobDone {
     pub ok: bool,
     pub error: Option<String>,
 }
+
+/// Asks the interface to show a page, e.g. from the menu bar icon's menu.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://navigate")]
+pub struct Navigate {
+    pub to: NavigateTo,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum NavigateTo {
+    Home,
+    About,
+    /// The About page, checking for updates right away.
+    CheckUpdates,
+}

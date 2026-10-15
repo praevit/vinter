@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, FolderOpen, Heart, LoaderCircle, RefreshCw } from "lucide-react";
 import { commands, type AppLink, type UpdateInfo } from "../api/bindings";
 import { useAppInfo } from "../api/app";
@@ -9,7 +9,8 @@ import { Button, ErrorText, subtle } from "../components/ui";
 
 const UPDATE_JOB = "app-update";
 
-export function About() {
+/** `check` (any new value) starts an update check, e.g. from the menu bar. */
+export function About({ check: checkRequest }: { check?: number }) {
   const { data: info } = useAppInfo();
   const jobs = useJobs();
   const [checking, setChecking] = useState(false);
@@ -30,6 +31,10 @@ export function About() {
       setChecking(false);
     }
   };
+
+  useEffect(() => {
+    if (checkRequest) void check();
+  }, [checkRequest]);
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8 px-8 py-10">
