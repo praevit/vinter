@@ -123,6 +123,7 @@ mod app_menu {
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
     use tauri::{AppHandle, Wry};
 
+    const ABOUT: &str = "app-menu-about";
     const HIDE: &str = "app-menu-hide";
     const UPDATES: &str = "app-menu-updates";
     const QUIT: &str = "app-menu-quit";
@@ -131,6 +132,12 @@ mod app_menu {
         // Tauri's standard menu, with the app menu's last item (Quit) replaced.
         let menu: Menu<Wry> = Menu::default(app)?;
         if let Some(app_submenu) = menu.items()?.first().and_then(|i| i.as_submenu().cloned()) {
+            // Vinter's own About window instead of the standard panel.
+            app_submenu.remove_at(0)?;
+            app_submenu.insert(
+                &MenuItem::with_id(app, ABOUT, "About Vinter", true, None::<&str>)?,
+                0,
+            )?;
             // After "About Vinter".
             app_submenu.insert(
                 &MenuItem::with_id(app, UPDATES, "Check for Updates…", true, None::<&str>)?,
@@ -156,6 +163,7 @@ mod app_menu {
         }
         app.set_menu(menu)?;
         app.on_menu_event(|app, event| match event.id().as_ref() {
+            ABOUT => crate::windows::show_about(app),
             HIDE => crate::startup::hide_main_window(app),
             UPDATES => crate::windows::show_updates(app),
             QUIT => app.exit(0),

@@ -64,7 +64,7 @@ export function UpdatesWindow() {
   }
 
   return (
-    <div className="flex h-screen flex-col gap-4 p-5 select-none">
+    <div data-tauri-drag-region className="flex h-screen flex-col gap-4 px-5 pt-10 pb-5 select-none">
       <div className="flex gap-4">
         <img src="/vinter.svg" alt="" className="size-14 shrink-0" draggable={false} />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">

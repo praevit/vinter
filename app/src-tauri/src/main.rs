@@ -72,8 +72,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::JobDone,
             events::RunLog,
             events::RunExit,
-            events::Notice,
-            events::Navigate
+            events::Notice
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.

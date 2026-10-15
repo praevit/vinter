@@ -110,7 +110,6 @@ export const commands = {
 
 /** Events */
 export const events = {
-	appNavigate: makeEvent<Navigate>("app://navigate"),
 	appNotice: makeEvent<Notice>("app://notice"),
 	jobDone: makeEvent<JobDone>("job://done"),
 	jobProgress: makeEvent<JobProgress>("job://progress"),
@@ -331,15 +330,6 @@ export type LogEntry = {
 	started_at: string,
 	size: number,
 };
-
-/**  Asks the interface to show a page, e.g. from the menu bar icon's menu. */
-export type Navigate = {
-	to: NavigateTo,
-};
-
-export type NavigateTo = 
-/**  Where there is no native About panel (Linux). */
-"about";
 
 /**
  *  A message for the user that has no other place to appear, e.g. a

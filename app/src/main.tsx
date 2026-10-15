@@ -6,6 +6,7 @@ import { RosettaProvider } from "./api/rosetta";
 import { RunsProvider } from "./api/runs";
 import { ToastProvider } from "./api/toasts";
 import { App } from "./App";
+import { AboutWindow } from "./pages/AboutWindow";
 import { UpdatesWindow } from "./pages/UpdatesWindow";
 import "./index.css";
 
@@ -13,10 +14,12 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
 
-// The same bundle serves the small update window (see `windows.rs`).
+// The same bundle serves the small About and update windows (see `windows.rs`).
 const windowKind = (window as { __VINTER_WINDOW__?: string }).__VINTER_WINDOW__;
 const root =
-  windowKind === "updates" ? (
+  windowKind === "about" ? (
+    <AboutWindow />
+  ) : windowKind === "updates" ? (
     <JobsProvider>
       <UpdatesWindow />
     </JobsProvider>

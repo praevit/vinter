@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { events } from "./api/bindings";
+import { useState } from "react";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
 import { BottleView } from "./pages/BottleView";
@@ -13,14 +12,6 @@ import { Welcome } from "./pages/Welcome";
 export function App() {
   const [route, setRoute] = useState<Route>({ page: "home" });
   const bottles = useBottles();
-
-  // The menu bar icon's menu can ask for a page.
-  useEffect(() => {
-    const unlisten = events.appNavigate.listen(({ payload }) => setRoute({ page: payload.to }));
-    return () => {
-      unlisten.then((u) => u());
-    };
-  }, []);
 
   // A deleted bottle's page falls back to home.
   const current =
