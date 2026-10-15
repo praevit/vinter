@@ -1,7 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="237 240 550 550">
-  <!-- Menu bar icon (macOS template image): the Vinter glass in black. -->
-  <path d="M362 270H662L512 540Z" fill="none" stroke="#000" stroke-width="40" stroke-linejoin="round"/>
-  <path d="M392 410H632L512 540Z" fill="#000" stroke="#000" stroke-width="40" stroke-linejoin="round"/>
-  <path d="M492 540H532V740H492Z" fill="#000"/>
-  <path d="M432 730H592L622 770H402Z" fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="332 240 360 560">
+  <!-- Menu bar icon (a macOS template image, so only the alpha counts): the
+       glass from the Vinter logo. Glass part half-tone, wine solid, the
+       snowflake cut out of the glass. -->
+  <defs>
+    <mask id="flake">
+      <rect x="0" y="0" width="1024" height="1024" fill="#fff"/>
+      <path d="M512 318V402M476 339L548 381M476 381L548 339"
+            fill="none" stroke="#000" stroke-width="22" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g mask="url(#flake)">
+    <path d="M362 260H662L632 410H392Z" fill="#000" fill-opacity="0.55"/>
+  </g>
+  <path d="M392 410H632L512 540Z" fill="#000"/>
+  <path d="M496 540H528V740H496Z" fill="#000"/>
+  <path d="M512 605L542 622V658L512 675L482 658V622Z" fill="#000"/>
+  <path d="M444 740H580L612 778H412Z" fill="#000"/>
 </svg>
