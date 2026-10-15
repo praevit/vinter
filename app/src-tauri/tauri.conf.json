@@ -46,7 +46,8 @@
     ],
     "createUpdaterArtifacts": true,
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
     },
     "copyright": "\u00a9 2026 Pr\u00e6vit ehf.",
     "longDescription": "Vinter runs Windows programs on macOS and Linux using Wine: it manages Wine runtimes, bottles, app recipes and native launchers.",
