@@ -124,8 +124,8 @@ fn unavailable_reason(
         Backend::Wined3d => None,
         Backend::D3dmetal => Some(
             "Needs Apple's Game Porting Toolkit, which Vinter is not allowed to include, \
-             and a CrossOver-based Wine built for it. Support for a toolkit you install \
-             yourself is planned."
+             and a Wine build made for it. Support for a toolkit you install yourself \
+             is planned."
                 .into(),
         ),
         // Tested with DXMT 0.80 on Gcenx Wine 11.0: the device works, but drawing
