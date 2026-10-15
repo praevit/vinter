@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
-use vinter_core::bottle::{self, Bottle, BottleSummary, Graphics, NewBottle, Tool, WindowsVersion};
+use vinter_core::bottle::{
+    self, Bottle, BottleOptions, BottleSummary, Graphics, NewBottle, Tool, WindowsVersion,
+};
 
 use super::{CommandResult, blocking};
 use crate::focus;
@@ -146,6 +148,32 @@ pub async fn bottle_update(
         Ok(bottle)
     })
     .await
+}
+
+/// Changes the bottle's display, keyboard and overlay options, as a job
+/// (display and keyboard changes take a few seconds).
+#[tauri::command]
+#[specta::specta]
+pub fn bottle_set_options(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    options: BottleOptions,
+) -> CommandResult<JobId> {
+    bottle::get(&state.paths, &id)?;
+    if !state.mark_busy(&id) {
+        return Err("This bottle is busy. Try again in a moment.".into());
+    }
+    let paths = state.paths.clone();
+    Ok(jobs::spawn_blocking(&app, {
+        let app = app.clone();
+        move |job| {
+            job.progress("Applying settings", String::new(), None);
+            let result = bottle::set_options(&paths, &id, options);
+            app.state::<AppState>().clear_busy(&id);
+            result.map(|_| ()).map_err(|e| e.to_string())
+        }
+    }))
 }
 
 /// Applies a Windows version (runs `winecfg /v`), as a job.

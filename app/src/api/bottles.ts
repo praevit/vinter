@@ -33,6 +33,7 @@ export const TOOLS: { tool: Tool; label: string; description: string }[] = [
 
 export const bottleJobKey = (id: string) => `bottle:${id}`;
 export const windowsJobKey = (id: string) => `bottle-windows:${id}`;
+export const optionsJobKey = (id: string) => `bottle-options:${id}`;
 
 export function useBottles() {
   return useQuery({ queryKey: ["bottles"], queryFn: () => commands.bottlesList() });

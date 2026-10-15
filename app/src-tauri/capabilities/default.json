@@ -20,6 +20,7 @@
     "allow-bottle-create",
     "allow-bottle-update",
     "allow-bottle-set-windows-version",
+    "allow-bottle-set-options",
     "allow-bottle-duplicate",
     "allow-bottle-delete",
     "allow-bottle-open-drive-c",

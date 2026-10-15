@@ -47,13 +47,27 @@ pub fn wine_env(
         env.push(("WINEDLLOVERRIDES".into(), dll_overrides_string(&overrides)));
     }
     let backend_env = crate::graphics::launch_env(bottle.graphics);
+    let option_env = options_env(&bottle.options, std::env::consts::OS);
     let user_env = bottle.env.iter().map(|(k, v)| (k.clone(), v.clone()));
-    for (key, value) in backend_env.into_iter().chain(user_env) {
+    for (key, value) in backend_env.into_iter().chain(option_env).chain(user_env) {
         if key == "WINEPREFIX" {
             continue;
         }
         env.retain(|(k, _)| *k != key);
         env.push((key, value));
+    }
+    env
+}
+
+/// Environment variables for a bottle's options.
+fn options_env(options: &crate::bottle::BottleOptions, os: &str) -> Vec<(String, String)> {
+    let mut env = Vec::new();
+    if options.show_fps {
+        // DXVK draws its own overlay; Metal's covers DXMT, D3DMetal and MoltenVK.
+        env.push(("DXVK_HUD".into(), "fps".into()));
+        if os == "macos" {
+            env.push(("MTL_HUD_ENABLED".into(), "1".into()));
+        }
     }
     env
 }
@@ -291,12 +305,30 @@ mod tests {
             recipe: None,
             env: BTreeMap::new(),
             dll_overrides: BTreeMap::new(),
+            options: Default::default(),
             programs: vec![],
         }
     }
 
     fn get<'a>(env: &'a [(String, String)], key: &str) -> Option<&'a str> {
         env.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+
+    #[test]
+    fn fps_overlay_env() {
+        let on = crate::bottle::BottleOptions {
+            show_fps: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            options_env(&on, "macos"),
+            vec![
+                ("DXVK_HUD".to_string(), "fps".to_string()),
+                ("MTL_HUD_ENABLED".to_string(), "1".to_string())
+            ]
+        );
+        assert_eq!(options_env(&on, "linux").len(), 1);
+        assert!(options_env(&Default::default(), "macos").is_empty());
     }
 
     #[test]

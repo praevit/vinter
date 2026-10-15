@@ -132,6 +132,19 @@ enum BottleCommand {
     },
     /// Run a small Direct3D 11 program in the bottle and report what answered.
     TestGraphics { bottle: String },
+    /// Show or change display, keyboard and overlay options.
+    Options {
+        bottle: String,
+        /// macOS: full Retina resolution.
+        #[arg(long)]
+        retina: Option<bool>,
+        /// macOS: ⌘ works as Ctrl, ⌥ as Alt.
+        #[arg(long)]
+        command_as_ctrl: Option<bool>,
+        /// Frame rate overlay in games.
+        #[arg(long)]
+        fps: Option<bool>,
+    },
     /// Set environment variables (KEY=VALUE), or remove them (KEY=).
     Env { bottle: String, vars: Vec<String> },
     /// Set DLL overrides (dll=mode, e.g. d3d11=n,b), or remove them (dll).
@@ -523,6 +536,25 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
             }
             println!("Log:           {}", r.log_id);
         }
+        BottleCommand::Options {
+            bottle: key,
+            retina,
+            command_as_ctrl,
+            fps,
+        } => {
+            let id = id(&key)?;
+            let mut options = bottle::get(paths, &id)?.options;
+            options.retina_mode = retina.unwrap_or(options.retina_mode);
+            options.command_as_ctrl = command_as_ctrl.unwrap_or(options.command_as_ctrl);
+            options.show_fps = fps.unwrap_or(options.show_fps);
+            let b = bottle::set_options(paths, &id, options)?;
+            println!(
+                "Retina mode: {}\n⌘ as Ctrl: {}\nFrame rate overlay: {}",
+                on_off(b.options.retina_mode),
+                on_off(b.options.command_as_ctrl),
+                on_off(b.options.show_fps)
+            );
+        }
         BottleCommand::Env { bottle: key, vars } => {
             let b = bottle::get(paths, &id(&key)?)?;
             let mut env = b.env.clone();
@@ -686,6 +718,10 @@ fn print_launchers(paths: &AppPaths, bottle_id: &str) -> Result<()> {
         println!("Launcher: {}", path.display());
     }
     Ok(())
+}
+
+fn on_off(on: bool) -> &'static str {
+    if on { "on" } else { "off" }
 }
 
 /// Launchers made by the CLI. On Linux they start the Vinter app, which

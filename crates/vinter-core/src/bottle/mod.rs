@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-pub use config::{Bottle, CONFIG_FILE, Graphics, ProgramDef, WindowsVersion};
+pub use config::{Bottle, BottleOptions, CONFIG_FILE, Graphics, ProgramDef, WindowsVersion};
 
 use crate::error::{IoResultExt, validate_id};
 use crate::process::{self, logs};
@@ -215,6 +215,7 @@ pub fn prepare_create(paths: &AppPaths, new: NewBottle) -> Result<Bottle> {
         recipe: None,
         env: Default::default(),
         dll_overrides: Default::default(),
+        options: crate::settings::load(paths).new_bottle_options,
         programs: Vec::new(),
     };
     let dir = dir(paths, &bottle.id)?;
@@ -239,6 +240,10 @@ pub fn finish_create(
         boot_prefix(&rt, &dir, bottle)?;
         on_step("Setting Windows version");
         apply_windows_version(&rt, &dir, bottle)?;
+        if needs_registry(&BottleOptions::default(), &bottle.options) {
+            on_step("Applying display and keyboard settings");
+            apply_options(&rt, &dir, bottle)?;
+        }
         std::fs::remove_file(dir.join(SETUP_MARKER)).at(&dir)
     })();
     if result.is_err() {
@@ -263,6 +268,69 @@ fn apply_windows_version(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()
     cmd.args(["winecfg", "/v", bottle.windows_version.winecfg_name()]);
     process::run_and_wait(cmd, &log, "Setting the Windows version", WINECFG_TIMEOUT)?;
     wait_for_wineserver(rt, &prefix, bottle, &log)
+}
+
+/// The registry part of the options (macOS Wine driver and DPI), as a `.reg` file.
+fn options_reg(options: &BottleOptions) -> String {
+    let yes_no = |on: bool| if on { "y" } else { "n" };
+    let cmd = yes_no(options.command_as_ctrl);
+    let dpi = if options.retina_mode { 192 } else { 96 };
+    format!(
+        "REGEDIT4\r\n\r\n\
+         [HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]\r\n\
+         \"RetinaMode\"=\"{retina}\"\r\n\
+         \"LeftCommandIsCtrl\"=\"{cmd}\"\r\n\
+         \"RightCommandIsCtrl\"=\"{cmd}\"\r\n\
+         \"LeftOptionIsAlt\"=\"{cmd}\"\r\n\
+         \"RightOptionIsAlt\"=\"{cmd}\"\r\n\r\n\
+         [HKEY_CURRENT_USER\\Control Panel\\Desktop]\r\n\
+         \"LogPixels\"=dword:{dpi:08x}\r\n",
+        retina = yes_no(options.retina_mode),
+    )
+}
+
+/// True if going from `old` to `new` changes the registry (macOS only: the
+/// options there are for Wine's Mac driver).
+fn needs_registry(old: &BottleOptions, new: &BottleOptions) -> bool {
+    cfg!(target_os = "macos")
+        && (old.retina_mode != new.retina_mode || old.command_as_ctrl != new.command_as_ctrl)
+}
+
+fn apply_options(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
+    let prefix = dir.join(PREFIX_DIR);
+    let reg = dir.join(".options.reg");
+    std::fs::write(&reg, options_reg(&bottle.options)).at(&reg)?;
+    let (log, _) = logs::create(dir, "options")?;
+    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine");
+    cmd.args(["regedit", "/S"]).arg(format!(
+        "Z:{}",
+        reg.display().to_string().replace('/', "\\")
+    ));
+    let result = process::run_and_wait(cmd, &log, "Applying settings", WINECFG_TIMEOUT)
+        .and_then(|()| wait_for_wineserver(rt, &prefix, bottle, &log));
+    let _ = std::fs::remove_file(&reg);
+    result
+}
+
+/// Changes a bottle's options. Display and keyboard changes are written to
+/// the registry (a few seconds); close the bottle's programs first, they see
+/// the change on their next start.
+pub fn set_options(paths: &AppPaths, id: &str, options: BottleOptions) -> Result<Bottle> {
+    let mut bottle = get(paths, id)?;
+    let dir = dir(paths, id)?;
+    if needs_registry(&bottle.options, &options) {
+        let rt = runtime_for(paths, &bottle)?;
+        rt.check_can_run()?;
+        let old = bottle.options;
+        bottle.options = options;
+        if let Err(e) = apply_options(&rt, &dir, &bottle) {
+            bottle.options = old;
+            return Err(e);
+        }
+    }
+    bottle.options = options;
+    bottle.save(&dir)?;
+    Ok(bottle)
 }
 
 /// Waits until Wine has written the registry and its server has exited.

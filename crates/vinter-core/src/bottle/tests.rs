@@ -17,6 +17,7 @@ case "$1" in
     echo "booted"
     ;;
   winecfg) echo "$3" > "$WINEPREFIX/windows-version.txt" ;;
+  regedit) echo "$2" >> "$WINEPREFIX/regedit.txt" ;;
   *) echo "$1" >> "$WINEPREFIX/launched.txt" ;;
 esac
 "#;
@@ -104,7 +105,12 @@ fn create_runs_wineboot_with_the_right_environment() {
     .unwrap();
 
     assert_eq!(bottle.name, "Office");
-    assert_eq!(steps, ["Creating Wine prefix", "Setting Windows version"]);
+    let mut expected = vec!["Creating Wine prefix", "Setting Windows version"];
+    if cfg!(target_os = "macos") {
+        // New bottles get Retina mode and ⌘ as Ctrl.
+        expected.push("Applying display and keyboard settings");
+    }
+    assert_eq!(steps, expected);
     let pfx = prefix(&paths, &bottle.id);
     assert!(pfx.join("drive_c/windows").is_dir());
     assert_eq!(read(pfx.join("windows-version.txt")).trim(), "win10");
@@ -260,6 +266,7 @@ fn interrupted_setup_is_reported() {
         recipe: None,
         env: Default::default(),
         dll_overrides: Default::default(),
+        options: Default::default(),
         programs: vec![],
     }
     .save(&d)
@@ -288,6 +295,7 @@ fn env_and_override_editors_validate_input() {
         recipe: None,
         env: Default::default(),
         dll_overrides: Default::default(),
+        options: Default::default(),
         programs: vec![],
     }
     .save(&d)
@@ -318,4 +326,54 @@ fn ids_are_validated() {
     let (_tmp, paths) = setup();
     assert!(matches!(get(&paths, "../x"), Err(Error::InvalidId(_))));
     assert!(matches!(drive_c(&paths, "a/b"), Err(Error::InvalidId(_))));
+}
+
+#[test]
+fn options_reg_maps_switches_to_the_mac_driver_and_dpi() {
+    let on = options_reg(&BottleOptions {
+        retina_mode: true,
+        command_as_ctrl: true,
+        show_fps: false,
+    });
+    assert!(on.starts_with("REGEDIT4\r\n"));
+    assert!(on.contains("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]"));
+    assert!(on.contains("\"RetinaMode\"=\"y\""));
+    assert!(on.contains("\"LeftCommandIsCtrl\"=\"y\""));
+    assert!(on.contains("\"LogPixels\"=dword:000000c0"));
+    let off = options_reg(&BottleOptions::default());
+    assert!(off.contains("\"RetinaMode\"=\"n\""));
+    assert!(off.contains("\"LogPixels\"=dword:00000060"));
+}
+
+#[test]
+fn options_are_saved_and_written_to_the_registry_on_macos() {
+    let (_tmp, paths) = setup();
+    install_fake_runtime(&paths, "rt", FAKE_WINE);
+    let b = create(&paths, new_bottle("Opts", "rt"), |_| {}).unwrap();
+    // New bottles get the recommended options (no settings file here).
+    assert_eq!(b.options, BottleOptions::recommended());
+
+    let fps_only = BottleOptions {
+        show_fps: true,
+        ..b.options
+    };
+    let saved = set_options(&paths, &b.id, fps_only).unwrap();
+    assert_eq!(get(&paths, &b.id).unwrap().options, saved.options);
+    let regedit_runs = || {
+        std::fs::read_to_string(prefix(&paths, &b.id).join("regedit.txt"))
+            .map(|t| t.lines().count())
+            .unwrap_or(0)
+    };
+    let before = regedit_runs();
+    // The overlay is an environment variable: no registry change.
+    assert_eq!(before, if cfg!(target_os = "macos") { 1 } else { 0 });
+
+    set_options(&paths, &b.id, BottleOptions::default()).unwrap();
+    let expected = if cfg!(target_os = "macos") { 2 } else { 0 };
+    assert_eq!(regedit_runs(), expected);
+    assert!(!bottle_dir_has_reg_file(&paths, &b.id));
+}
+
+fn bottle_dir_has_reg_file(paths: &AppPaths, id: &str) -> bool {
+    dir(paths, id).unwrap().join(".options.reg").exists()
 }

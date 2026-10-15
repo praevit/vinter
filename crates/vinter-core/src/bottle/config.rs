@@ -63,6 +63,32 @@ pub enum Graphics {
     D3dmetal,
 }
 
+/// Per-bottle display, keyboard and performance switches. The default (all
+/// off) is what bottles made before these options existed had.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct BottleOptions {
+    /// macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size).
+    pub retina_mode: bool,
+    /// macOS: ⌘ works as Ctrl (so ⌘C copies) and ⌥ as Alt.
+    pub command_as_ctrl: bool,
+    /// Show a frame rate overlay in games (DXVK's and Metal's HUD).
+    pub show_fps: bool,
+}
+
+impl BottleOptions {
+    /// For new bottles: the Mac-friendly settings on (macOS only).
+    pub fn recommended() -> Self {
+        let mac = cfg!(target_os = "macos");
+        Self {
+            retina_mode: mac,
+            command_as_ctrl: mac,
+            show_fps: false,
+        }
+    }
+}
+
 /// A program shown in a bottle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -97,6 +123,7 @@ pub struct Bottle {
     /// Extra environment variables. Applied last, so they win.
     pub env: BTreeMap<String, String>,
     pub dll_overrides: BTreeMap<String, String>,
+    pub options: BottleOptions,
     pub programs: Vec<ProgramDef>,
 }
 
@@ -120,6 +147,8 @@ struct BottleFile {
     #[serde(default)]
     dll_overrides: BTreeMap<String, String>,
     #[serde(default)]
+    options: BottleOptions,
+    #[serde(default)]
     programs: Vec<ProgramDef>,
 }
 
@@ -135,6 +164,7 @@ impl From<BottleFile> for Bottle {
             recipe: f.recipe,
             env: f.env,
             dll_overrides: f.dll_overrides,
+            options: f.options,
             programs: f.programs,
         }
     }

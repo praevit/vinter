@@ -86,6 +86,7 @@ fn fake_bottle() -> (tempfile::TempDir, AppPaths, String, PathBuf) {
         recipe: None,
         env: Default::default(),
         dll_overrides: Default::default(),
+        options: Default::default(),
         programs: vec![],
     }
     .save(&dir)

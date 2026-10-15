@@ -10,16 +10,19 @@ import {
   useBottles,
   useDeleteBottle,
   useUpdateBottle,
+  optionsJobKey,
   windowsJobKey,
   windowsLabel,
   type BottleDetails,
 } from "../api/bottles";
+import { useAppInfo } from "../api/app";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useRecipeState } from "../api/recipes";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
+import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
@@ -236,6 +239,9 @@ function Settings({
 
   const winJob = jobs.job(windowsJobKey(bottle.id));
   const changingWindows = isRunning(winJob);
+  const optJob = jobs.job(optionsJobKey(bottle.id));
+  const changingOptions = isRunning(optJob);
+  const { data: app } = useAppInfo();
 
   const duplicate = async () => {
     setDupError(undefined);
@@ -302,6 +308,22 @@ function Settings({
       </Label>
       {changingWindows && <p className={subtle}>Applying the Windows version…</p>}
       {winJob?.done && !winJob.done.ok && <ErrorText>{winJob.done.error}</ErrorText>}
+
+      <section className="flex flex-col gap-2 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
+        <h2 className="text-sm font-medium">Display and keyboard</h2>
+        <BottleOptionsFields
+          value={bottle.options}
+          os={app?.os}
+          disabled={changingOptions}
+          onChange={(options) =>
+            jobs.start(optionsJobKey(bottle.id), () => commands.bottleSetOptions(bottle.id, options))
+          }
+        />
+        <p className={subtle}>
+          {changingOptions ? "Applying…" : "Running programs see changes the next time they start."}
+        </p>
+        {optJob?.done && !optJob.done.ok && <ErrorText>{optJob.done.error}</ErrorText>}
+      </section>
 
       <div className="border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <GraphicsSection

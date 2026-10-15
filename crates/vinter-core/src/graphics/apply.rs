@@ -126,6 +126,7 @@ mod tests {
             recipe: None,
             env: Default::default(),
             dll_overrides: Default::default(),
+            options: Default::default(),
             programs: vec![],
         }
         .save(&dir)

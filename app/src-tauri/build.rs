@@ -15,6 +15,7 @@ fn main() {
             "bottle_create",
             "bottle_update",
             "bottle_set_windows_version",
+            "bottle_set_options",
             "bottle_duplicate",
             "bottle_delete",
             "bottle_open_drive_c",

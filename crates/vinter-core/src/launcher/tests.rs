@@ -14,6 +14,7 @@ fn bottle_with_programs(paths: &AppPaths, id: &str, name: &str, programs: &[&str
         recipe: None,
         env: Default::default(),
         dll_overrides: Default::default(),
+        options: Default::default(),
         programs: programs
             .iter()
             .map(|n| ProgramDef {

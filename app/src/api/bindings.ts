@@ -32,6 +32,11 @@ export const commands = {
 	bottleUpdate: (id: string, patch: BottlePatch) => __TAURI_INVOKE<Bottle_Serialize>("bottle_update", { id, patch }),
 	/**  Applies a Windows version (runs `winecfg /v`), as a job. */
 	bottleSetWindowsVersion: (id: string, version: WindowsVersion) => __TAURI_INVOKE<string>("bottle_set_windows_version", { id, version }),
+	/**
+	 *  Changes the bottle's display, keyboard and overlay options, as a job
+	 *  (display and keyboard changes take a few seconds).
+	 */
+	bottleSetOptions: (id: string, options: BottleOptions) => __TAURI_INVOKE<string>("bottle_set_options", { id, options }),
 	/**  Copies a bottle under a new name. The copy is listed right away. */
 	bottleDuplicate: (id: string, newName: string) => __TAURI_INVOKE<StartedBottle>("bottle_duplicate", { id, newName }),
 	/**  Stops the bottle's programs and moves it to the Trash. */
@@ -166,12 +171,26 @@ export type BottleFile = {
 	recipe?: string | null,
 	env?: { [key in string]: string },
 	dll_overrides?: { [key in string]: string },
+	options?: BottleOptions,
 	programs?: ProgramDef[],
 };
 
 export type BottleListItem = {
 	status: BottleStatus,
 } & BottleSummary;
+
+/**
+ *  Per-bottle display, keyboard and performance switches. The default (all
+ *  off) is what bottles made before these options existed had.
+ */
+export type BottleOptions = {
+	/**  macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size). */
+	retina_mode?: boolean,
+	/**  macOS: ⌘ works as Ctrl (so ⌘C copies) and ⌥ as Alt. */
+	command_as_ctrl?: boolean,
+	/**  Show a frame rate overlay in games (DXVK's and Metal's HUD). */
+	show_fps?: boolean,
+};
 
 /**  Fields to change; missing (null) ones are left alone. */
 export type BottlePatch = {
@@ -218,6 +237,7 @@ export type Bottle_Serialize = {
 	/**  Extra environment variables. Applied last, so they win. */
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
+	options: BottleOptions,
 	programs: ProgramDef[],
 };
 
