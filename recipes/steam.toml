@@ -1,0 +1,21 @@
+id = "steam"
+name = "Steam"
+description = "Valve's game store and launcher. You download its installer yourself. The first start updates Steam; if it closes during that, open it again."
+homepage = "https://store.steampowered.com"
+license = "Proprietary (free)"
+runtime_flavor = "stable"
+windows_version = "win10"
+
+# SteamSetup.exe changes without a new file name, so a checksum here would
+# break; the user picks the installer they downloaded.
+[installer]
+kind = "user_provided"
+hint = "Download SteamSetup.exe from store.steampowered.com/about, then choose it here."
+
+[[steps]]
+type = "run_installer"
+args = ["/S"]
+
+[[programs]]
+name = "Steam"
+exe = 'C:\Program Files (x86)\Steam\steam.exe'

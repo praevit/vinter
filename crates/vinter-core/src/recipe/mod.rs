@@ -29,6 +29,7 @@ const BUILTIN_RECIPES: &[&str] = &[
     include_str!("../../../../recipes/winrar.toml"),
     include_str!("../../../../recipes/sumatrapdf.toml"),
     include_str!("../../../../recipes/total-commander.toml"),
+    include_str!("../../../../recipes/steam.toml"),
 ];
 const BUILTIN_FILES: &[(&str, &[u8])] = &[(
     "fontsmooth-rgb.reg",
@@ -440,6 +441,7 @@ mod tests {
                 "foobar2000",
                 "notepad-plus-plus",
                 "putty",
+                "steam",
                 "sumatrapdf",
                 "total-commander",
                 "winrar"
