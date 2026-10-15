@@ -74,6 +74,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_set_launch_at_login,
+            commands::settings::storage_usage,
+            commands::settings::storage_clear_downloads,
+            commands::settings::bottle_disk_usage,
+            commands::settings::bottle_clean,
         ])
         .events(collect_events![
             events::JobProgress,

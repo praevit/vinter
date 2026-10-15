@@ -52,6 +52,10 @@ fn main() {
             "settings_get",
             "settings_set",
             "settings_set_launch_at_login",
+            "storage_usage",
+            "storage_clear_downloads",
+            "bottle_disk_usage",
+            "bottle_clean",
         ]),
     ))
     .expect("failed to run tauri-build");

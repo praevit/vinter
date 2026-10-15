@@ -86,7 +86,7 @@ impl Runtime {
     fn from_record(path: PathBuf, record: RuntimeRecord) -> Self {
         Self {
             wine_bin: path.join(&record.wine_bin),
-            size: dir_size(&path),
+            size: crate::storage::dir_size(&path),
             id: record.id,
             name: record.name,
             version: record.version,
@@ -204,15 +204,4 @@ pub fn remove(paths: &AppPaths, id: &str) -> Result<()> {
         .join(format!(".removing-{id}-{}", uuid::Uuid::new_v4()));
     std::fs::rename(&dir, &trash).at(&dir)?;
     std::fs::remove_dir_all(&trash).at(&trash)
-}
-
-/// Total size of regular files under `dir`, not following symlinks.
-fn dir_size(dir: &Path) -> u64 {
-    walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .filter_map(|e| e.metadata().ok())
-        .map(|m| m.len())
-        .sum()
 }

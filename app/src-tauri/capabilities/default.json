@@ -56,6 +56,10 @@
     "allow-open-files-take",
     "allow-settings-get",
     "allow-settings-set",
-    "allow-settings-set-launch-at-login"
+    "allow-settings-set-launch-at-login",
+    "allow-storage-usage",
+    "allow-storage-clear-downloads",
+    "allow-bottle-disk-usage",
+    "allow-bottle-clean"
   ]
 }

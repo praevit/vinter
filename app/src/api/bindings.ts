@@ -141,6 +141,14 @@ export const commands = {
 	settingsSet: (settings: Settings_Deserialize) => __TAURI_INVOKE<null>("settings_set", { settings }),
 	/**  Starts Vinter at login (in the menu bar, without its window), or stops that. */
 	settingsSetLaunchAtLogin: (enabled: boolean) => __TAURI_INVOKE<null>("settings_set_launch_at_login", { enabled }),
+	/**  Disk usage of bottles, runtimes, graphics components and downloads. */
+	storageUsage: () => __TAURI_INVOKE<Usage>("storage_usage"),
+	/**  Removes leftover downloads. Returns the bytes freed. */
+	storageClearDownloads: () => __TAURI_INVOKE<number>("storage_clear_downloads"),
+	/**  Size of one bottle in bytes. */
+	bottleDiskUsage: (id: string) => __TAURI_INVOKE<number>("bottle_disk_usage", { id }),
+	/**  Removes a bottle's old logs and temp files. Returns the bytes freed. */
+	bottleClean: (id: string) => __TAURI_INVOKE<number>("bottle_clean", { id }),
 };
 
 /** Events */
@@ -292,6 +300,12 @@ export type BottleSummary = {
 	/**  False while setup runs, or if it was interrupted. */
 	setup_complete: boolean,
 	program_count: number,
+};
+
+export type BottleUsage = {
+	id: string,
+	name: string,
+	bytes: number,
 };
 
 /**  Contents of `bottle.toml`. */
@@ -710,6 +724,17 @@ export type Tool = "winecfg" | "regedit" | "taskmgr" | "control" | "notepad" | "
 export type UpdateInfo = {
 	version: string,
 	notes: string | null,
+};
+
+/**  What Vinter's data folder holds. */
+export type Usage = {
+	/**  Largest first. */
+	bottles: BottleUsage[],
+	runtimes: number,
+	/**  Graphics components (DXVK and the like). */
+	components: number,
+	/**  Leftover downloads: installers and archives from setups that stopped. */
+	downloads: number,
 };
 
 /**  Windows version reported to programs, set with `winecfg /v`. */

@@ -1,13 +1,14 @@
 import { useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import { useAppInfo } from "../api/app";
 import { commands, type Settings_Serialize as SettingsData } from "../api/bindings";
 import { errorMessage } from "../api/errors";
-import { useInstalledRuntimes } from "../api/runtimes";
+import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
 import { useSaveSettings, useSettings } from "../api/settings";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { Select } from "../components/Select";
-import { ErrorText, subtle } from "../components/ui";
+import { Button, ErrorText, subtle } from "../components/ui";
 
 export function Settings() {
   const { data: view } = useSettings();
@@ -86,8 +87,87 @@ export function Settings() {
         </div>
       </Group>
       {save.error && <ErrorText>{errorMessage(save.error)}</ErrorText>}
+
+      <StorageGroup />
     </div>
   );
+}
+
+/** Disk usage, with a way to remove leftover downloads. */
+function StorageGroup() {
+  const queryClient = useQueryClient();
+  const { data: usage, isFetching } = useQuery({
+    queryKey: ["storage"],
+    queryFn: () => commands.storageUsage(),
+    staleTime: 0,
+  });
+  const [message, setMessage] = useState<string>();
+  const [error, setError] = useState<string>();
+
+  const clear = async () => {
+    setError(undefined);
+    try {
+      const freed = await commands.storageClearDownloads();
+      setMessage(`Freed ${formatBytes(freed)}.`);
+      await queryClient.invalidateQueries({ queryKey: ["storage"] });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <Group title="Storage">
+      {!usage ? (
+        <p className={`px-5 py-3.5 ${subtle}`}>{isFetching ? "Measuring…" : ""}</p>
+      ) : (
+        <>
+          {usage.bottles.map((b) => (
+            <SizeRow key={b.id} title={b.name} detail="Bottle" bytes={b.bytes} />
+          ))}
+          <SizeRow title="Wine runtimes" bytes={usage.runtimes} />
+          {usage.components > 0 && <SizeRow title="Graphics components" bytes={usage.components} />}
+          <SizeRow
+            title="Leftover downloads"
+            detail={message ?? "Installers and archives from setups that stopped."}
+            bytes={usage.downloads}
+          >
+            <Button disabled={usage.downloads === 0} onClick={clear}>
+              <Trash2 className="size-4" /> Remove
+            </Button>
+          </SizeRow>
+        </>
+      )}
+      {error && <div className="px-5 py-3"><ErrorText>{error}</ErrorText></div>}
+    </Group>
+  );
+}
+
+function SizeRow({
+  title,
+  detail,
+  bytes,
+  children,
+}: {
+  title: string;
+  detail?: string;
+  bytes: number;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-4 px-5 py-3">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate text-sm font-medium">{title}</span>
+        {detail && <span className={subtle}>{detail}</span>}
+      </span>
+      <span className="text-sm tabular-nums text-slate-deep-700/80 dark:text-frost-300/80">{formatSize(bytes)}</span>
+      {children}
+    </div>
+  );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes > 0 && bytes < 1e6) return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
+  return formatBytes(bytes);
 }
 
 function Group({ title, children }: { title: string; children: ReactNode }) {

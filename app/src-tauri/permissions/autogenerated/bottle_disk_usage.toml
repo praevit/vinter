@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-disk-usage"
+description = "Enables the bottle_disk_usage command without any pre-configured scope."
+commands.allow = ["bottle_disk_usage"]
+
+[[permission]]
+identifier = "deny-bottle-disk-usage"
+description = "Denies the bottle_disk_usage command without any pre-configured scope."
+commands.deny = ["bottle_disk_usage"]

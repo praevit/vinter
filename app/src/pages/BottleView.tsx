@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Copy, FolderOpen, Square, Trash2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Copy, Eraser, FolderOpen, Square, Trash2 } from "lucide-react";
 import { commands, type Tool } from "../api/bindings";
 import {
   TOOLS,
@@ -20,7 +20,7 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useRecipeState } from "../api/recipes";
-import { useInstalledRuntimes } from "../api/runtimes";
+import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { GraphicsSection } from "../components/GraphicsSection";
@@ -323,6 +323,8 @@ function Settings({
         />
       </div>
 
+      <BottleStorage bottleId={bottle.id} />
+
       <details className="flex flex-col gap-5 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <summary className="cursor-pointer text-sm font-medium">Advanced</summary>
         <div className="mt-4 flex flex-col gap-6">
@@ -400,5 +402,48 @@ function DeleteButton({ bottle, onDeleted }: { bottle: BottleDetails; onDeleted:
       )}
       {remove.error && <ErrorText>{errorMessage(remove.error)}</ErrorText>}
     </div>
+  );
+}
+
+/** The bottle's size, and cleaning up old logs and temp files. */
+function BottleStorage({ bottleId }: { bottleId: string }) {
+  const queryClient = useQueryClient();
+  const { data: bytes } = useQuery({
+    queryKey: ["bottles", bottleId, "size"],
+    queryFn: () => commands.bottleDiskUsage(bottleId),
+  });
+  const [result, setResult] = useState<string>();
+  const [error, setError] = useState<string>();
+  const [cleaning, setCleaning] = useState(false);
+
+  const clean = async () => {
+    setCleaning(true);
+    setError(undefined);
+    try {
+      const freed = await commands.bottleClean(bottleId);
+      setResult(freed > 0 ? `Freed ${formatBytes(freed)}.` : "Nothing to clean up.");
+      await queryClient.invalidateQueries({ queryKey: ["bottles", bottleId, "size"] });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  return (
+    <section className="flex flex-col gap-2 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
+      <h2 className="text-sm font-medium">Storage</h2>
+      <p className={subtle}>
+        This bottle uses {bytes === undefined ? "…" : formatBytes(bytes)}. Cleaning up removes old logs and
+        Windows' temporary files; programs and their settings stay.
+      </p>
+      <div className="flex items-center gap-3">
+        <Button onClick={clean} disabled={cleaning}>
+          <Eraser className="size-4" /> Clean up
+        </Button>
+        {result && <span className={subtle}>{result}</span>}
+      </div>
+      {error && <ErrorText>{error}</ErrorText>}
+    </section>
   );
 }

@@ -16,6 +16,7 @@ pub mod recipe;
 pub mod report;
 pub mod runtime;
 pub mod settings;
+pub mod storage;
 pub mod system;
 
 pub use error::{Error, Result, validate_id};
