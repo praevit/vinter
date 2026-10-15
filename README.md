@@ -18,8 +18,17 @@ own self-contained environment (a *bottle*), installs apps from their official
 installers, and lets you launch them like any other app on your computer.
 
 > **Status: early development.** Plenty of Windows software runs well and
-> plenty does not yet. There is no packaged release yet; you can build it from
-> source (below).
+> plenty does not yet. Version 0.1.0 is the first release.
+
+## Download
+
+- **Mac (Apple Silicon):** [Vinter for Mac](https://getvinter.app/download/mac) (.dmg)
+- **Linux (x86_64):** [Vinter for Linux](https://getvinter.app/download/linux) (.AppImage),
+  or the `.deb` from the [latest release](https://github.com/praevit/vinter/releases/latest)
+
+Vinter is not notarized by Apple yet. The first time you open it, macOS asks
+you to confirm: try to open Vinter, then go to **System Settings → Privacy &
+Security** and click **Open Anyway**.
 
 ## Features
 

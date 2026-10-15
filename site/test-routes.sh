@@ -53,11 +53,19 @@ expect www.getvinter.app      /                       301 https://getvinter.app/
 expect www.getvinter.app      /GitHub/issues          301 https://getvinter.app/GitHub/issues
 
 echo "== Short links: any case, trailing slash, query kept"
-for p in /download /download/ /Download /DOWNLOAD/ /download/mac /download/mac/ /Download/Mac /download/linux /download/linux/ /download/anything; do
+DL="$GH/releases/latest/download"
+for p in /download /download/ /Download /DOWNLOAD/ /download/anything; do
   expect getvinter.app "$p" 302 "$GH/releases/latest"
 done
+for p in /download/mac /download/mac/ /Download/Mac; do
+  expect getvinter.app "$p" 302 "$DL/Vinter_aarch64.dmg"
+done
+for p in /download/linux /download/linux/ /DOWNLOAD/LINUX; do
+  expect getvinter.app "$p" 302 "$DL/Vinter_amd64.AppImage"
+done
+expect getvinter.app /download/deb                    302 "$DL/Vinter_amd64.deb"
 expect getvinter.app "/download?ref=newsletter"       302 "$GH/releases/latest?ref=newsletter"
-expect getvinter.app "/Download/Mac/?ref=x"           302 "$GH/releases/latest?ref=x"
+expect getvinter.app "/Download/Mac/?ref=x"           302 "$DL/Vinter_aarch64.dmg?ref=x"
 
 echo "== Short links: sub-paths pass through"
 expect getvinter.app /github                          302 "$GH"
@@ -110,8 +118,8 @@ expect getvinter.app /healthz                         200
 [[ "$BODY" == "ok" ]] && ok "/healthz says ok" || bad "/healthz says ok" "body: $BODY"
 expect getvinter.app "/styles.css?v=1"                200
 has_header "CSS cached for a year"   '^cache-control: public, max-age=31536000, immutable'
-expect getvinter.app /updates/latest.json             200
-has_header "updates not cached"      '^cache-control: no-cache'
+expect getvinter.app /updates/latest.json             302 "$DL/latest.json"
+expect getvinter.app /updates/other.json              404
 expect getvinter.app /nope                            404
 [[ "$BODY" == *"went into hibernation"* ]] && ok "custom 404 page" || bad "custom 404 page" "body did not match"
 has_header "404 keeps security headers" "^x-frame-options: DENY"
