@@ -10,8 +10,9 @@ dist/
 *.log
 # Partial downloads, if a data folder is ever pointed inside the repo
 *.part
-# Markdown files are kept out of the repository.
+# Markdown files are kept out of the repository, except the public README.
 *.md
+!/README.md
 
 # DXVK shader caches, written to the working directory of whatever ran it.
 *.dxvk-cache
