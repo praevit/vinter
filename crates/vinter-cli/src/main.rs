@@ -664,6 +664,7 @@ async fn recipe_command(paths: &AppPaths, cmd: RecipeCommand) -> Result<()> {
                 b.id,
                 b.programs.len()
             );
+            print_launchers(paths, &b.id)?;
         }
         RecipeCommand::Resume {
             bottle: key,
@@ -673,7 +674,16 @@ async fn recipe_command(paths: &AppPaths, cmd: RecipeCommand) -> Result<()> {
             let id = bottle::resolve(paths, &key)?.id;
             let b = recipe::resume(paths, &id, installer, accept_downloads, show_progress).await?;
             println!("\nDone: {} with {} program(s).", b.name, b.programs.len());
+            print_launchers(paths, &b.id)?;
         }
+    }
+    Ok(())
+}
+
+/// Creates the launchers for a bottle's pinned programs (a recipe pins its apps).
+fn print_launchers(paths: &AppPaths, bottle_id: &str) -> Result<()> {
+    for path in vinter_core::launcher::sync_bottle(paths, bottle_id, &launcher_target()?)? {
+        println!("Launcher: {}", path.display());
     }
     Ok(())
 }

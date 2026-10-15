@@ -355,6 +355,8 @@ fn run_step(
 }
 
 /// Adds the recipe's programs that exist; if none do, the installer's shortcuts.
+/// They are pinned: an app set up from a recipe gets a launcher right away
+/// (the caller creates it with [`crate::launcher::sync_bottle`]).
 fn add_programs(paths: &AppPaths, loaded: &LoadedRecipe, bottle_id: &str) -> Result<()> {
     let prefix = bottle::dir(paths, bottle_id)?.join(PREFIX_DIR);
     let mut defs: Vec<ProgramDef> = loaded
@@ -368,7 +370,7 @@ fn add_programs(paths: &AppPaths, loaded: &LoadedRecipe, bottle_id: &str) -> Res
                 exe: p.exe.clone(),
                 args: p.args.clone(),
                 icon: programs::save_icon_for(paths, bottle_id, &unix),
-                pinned: false,
+                pinned: true,
             })
         })
         .collect();
@@ -376,7 +378,10 @@ fn add_programs(paths: &AppPaths, loaded: &LoadedRecipe, bottle_id: &str) -> Res
         defs = programs::discover(paths, bottle_id)?
             .into_iter()
             .filter(|p| p.source == Source::Shortcut && !p.already_added)
-            .map(|p| p.to_def())
+            .map(|p| ProgramDef {
+                pinned: true,
+                ..p.to_def()
+            })
             .collect();
     }
     if defs.is_empty() && !loaded.recipe.programs.is_empty() {

@@ -7,7 +7,9 @@ mod focus;
 mod jobs;
 mod startup;
 mod state;
+mod tray;
 
+use tauri::Manager;
 use tauri_specta::{Builder, ErrorHandlingMode, collect_commands, collect_events};
 use vinter_core::AppPaths;
 
@@ -102,6 +104,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(paths))
         .manage(startup::Startup::default())
+        .manage(tray::TrayState::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -116,8 +119,18 @@ fn main() {
                     event.urls().iter().map(|u| u.to_string()).collect(),
                 );
             });
+            tray::create(app.handle());
             startup::on_start(app.handle(), std::env::args().collect());
             Ok(())
+        })
+        // With a menu bar icon, closing the window keeps Vinter running there.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && tray::is_shown(window.app_handle()) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building Vinter");

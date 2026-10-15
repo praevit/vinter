@@ -36,9 +36,19 @@ pub struct StartedBottle {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn bottles_list(state: State<'_, AppState>) -> CommandResult<Vec<BottleListItem>> {
+pub async fn bottles_list(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CommandResult<Vec<BottleListItem>> {
     let paths = state.paths.clone();
-    let summaries = blocking(move || Ok(bottle::list(&paths)?)).await?;
+    let summaries = blocking(move || {
+        let summaries = bottle::list(&paths)?;
+        // The interface reloads this list after every change to bottles or
+        // programs, so it is the one place that keeps the menu bar current.
+        crate::tray::refresh(&app);
+        Ok(summaries)
+    })
+    .await?;
     Ok(summaries
         .into_iter()
         .map(|summary| BottleListItem {

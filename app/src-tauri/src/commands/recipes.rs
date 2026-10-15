@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
+use vinter_core::bottle::Bottle;
 use vinter_core::recipe::{
     self, ApplyOptions, BrokenRecipe, RecipeProgress, RecipeState, RecipeSummary,
 };
@@ -38,6 +39,23 @@ fn report(job: &JobReporter, p: RecipeProgress) {
     job.progress(&p.label, message, p.percent);
 }
 
+/// A finished recipe: creates launchers for the programs it pinned, so the
+/// app can be opened from Spotlight or the app menu right away.
+fn finish(app: &AppHandle, result: vinter_core::Result<Bottle>) -> Result<(), String> {
+    let bottle = result.map_err(|e| e.to_string())?;
+    let paths = &app.state::<AppState>().paths;
+    let launchers = crate::startup::launcher_target()
+        .and_then(|target| vinter_core::launcher::sync_bottle(paths, &bottle.id, &target));
+    if let Err(e) = launchers {
+        return Err(format!(
+            "{} is set up, but its launcher could not be created: {e}",
+            bottle.name
+        ));
+    }
+    crate::tray::refresh(app);
+    Ok(())
+}
+
 /// Sets an app up from a recipe in a new bottle. The bottle id is returned
 /// right away; the bottle appears once its runtime and installer are ready.
 #[tauri::command]
@@ -66,7 +84,7 @@ pub fn recipe_apply(
         async move {
             let result = recipe::apply(&paths, &loaded, opts, |p| report(&job, p)).await;
             app.state::<AppState>().clear_busy(&id);
-            result.map(|_| ()).map_err(|e| e.to_string())
+            finish(&app, result)
         }
     });
     Ok(StartedBottle { bottle_id, job_id })
@@ -105,7 +123,7 @@ pub fn recipe_resume(
             )
             .await;
             app.state::<AppState>().clear_busy(&bottle_id);
-            result.map(|_| ()).map_err(|e| e.to_string())
+            finish(&app, result)
         }
     }))
 }

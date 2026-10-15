@@ -136,7 +136,7 @@ fn run(app: &AppHandle, bottle_id: String, index: usize) {
 }
 
 /// Shows the window with a message (a background launch has no other way to report).
-fn notify(app: &AppHandle, message: String) {
+pub(crate) fn notify(app: &AppHandle, message: String) {
     show_main_window(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

@@ -18,7 +18,7 @@ tauri-build = { workspace = true, features = [] }
 
 [dependencies]
 vinter-core = { workspace = true, features = ["specta"] }
-tauri = { workspace = true, features = [] }
+tauri = { workspace = true, features = ["tray-icon", "image-png"] }
 serde.workspace = true
 serde_json.workspace = true
 tauri-plugin-opener.workspace = true

@@ -136,7 +136,7 @@ function ProgramTile({
         aria-pressed={program.pinned}
         onClick={togglePin}
         className={`absolute top-1.5 left-1.5 rounded p-0.5 hover:bg-frost-100 dark:hover:bg-slate-deep-800 ${
-          program.pinned ? "text-wine-500 dark:text-rose-300" : "text-frost-400 opacity-0 group-hover:opacity-100"
+          program.pinned ? "text-wine-500 dark:text-rose-300" : "text-frost-400 hover:text-wine-500 dark:hover:text-rose-300"
         }`}
       >
         {program.pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
