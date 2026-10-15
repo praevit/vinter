@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { AppWindow, LoaderCircle, Play, Plus, Search, Square, X } from "lucide-react";
+import { AppWindow, LoaderCircle, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { pinLabel, useAppInfo } from "../api/app";
 import { commands, type ProgramView } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
@@ -87,6 +89,18 @@ function ProgramTile({
   const [error, setError] = useState<string>();
   const [starting, setStarting] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const { data: app } = useAppInfo();
+  const queryClient = useQueryClient();
+
+  const togglePin = async () => {
+    setError(undefined);
+    try {
+      await commands.programSetPinned(bottleId, program.index, !program.pinned);
+      await queryClient.invalidateQueries({ queryKey: ["bottles"] });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
 
   const run = latestRun(runs, bottleId, program.index);
   const running = !!run && !run.exit;
@@ -114,6 +128,18 @@ function ProgramTile({
         className="absolute top-1.5 right-1.5 rounded p-0.5 text-frost-400 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:hover:bg-slate-deep-800"
       >
         <X className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        title={pinLabel(app?.os, program.pinned)}
+        aria-label={pinLabel(app?.os, program.pinned)}
+        aria-pressed={program.pinned}
+        onClick={togglePin}
+        className={`absolute top-1.5 left-1.5 rounded p-0.5 hover:bg-frost-100 dark:hover:bg-slate-deep-800 ${
+          program.pinned ? "text-wine-500 dark:text-rose-300" : "text-frost-400 opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        {program.pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
       </button>
       <ProgramIcon src={program.icon_data_url} size="size-12" />
       <span className="line-clamp-2 text-sm font-medium" title={program.exe}>

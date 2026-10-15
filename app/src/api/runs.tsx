@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { commands, events, type RunInfo, type Stream } from "./bindings";
+import { useToasts } from "./toasts";
 
 /** Lines kept in memory per run; the full output is in the run's log file. */
 const MAX_LINES = 2000;
@@ -22,6 +23,7 @@ const RunsContext = createContext<Runs | null>(null);
 /** Tracks programs started from Vinter and their output, for the whole app. */
 export function RunsProvider({ children }: { children: ReactNode }) {
   const [runs, setRuns] = useState<Record<string, Run>>({});
+  const toasts = useToasts();
 
   const add = useCallback((info: RunInfo) => {
     setRuns((r) => ({ ...r, [info.run_id]: { ...(r[info.run_id] ?? { lines: [] }), info } }));
@@ -38,15 +40,20 @@ export function RunsProvider({ children }: { children: ReactNode }) {
       }),
     );
     const exit = events.runExit.listen(({ payload: p }) =>
-      setRuns((r) =>
-        r[p.run_id] ? { ...r, [p.run_id]: { ...r[p.run_id], exit: { code: p.code } } } : r,
-      ),
+      setRuns((r) => {
+        const run = r[p.run_id];
+        if (!run) return r;
+        if (p.code !== null && p.code !== 0) {
+          toasts.show(`${run.info.name} exited with code ${p.code}. Its log is in the bottle's Logs tab.`);
+        }
+        return { ...r, [p.run_id]: { ...run, exit: { code: p.code } } };
+      }),
     );
     return () => {
       log.then((u) => u());
       exit.then((u) => u());
     };
-  }, [add]);
+  }, [add, toasts]);
 
   const list = Object.values(runs).filter((r) => r.info);
   return <RunsContext value={{ runs: list, add }}>{children}</RunsContext>;

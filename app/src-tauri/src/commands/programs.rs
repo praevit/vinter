@@ -34,6 +34,8 @@ pub struct ProgramView {
     pub name: String,
     pub exe: String,
     pub icon_data_url: Option<String>,
+    /// Has a launcher (Spotlight/Launchpad on macOS, app menu on Linux).
+    pub pinned: bool,
 }
 
 /// Lets the user pick an installer (.exe or .msi) with the system file dialog.
@@ -124,7 +126,17 @@ pub async fn program_remove(
     index: u32,
 ) -> CommandResult<Bottle> {
     let paths = state.paths.clone();
-    blocking(move || Ok(programs::remove(&paths, &bottle_id, index as usize)?)).await
+    blocking(move || {
+        let bottle = programs::remove(&paths, &bottle_id, index as usize)?;
+        // Launchers point at program indexes, which just shifted.
+        vinter_core::launcher::sync_bottle(
+            &paths,
+            &bottle_id,
+            &crate::startup::launcher_target()?,
+        )?;
+        Ok(bottle)
+    })
+    .await
 }
 
 /// A bottle's programs, with icons as `data:` URLs.
@@ -145,6 +157,7 @@ pub async fn programs_list(
                 index: i as u32,
                 name: p.name.clone(),
                 exe: p.exe.clone(),
+                pinned: p.pinned,
                 icon_data_url: p
                     .icon
                     .as_deref()
@@ -160,64 +173,75 @@ pub async fn programs_list(
 #[specta::specta]
 pub async fn program_launch(
     app: AppHandle,
-    state: State<'_, AppState>,
     bottle_id: String,
     program_index: u32,
 ) -> CommandResult<RunInfo> {
-    let paths = state.paths.clone();
-    blocking(move || {
-        let bottle = bottle::get(&paths, &bottle_id)?;
-        let runtime = runtime::get(&paths, &bottle.runtime)?;
-        let run_id = uuid::Uuid::new_v4().to_string();
-        let watch = focus::Watch::start(&app, &runtime.path);
+    tauri::async_runtime::spawn_blocking(move || launch_program(&app, bottle_id, program_index))
+        .await?
+}
 
-        let (log_app, exit_app) = (app.clone(), app.clone());
-        let (log_run, exit_run) = (run_id.clone(), run_id.clone());
-        let launched = programs::launch(
-            &paths,
-            &bottle_id,
-            program_index as usize,
-            move |stream, line| {
-                let _ = RunLog {
-                    run_id: log_run.clone(),
-                    line: line.to_string(),
-                    stream: stream.into(),
-                }
-                .emit(&log_app);
-            },
-            move |code| {
-                exit_app
-                    .state::<AppState>()
-                    .runs
-                    .lock()
-                    .unwrap()
-                    .remove(&exit_run);
-                let _ = RunExit {
-                    run_id: exit_run,
-                    code,
-                }
-                .emit(&exit_app);
-            },
-        )?;
-        watch.focus_new_app();
+/// Starts a program and tracks it (shared by the UI, deep links and `--run`).
+/// Blocks briefly while the process starts.
+pub(crate) fn launch_program(
+    app: &AppHandle,
+    bottle_id: String,
+    program_index: u32,
+) -> CommandResult<RunInfo> {
+    let paths = app.state::<AppState>().paths.clone();
+    let bottle = bottle::get(&paths, &bottle_id)?;
+    let runtime = runtime::get(&paths, &bottle.runtime)?;
+    let run_id = uuid::Uuid::new_v4().to_string();
+    let watch = focus::Watch::start(app, &runtime.path);
 
-        let info = RunInfo {
-            run_id: run_id.clone(),
-            bottle_id,
-            program_index,
-            name: launched.name,
-            pid: launched.pid,
-            started_at: humantime::format_rfc3339_seconds(std::time::SystemTime::now()).to_string(),
-            log_id: launched.log_id,
-        };
-        app.state::<AppState>()
-            .runs
-            .lock()
-            .unwrap()
-            .insert(run_id, info.clone());
-        Ok(info)
-    })
-    .await
+    let (log_app, exit_app) = (app.clone(), app.clone());
+    let (log_run, exit_run) = (run_id.clone(), run_id.clone());
+    let launched = programs::launch(
+        &paths,
+        &bottle_id,
+        program_index as usize,
+        move |stream, line| {
+            let _ = RunLog {
+                run_id: log_run.clone(),
+                line: line.to_string(),
+                stream: stream.into(),
+            }
+            .emit(&log_app);
+        },
+        move |code| {
+            let state = exit_app.state::<AppState>();
+            let none_left = {
+                let mut runs = state.runs.lock().unwrap();
+                runs.remove(&exit_run);
+                runs.is_empty()
+            };
+            let _ = RunExit {
+                run_id: exit_run,
+                code,
+            }
+            .emit(&exit_app);
+            // Started in the background just for this program: quit with it.
+            if none_left && crate::startup::was_headless(&exit_app) {
+                exit_app.exit(0);
+            }
+        },
+    )?;
+    watch.focus_new_app();
+
+    let info = RunInfo {
+        run_id: run_id.clone(),
+        bottle_id,
+        program_index,
+        name: launched.name,
+        pid: launched.pid,
+        started_at: humantime::format_rfc3339_seconds(std::time::SystemTime::now()).to_string(),
+        log_id: launched.log_id,
+    };
+    app.state::<AppState>()
+        .runs
+        .lock()
+        .unwrap()
+        .insert(run_id, info.clone());
+    Ok(info)
 }
 
 /// Stops a running program. Other programs in the bottle keep running.

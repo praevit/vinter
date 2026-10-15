@@ -39,6 +39,12 @@ fn main() {
             "recipe_state",
             "recipe_resume",
             "recipes_open_folder",
+            "app_info",
+            "app_open_link",
+            "debug_report",
+            "update_check",
+            "update_install",
+            "program_set_pinned",
         ]),
     ))
     .expect("failed to run tauri-build");

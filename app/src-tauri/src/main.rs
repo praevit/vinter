@@ -5,6 +5,7 @@ mod commands;
 mod events;
 mod focus;
 mod jobs;
+mod startup;
 mod state;
 
 use tauri_specta::{Builder, ErrorHandlingMode, collect_commands, collect_events};
@@ -13,6 +14,7 @@ use vinter_core::AppPaths;
 use crate::state::AppState;
 
 /// Where the generated TypeScript bindings live, relative to this crate.
+#[cfg(any(debug_assertions, test))]
 const BINDINGS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/api/bindings.ts");
 
 /// Every command and event the frontend can use. TS bindings are generated from this.
@@ -55,18 +57,26 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::recipes::recipe_state,
             commands::recipes::recipe_resume,
             commands::recipes::recipes_open_folder,
+            commands::app::app_info,
+            commands::app::app_open_link,
+            commands::app::debug_report,
+            commands::app::update_check,
+            commands::app::update_install,
+            commands::app::program_set_pinned,
         ])
         .events(collect_events![
             events::JobProgress,
             events::JobDone,
             events::RunLog,
-            events::RunExit
+            events::RunExit,
+            events::Notice
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.
         .dangerously_cast_bigints_to_number()
 }
 
+#[cfg(any(debug_assertions, test))]
 fn export_bindings(builder: &Builder<tauri::Wry>) {
     builder
         .export(specta_typescript::Typescript::default(), BINDINGS_PATH)
@@ -81,17 +91,45 @@ fn main() {
 
     let paths = AppPaths::discover().expect("could not find the home directory");
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // Must come first: a second Vinter hands its arguments to this one.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            startup::on_second_instance(app, args);
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(paths))
+        .manage(startup::Startup::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            use tauri_plugin_deep_link::DeepLinkExt;
+            // Linux has no bundle metadata during development; register at runtime.
+            #[cfg(target_os = "linux")]
+            let _ = app.deep_link().register_all();
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                startup::on_urls(
+                    &handle,
+                    event.urls().iter().map(|u| u.to_string()).collect(),
+                );
+            });
+            startup::on_start(app.handle(), std::env::args().collect());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Vinter");
+        .build(tauri::generate_context!())
+        .expect("error while building Vinter");
+
+    app.run(|app, event| {
+        // macOS: clicking the Dock icon shows the window again.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
+            startup::show_main_window(app);
+        }
+        let _ = (app, event);
+    });
 }
 
 #[cfg(test)]

@@ -48,6 +48,14 @@ impl From<vinter_core::process::Stream> for Stream {
     }
 }
 
+/// A message for the user that has no other place to appear, e.g. a
+/// launcher that failed to start its program.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://notice")]
+pub struct Notice {
+    pub message: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[tauri_specta(event_name = "job://done")]
 pub struct JobDone {

@@ -8,10 +8,12 @@ pub mod bottle;
 pub mod download;
 pub mod error;
 pub mod graphics;
+pub mod launcher;
 pub mod paths;
 pub mod process;
 pub mod programs;
 pub mod recipe;
+pub mod report;
 pub mod runtime;
 pub mod system;
 

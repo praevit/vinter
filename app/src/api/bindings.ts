@@ -90,10 +90,27 @@ export const commands = {
 	recipeResume: (bottleId: string, installerPath: string | null, acceptDownloads: boolean) => __TAURI_INVOKE<string>("recipe_resume", { bottleId, installerPath, acceptDownloads }),
 	/**  Opens the folder for your own recipes (creating it if needed). */
 	recipesOpenFolder: () => __TAURI_INVOKE<null>("recipes_open_folder"),
+	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	appOpenLink: (link: AppLink) => __TAURI_INVOKE<null>("app_open_link", { link }),
+	/**  Text for "Copy debug report". */
+	debugReport: (bottleId: string) => __TAURI_INVOKE<string>("debug_report", { bottleId }),
+	/**  Asks getvinter.app for a newer version. */
+	updateCheck: () => __TAURI_INVOKE<{
+	version: string,
+	notes: string | null,
+} | null>("update_check"),
+	/**  Downloads and installs the newer version, then restarts Vinter. */
+	updateInstall: () => __TAURI_INVOKE<string>("update_install"),
+	/**
+	 *  Pins or unpins a program: pinned programs get a launcher
+	 *  (Spotlight/Launchpad on macOS, the app menu on Linux).
+	 */
+	programSetPinned: (bottleId: string, index: number, pinned: boolean) => __TAURI_INVOKE<null>("program_set_pinned", { bottleId, index, pinned }),
 };
 
 /** Events */
 export const events = {
+	appNotice: makeEvent<Notice>("app://notice"),
 	jobDone: makeEvent<JobDone>("job://done"),
 	jobProgress: makeEvent<JobProgress>("job://progress"),
 	runExit: makeEvent<RunExit>("run://exit"),
@@ -101,6 +118,18 @@ export const events = {
 };
 
 /* Types */
+export type AppInfo = {
+	version: string,
+	/**  "macos" or "linux". */
+	os: string,
+	data_dir: string,
+	/**  Where pinned programs' launchers go. */
+	launchers_dir: string,
+};
+
+/**  Fixed places the About screen can open. */
+export type AppLink = "website" | "source" | "issues" | "data_folder" | "launchers_folder" | "wine_license";
+
 export type ArchiveFormat = "tar_xz" | "tar_gz";
 
 /**  What the UI shows for one backend in a bottle. */
@@ -300,6 +329,14 @@ export type LogEntry = {
 	size: number,
 };
 
+/**
+ *  A message for the user that has no other place to appear, e.g. a
+ *  launcher that failed to start its program.
+ */
+export type Notice = {
+	message: string,
+};
+
 /**  A program shown in a bottle. */
 export type ProgramDef = {
 	name: string,
@@ -317,6 +354,8 @@ export type ProgramView = {
 	name: string,
 	exe: string,
 	icon_data_url: string | null,
+	/**  Has a launcher (Spotlight/Launchpad on macOS, app menu on Linux). */
+	pinned: boolean,
 };
 
 export type RecipeList = {
@@ -497,6 +536,11 @@ export type SystemStatus = {
 
 /**  Built-in Wine programs that can be opened in a bottle. */
 export type Tool = "winecfg" | "regedit" | "taskmgr" | "control" | "notepad" | "explorer";
+
+export type UpdateInfo = {
+	version: string,
+	notes: string | null,
+};
 
 /**  Windows version reported to programs, set with `winecfg /v`. */
 export type WindowsVersion = "win11" | "win10" | "win81" | "win8" | "win7" | "winxp64";

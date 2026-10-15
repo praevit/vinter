@@ -139,6 +139,12 @@ enum BottleCommand {
         bottle: String,
         overrides: Vec<String>,
     },
+    /// Add a launcher for a program (~/Applications/Vinter on macOS, the app menu on Linux).
+    Pin { bottle: String, program: usize },
+    /// Remove a program's launcher.
+    Unpin { bottle: String, program: usize },
+    /// Print a debug report for bug reports.
+    Report { bottle: String },
 }
 
 #[derive(Subcommand)]
@@ -550,6 +556,37 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
                 println!("{dll}={mode}");
             }
         }
+        BottleCommand::Pin {
+            bottle: key,
+            program,
+        } => {
+            let target = launcher_target()?;
+            let b = vinter_core::launcher::set_pinned(paths, &id(&key)?, program, true, &target)?;
+            println!(
+                "Pinned {}: launcher in {}",
+                b.programs[program].name,
+                target.dir.display()
+            );
+            if cfg!(target_os = "macos") {
+                println!("It opens through Vinter.app, which must be installed.");
+            }
+        }
+        BottleCommand::Unpin {
+            bottle: key,
+            program,
+        } => {
+            let b = vinter_core::launcher::set_pinned(
+                paths,
+                &id(&key)?,
+                program,
+                false,
+                &launcher_target()?,
+            )?;
+            println!("Unpinned {}.", b.programs[program].name);
+        }
+        BottleCommand::Report { bottle: key } => {
+            print!("{}", vinter_core::report::debug_report(paths, &id(&key)?)?);
+        }
         BottleCommand::Logs { bottle: key, log } => {
             let dir = bottle::dir(paths, &id(&key)?)?;
             match log {
@@ -639,6 +676,14 @@ async fn recipe_command(paths: &AppPaths, cmd: RecipeCommand) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Launchers made by the CLI. On Linux they start the Vinter app, which
+/// packages install as `vinter-app`.
+fn launcher_target() -> Result<vinter_core::launcher::Target> {
+    Ok(vinter_core::launcher::Target::for_this_os(vec![
+        "vinter-app".into(),
+    ])?)
 }
 
 fn print_discovered(found: &[programs::DiscoveredProgram]) {

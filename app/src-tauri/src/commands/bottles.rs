@@ -121,6 +121,8 @@ pub async fn bottle_update(
         let mut bottle = bottle::get(&paths, &id)?;
         if let Some(name) = patch.name {
             bottle = bottle::rename(&paths, &id, &name)?;
+            // Launcher names can include the bottle's name.
+            vinter_core::launcher::sync_bottle(&paths, &id, &crate::startup::launcher_target()?)?;
         }
         if let Some(runtime) = patch.runtime {
             bottle = bottle::set_runtime(&paths, &id, &runtime)?;
@@ -200,7 +202,11 @@ pub async fn bottle_delete(state: State<'_, AppState>, id: String) -> CommandRes
         return Err("This bottle is busy. Wait for it to finish first.".into());
     }
     let paths = state.paths.clone();
-    blocking(move || Ok(bottle::delete(&paths, &id)?)).await
+    blocking(move || {
+        vinter_core::launcher::remove_bottle(&id, &crate::startup::launcher_target()?)?;
+        Ok(bottle::delete(&paths, &id)?)
+    })
+    .await
 }
 
 /// Opens the bottle's C: drive in Finder (or the file manager on Linux).

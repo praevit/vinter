@@ -37,6 +37,9 @@ pelite = { version = "0.10", default-features = false, features = ["std", "mmap"
 image = { version = "0.25", default-features = false, features = ["ico", "png"] }
 base64 = "0.23"
 tauri-plugin-dialog = "2.8"
+tauri-plugin-deep-link = "2.6"
+tauri-plugin-updater = "2.14"
+tauri-plugin-single-instance = { version = "2.5", features = ["deep-link"] }
 tauri-plugin-opener = "2.7"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }

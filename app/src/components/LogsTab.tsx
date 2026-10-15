@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ClipboardCopy, RefreshCw } from "lucide-react";
+import { commands } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { useLog, useLogs } from "../api/programs";
 import { useRuns } from "../api/runs";
@@ -22,14 +23,40 @@ export function LogsTab({ bottleId, initial }: { bottleId: string; initial?: str
     view.current?.scrollTo({ top: view.current.scrollHeight });
   }, [text]);
 
+  const [copied, setCopied] = useState<string>();
+  const copyReport = async () => {
+    try {
+      await navigator.clipboard.writeText(await commands.debugReport(bottleId));
+      setCopied("Debug report copied. Paste it into a bug report.");
+    } catch (e) {
+      setCopied(`Could not copy: ${String(e)}`);
+    }
+  };
+
   const isLive = (id: string) =>
     runs.some((r) => r.info.bottle_id === bottleId && r.info.log_id === id && !r.exit);
 
+  const reportBar = (
+    <div className="flex items-center gap-3">
+      <Button onClick={copyReport}>
+        <ClipboardCopy className="size-4" /> Copy debug report
+      </Button>
+      {copied && <span className={subtle}>{copied}</span>}
+    </div>
+  );
+
   if (logs.data?.length === 0) {
-    return <p className="text-sm text-frost-400">No logs yet. Every program you open gets one.</p>;
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-frost-400">No logs yet. Every program you open gets one.</p>
+        {reportBar}
+      </div>
+    );
   }
 
   return (
+    <div className="flex flex-col gap-3">
+    {reportBar}
     <div className="flex h-[28rem] gap-3">
       <ul className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto">
         {logs.data?.map((l) => (
@@ -69,6 +96,7 @@ export function LogsTab({ bottleId, initial }: { bottleId: string; initial?: str
           {text || "(no output)"}
         </pre>
       </div>
+    </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
 import { BottleView } from "./pages/BottleView";
+import { About } from "./pages/About";
 import { InstallApp } from "./pages/InstallApp";
 import { NewBottle } from "./pages/NewBottle";
 import { Runtimes } from "./pages/Runtimes";
@@ -32,6 +33,8 @@ export function App() {
           <Runtimes />
         ) : current.page === "system" ? (
           <System />
+        ) : current.page === "about" ? (
+          <About />
         ) : (
           <Welcome onNavigate={setRoute} />
         )}
