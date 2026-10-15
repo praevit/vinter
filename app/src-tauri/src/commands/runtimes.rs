@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
+use vinter_core::runtime::updates::RuntimeUpdate;
 use vinter_core::runtime::{self, InstallProgress, InstallStage, Runtime, RuntimeInfo};
 
 use super::{CommandResult, blocking};
@@ -110,4 +111,63 @@ pub fn runtime_open_link(app: AppHandle, id: String, link: RuntimeLink) -> Comma
     };
     app.opener().open_url(url, None::<&str>)?;
     Ok(())
+}
+
+/// Newer builds of installed runtimes.
+#[tauri::command]
+#[specta::specta]
+pub async fn runtime_updates(state: State<'_, AppState>) -> CommandResult<Vec<RuntimeUpdate>> {
+    let paths = state.paths.clone();
+    super::blocking(move || Ok(runtime::updates::find(&paths)?)).await
+}
+
+/// Installs the newer build of an installed runtime and moves its bottles
+/// onto it, as a job. The old runtime stays installed until removed.
+#[tauri::command]
+#[specta::specta]
+pub fn runtime_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    installed_id: String,
+) -> CommandResult<JobId> {
+    let update = runtime::updates::find(&state.paths)?
+        .into_iter()
+        .find(|u| u.installed_id == installed_id)
+        .ok_or("There is no newer version of this runtime.")?;
+    let info = update.newer;
+    if !state.installing.lock().unwrap().insert(info.id.clone()) {
+        return Err(format!("{} is already being installed.", info.name).into());
+    }
+    let paths = state.paths.clone();
+    Ok(jobs::spawn(&app, |job| {
+        let app = app.clone();
+        async move {
+            let result = async {
+                runtime::install(&paths, &info, |p| report(&job, p)).await?;
+                job.progress("Moving bottles", String::new(), None);
+                runtime::updates::move_bottles(&paths, &installed_id, &info.id)
+            }
+            .await;
+            app.state::<AppState>()
+                .installing
+                .lock()
+                .unwrap()
+                .remove(&info.id);
+            match &result {
+                Ok(n) => crate::notify::send(
+                    &app,
+                    &format!("{} is installed", info.name),
+                    &format!(
+                        "{n} bottle(s) now use it. You can remove the old version on the Runtimes page."
+                    ),
+                ),
+                Err(e) => crate::notify::send(
+                    &app,
+                    &format!("Could not update to {}", info.name),
+                    &e.to_string(),
+                ),
+            }
+            result.map(|_| ()).map_err(|e| e.to_string())
+        }
+    }))
 }

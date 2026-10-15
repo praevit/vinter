@@ -20,6 +20,13 @@ export const commands = {
 	runtimeInstall: (id: string) => __TAURI_INVOKE<string>("runtime_install", { id }),
 	/**  Deletes an installed runtime. */
 	runtimeRemove: (id: string) => __TAURI_INVOKE<null>("runtime_remove", { id }),
+	/**  Newer builds of installed runtimes. */
+	runtimeUpdates: () => __TAURI_INVOKE<RuntimeUpdate_Serialize[]>("runtime_updates"),
+	/**
+	 *  Installs the newer build of an installed runtime and moves its bottles
+	 *  onto it, as a job. The old runtime stays installed until removed.
+	 */
+	runtimeUpdate: (installedId: string) => __TAURI_INVOKE<string>("runtime_update", { installedId }),
 	/**
 	 *  Opens a runtime's source or release page in the browser. Only URLs from
 	 *  the manifest can be opened, never one sent by the frontend.
@@ -640,6 +647,29 @@ export type RuntimeLink =
 "source" | 
 /**  The upstream release page of the build. */
 "release";
+
+/**  A newer build of the same flavor as an installed runtime. */
+export type RuntimeUpdate = RuntimeUpdate_Serialize | RuntimeUpdate_Deserialize;
+
+/**  A newer build of the same flavor as an installed runtime. */
+export type RuntimeUpdate_Deserialize = {
+	/**  The installed runtime it replaces. */
+	installed_id: string,
+	installed_version: string,
+	newer: RuntimeInfo_Deserialize,
+	/**  Names of the bottles that use the installed runtime now. */
+	bottles: string[],
+};
+
+/**  A newer build of the same flavor as an installed runtime. */
+export type RuntimeUpdate_Serialize = {
+	/**  The installed runtime it replaces. */
+	installed_id: string,
+	installed_version: string,
+	newer: RuntimeInfo_Serialize,
+	/**  Names of the bottles that use the installed runtime now. */
+	bottles: string[],
+};
 
 export type Settings = Settings_Serialize | Settings_Deserialize;
 

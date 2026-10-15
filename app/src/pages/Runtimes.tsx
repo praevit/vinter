@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
 import {
   commands,
@@ -17,6 +18,7 @@ import {
   useRemoveRuntime,
 } from "../api/runtimes";
 import { ProgressBar } from "../components/ProgressBar";
+import { Button, ErrorText } from "../components/ui";
 
 const FLAVORS: Record<Flavor, string> = {
   stable: "Stable",
@@ -41,6 +43,8 @@ export function Runtimes() {
         </p>
       </header>
 
+      <Updates />
+
       <Section title="Installed">
         {installed.error ? (
           <Empty>Could not list runtimes: {errorMessage(installed.error)}</Empty>
@@ -59,6 +63,48 @@ export function Runtimes() {
         </Section>
       )}
     </div>
+  );
+}
+
+/** Newer builds of installed runtimes, with an Update button. */
+function Updates() {
+  const jobs = useJobs();
+  const ensureRosetta = useEnsureRosetta();
+  const queryClient = useQueryClient();
+  const { data: updates } = useQuery({ queryKey: ["runtimes", "updates"], queryFn: () => commands.runtimeUpdates() });
+  if (!updates?.length) return null;
+
+  return (
+    <Section title="Updates">
+      {updates.map((u) => {
+        const key = `runtime-update:${u.installed_id}`;
+        const job = jobs.job(key);
+        const update = async () => {
+          if (!(await ensureRosetta(u.newer.needs_rosetta))) return;
+          await jobs.start(key, () => commands.runtimeUpdate(u.installed_id));
+          await queryClient.invalidateQueries({ queryKey: ["runtimes"] });
+        };
+        return (
+          <li key={u.installed_id} className="flex flex-col gap-2 px-4 py-3">
+            <div className="flex items-center gap-4">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium">{u.newer.name} is available</span>
+                <span className="text-xs text-slate-deep-700/60 dark:text-frost-300/60">
+                  You have {u.installed_version}.{" "}
+                  {u.bottles.length > 0 ? `Moves ${u.bottles.join(", ")} onto it.` : "No bottles use it yet."}{" "}
+                  {formatBytes(u.newer.size)} download.
+                </span>
+              </div>
+              <Button variant="primary" disabled={isRunning(job)} onClick={update}>
+                <Download className="size-4" /> Update
+              </Button>
+            </div>
+            {isRunning(job) && <ProgressBar percent={job?.percent ?? null} />}
+            {job?.done && !job.done.ok && <ErrorText>{job.done.error}</ErrorText>}
+          </li>
+        );
+      })}
+    </Section>
   );
 }
 

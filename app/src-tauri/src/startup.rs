@@ -238,6 +238,15 @@ pub fn check_for_updates_later(app: &AppHandle) {
         if !vinter_core::settings::load(&paths).check_for_updates {
             return;
         }
+        if let Ok(updates) = vinter_core::runtime::updates::find(&paths) {
+            if let Some(u) = updates.first() {
+                crate::notify::send(
+                    &app,
+                    &format!("{} is available", u.newer.name),
+                    "Update it on the Runtimes page; your bottles move along.",
+                );
+            }
+        }
         let Ok(updater) = app.updater() else { return };
         if let Ok(Some(update)) = updater.check().await {
             crate::notify::send(

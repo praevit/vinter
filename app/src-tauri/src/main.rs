@@ -31,6 +31,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::runtimes::runtimes_installed,
             commands::runtimes::runtime_install,
             commands::runtimes::runtime_remove,
+            commands::runtimes::runtime_updates,
+            commands::runtimes::runtime_update,
             commands::runtimes::runtime_open_link,
             commands::bottles::bottles_list,
             commands::bottles::bottle_get,

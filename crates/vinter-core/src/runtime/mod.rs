@@ -2,6 +2,7 @@
 
 pub mod install;
 pub mod manifest;
+pub mod updates;
 
 use std::path::{Path, PathBuf};
 

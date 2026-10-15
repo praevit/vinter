@@ -9,6 +9,8 @@ fn main() {
             "runtimes_installed",
             "runtime_install",
             "runtime_remove",
+            "runtime_updates",
+            "runtime_update",
             "runtime_open_link",
             "bottles_list",
             "bottle_get",
