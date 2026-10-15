@@ -486,6 +486,7 @@ pub fn delete(paths: &AppPaths, id: &str) -> Result<()> {
     let named = staging.join(format!("{safe} (Vinter bottle)"));
     std::fs::rename(&dir, &named).at(&dir)?;
 
+    #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
     let mut ctx = trash::TrashContext::default();
     #[cfg(target_os = "macos")]
     {

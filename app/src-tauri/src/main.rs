@@ -128,7 +128,7 @@ fn main() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" && tray::is_shown(window.app_handle()) {
                     api.prevent_close();
-                    let _ = window.hide();
+                    startup::hide_main_window(window.app_handle());
                 }
             }
         })

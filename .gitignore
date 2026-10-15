@@ -16,3 +16,6 @@ dist/
 
 # DXVK shader caches, written to the working directory of whatever ran it.
 *.dxvk-cache
+
+# Local test scripts
+/site/test-routes.sh

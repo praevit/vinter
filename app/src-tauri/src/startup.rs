@@ -60,11 +60,24 @@ pub fn show_main_window(app: &AppHandle) {
     app.state::<Startup>()
         .window_shown
         .store(true, Ordering::SeqCst);
+    // Back in the Dock while the window is open (see `hide_main_window`).
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
     }
+}
+
+/// Hides the window; Vinter keeps running in the menu bar. On macOS it also
+/// leaves the Dock until the window is shown again.
+pub fn hide_main_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 }
 
 /// Called once from `setup` with the process arguments.

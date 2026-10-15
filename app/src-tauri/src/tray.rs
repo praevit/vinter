@@ -1,6 +1,6 @@
 //! The menu bar icon (macOS) or tray icon (Linux): open Vinter, start any
-//! installed program, quit. While it exists, closing the window only hides
-//! it, so Vinter stays in the menu bar.
+//! installed program, quit. While it exists, closing the window (and ⌘Q on
+//! macOS) only hides it, so Vinter stays in the menu bar.
 
 use std::sync::Mutex;
 
@@ -92,7 +92,53 @@ pub fn create(app: &AppHandle) {
     });
     match result {
         Ok(_) => *app.state::<TrayState>().0.lock().unwrap() = Some(entries),
-        Err(e) => eprintln!("vinter: no menu bar icon: {e}"),
+        Err(e) => return eprintln!("vinter: no menu bar icon: {e}"),
+    }
+    #[cfg(target_os = "macos")]
+    if let Err(e) = app_menu::install(app) {
+        eprintln!("vinter: could not change the app menu: {e}");
+    }
+}
+
+/// macOS: ⌘Q hides Vinter to the menu bar instead of quitting. "Quit Vinter"
+/// (⌥⌘Q, or in the menu bar icon's menu) still quits.
+#[cfg(target_os = "macos")]
+mod app_menu {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    use tauri::{AppHandle, Wry};
+
+    const HIDE: &str = "app-menu-hide";
+    const QUIT: &str = "app-menu-quit";
+
+    pub fn install(app: &AppHandle) -> tauri::Result<()> {
+        // Tauri's standard menu, with the app menu's last item (Quit) replaced.
+        let menu: Menu<Wry> = Menu::default(app)?;
+        if let Some(app_submenu) = menu.items()?.first().and_then(|i| i.as_submenu().cloned()) {
+            let last = app_submenu.items()?.len().saturating_sub(1);
+            app_submenu.remove_at(last)?;
+            app_submenu.append(&MenuItem::with_id(
+                app,
+                HIDE,
+                "Keep in Menu Bar",
+                true,
+                Some("CmdOrCtrl+Q"),
+            )?)?;
+            app_submenu.append(&PredefinedMenuItem::separator(app)?)?;
+            app_submenu.append(&MenuItem::with_id(
+                app,
+                QUIT,
+                "Quit Vinter",
+                true,
+                Some("Alt+CmdOrCtrl+Q"),
+            )?)?;
+        }
+        app.set_menu(menu)?;
+        app.on_menu_event(|app, event| match event.id().as_ref() {
+            HIDE => crate::startup::hide_main_window(app),
+            QUIT => app.exit(0),
+            _ => {}
+        });
+        Ok(())
     }
 }
 
