@@ -168,6 +168,7 @@ mod tests {
             release_url: "https://example.invalid".into(),
             needs_rosetta: false,
             graphics: vec![crate::bottle::Graphics::Wined3d],
+            min_os_version: None,
         }
     }
 

@@ -50,6 +50,9 @@ pub struct RuntimeInfo {
     pub release_url: String,
     /// Graphics backends the build supports.
     pub graphics: Vec<crate::bottle::Graphics>,
+    /// Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it).
+    #[serde(default)]
+    pub min_os_version: Option<String>,
     /// Filled in for this machine: x86_64 build on Apple Silicon.
     #[serde(default, skip_deserializing)]
     pub needs_rosetta: bool,
@@ -83,7 +86,22 @@ pub fn all() -> &'static [RuntimeInfo] {
 
 /// Runtimes that run on this machine.
 pub fn available() -> Vec<RuntimeInfo> {
+    let host = crate::system::os_version();
     available_for(std::env::consts::OS, std::env::consts::ARCH)
+        .into_iter()
+        .filter(|r| supports_version(r, host.as_deref()))
+        .collect()
+}
+
+/// True if `host` (e.g. "15.3") is at least the build's minimum. An unknown
+/// host version passes.
+fn supports_version(info: &RuntimeInfo, host: Option<&str>) -> bool {
+    match (&info.min_os_version, host) {
+        (Some(min), Some(host)) => {
+            super::updates::compare_versions(host, min) != std::cmp::Ordering::Less
+        }
+        _ => true,
+    }
 }
 
 pub fn available_for(os: &str, arch: &str) -> Vec<RuntimeInfo> {
@@ -132,6 +150,17 @@ mod tests {
             assert!(r.source_url.starts_with("https://"));
             assert!(matches!(r.os.as_str(), "macos" | "linux"));
         }
+    }
+
+    #[test]
+    fn minimum_os_versions() {
+        let mut info = all()[0].clone();
+        assert!(supports_version(&info, Some("13.0")));
+        info.min_os_version = Some("15.0".into());
+        assert!(!supports_version(&info, Some("14.7")));
+        assert!(supports_version(&info, Some("15.0")));
+        assert!(supports_version(&info, Some("27.1")));
+        assert!(supports_version(&info, None));
     }
 
     #[test]

@@ -12,7 +12,10 @@
       "size": 2793443,
       "format": "tar_gz",
       "root": "dxvk-macOS-async-v1.10.3-20230507-repack",
-      "dlls": ["d3d10core", "d3d11"],
+      "dlls": [
+        "d3d10core",
+        "d3d11"
+      ],
       "license": "Zlib",
       "source_url": "https://github.com/Gcenx/DXVK-macOS/tree/v1.10.3-20230507",
       "release_url": "https://github.com/Gcenx/DXVK-macOS/releases/tag/v1.10.3-20230507-repack"
@@ -28,10 +31,45 @@
       "size": 18041512,
       "format": "tar_gz",
       "root": "dxvk-3.1.1",
-      "dlls": ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"],
+      "dlls": [
+        "d3d8",
+        "d3d9",
+        "d3d10core",
+        "d3d11",
+        "dxgi"
+      ],
       "license": "Zlib",
       "source_url": "https://github.com/doitsujin/dxvk/tree/v3.1.1",
       "release_url": "https://github.com/doitsujin/dxvk/releases/tag/v3.1.1"
+    },
+    {
+      "id": "dxmt-0.80",
+      "backend": "dxmt",
+      "name": "DXMT 0.80",
+      "version": "0.80",
+      "os": "macos",
+      "url": "https://github.com/3Shain/dxmt/releases/download/v0.80/dxmt-v0.80-builtin.tar.gz",
+      "sha256": "8f260e36b5739e68f3bad613381441385c4dc7b85b78ba8de653d5a6a264529d",
+      "size": 18681669,
+      "format": "tar_gz",
+      "root": "v0.80",
+      "x64": "x86_64-windows",
+      "x32": "i386-windows",
+      "dlls": [
+        "d3d10core",
+        "d3d11",
+        "dxgi"
+      ],
+      "builtin_dlls": [
+        "winemetal"
+      ],
+      "unix": "x86_64-unix",
+      "unix_libs": [
+        "winemetal"
+      ],
+      "license": "LGPL-2.1-or-later",
+      "source_url": "https://github.com/3Shain/dxmt/tree/v0.80",
+      "release_url": "https://github.com/3Shain/dxmt/releases/tag/v0.80"
     }
   ]
 }

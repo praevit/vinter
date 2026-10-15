@@ -383,10 +383,28 @@ export type ComponentInfo = {
 	sha256: string,
 	size: number,
 	format: ArchiveFormat,
-	/**  Top folder inside the archive, holding `x64/` and `x32/`. */
+	/**  Top folder inside the archive. */
 	root: string,
-	/**  DLL names (without `.dll`) it provides in both `x64/` and `x32/`. */
+	/**  Folders under `root` with the 64- and 32-bit DLLs. */
+	x64?: string,
+	x32?: string,
+	/**
+	 *  DLL names (without `.dll`) copied into bottles and loaded as native
+	 *  (Wine's "builtin" marker, which release builds of DXMT carry, is
+	 *  cleared on the copy).
+	 */
 	dlls: string[],
+	/**
+	 *  DLLs Wine must load as builtins because they come with a unix
+	 *  library: copied unchanged into the runtime and the bottle.
+	 */
+	builtin_dlls?: string[],
+	/**
+	 *  Folder under `root` with unix libraries, and their names (without
+	 *  `.so`), copied into the runtime's `x86_64-unix`.
+	 */
+	unix?: string | null,
+	unix_libs?: string[],
 	license: string,
 	source_url: string,
 	release_url: string,
@@ -619,6 +637,8 @@ export type RuntimeInfo_Deserialize = {
 	release_url: string,
 	/**  Graphics backends the build supports. */
 	graphics: Graphics[],
+	/**  Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it). */
+	min_os_version?: string | null,
 };
 
 /**  One downloadable Wine build. */
@@ -646,6 +666,8 @@ export type RuntimeInfo_Serialize = {
 	release_url: string,
 	/**  Graphics backends the build supports. */
 	graphics: Graphics[],
+	/**  Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it). */
+	min_os_version: string | null,
 	/**  Filled in for this machine: x86_64 build on Apple Silicon. */
 	needs_rosetta: boolean,
 };

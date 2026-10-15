@@ -47,9 +47,31 @@ pub fn apply(paths: &AppPaths, bottle_id: &str, backend: Backend) -> Result<Bott
     }
     if let Some(c) = &component {
         for dll in &c.info.dlls {
-            copy_if_present(&c.x64_dir(), &system32, dll)?;
+            copy_native(&c.x64_dir(), &system32, dll)?;
             if syswow64.is_dir() {
-                copy_if_present(&c.x32_dir(), &syswow64, dll)?;
+                copy_native(&c.x32_dir(), &syswow64, dll)?;
+            }
+        }
+        // Builtins with a unix side (DXMT's winemetal) go into the runtime,
+        // where Wine loads them from, and into the bottle, where it looks first.
+        for dll in &c.info.builtin_dlls {
+            for (from, lib, to) in [
+                (c.x64_dir(), "x86_64-windows", &system32),
+                (c.x32_dir(), "i386-windows", &syswow64),
+            ] {
+                let runtime_dir = wine_lib.join(lib);
+                if runtime_dir.is_dir() {
+                    copy_if_present(&from, &runtime_dir, dll)?;
+                }
+                copy_if_present(&from, to, dll)?;
+            }
+        }
+        if let Some(unix) = c.unix_dir() {
+            let to = wine_lib.join("x86_64-unix");
+            for lib in &c.info.unix_libs {
+                let name = format!("{lib}.so");
+                let target = to.join(&name);
+                std::fs::copy(unix.join(&name), &target).at(&target)?;
             }
         }
     }
@@ -57,6 +79,26 @@ pub fn apply(paths: &AppPaths, bottle_id: &str, backend: Backend) -> Result<Bott
     bottle.graphics = backend;
     bottle.save(&bottle::dir(paths, bottle_id)?)?;
     Ok(bottle)
+}
+
+/// Wine marks its builtin DLLs with this text right after the DOS header;
+/// a file with it is loaded as a builtin even from `system32`.
+const BUILTIN_MARKER: &[u8] = b"Wine builtin DLL";
+const BUILTIN_MARKER_AT: usize = 0x40;
+
+/// Copies a DLL so that Wine loads it as native: without the builtin marker.
+fn copy_native(from_dir: &Path, to_dir: &Path, dll: &str) -> Result<()> {
+    let from = from_dir.join(format!("{dll}.dll"));
+    if !from.is_file() || !to_dir.is_dir() {
+        return Ok(());
+    }
+    let mut bytes = std::fs::read(&from).at(&from)?;
+    let end = BUILTIN_MARKER_AT + BUILTIN_MARKER.len();
+    if bytes.get(BUILTIN_MARKER_AT..end) == Some(BUILTIN_MARKER) {
+        bytes[BUILTIN_MARKER_AT..end].fill(0);
+    }
+    let to = to_dir.join(format!("{dll}.dll"));
+    std::fs::write(&to, bytes).at(&to)
 }
 
 fn copy_if_present(from_dir: &Path, to_dir: &Path, dll: &str) -> Result<()> {
@@ -178,5 +220,36 @@ mod tests {
         // Unavailable backends are refused with a reason.
         let err = apply(&paths, "b", Backend::D3dmetal).unwrap_err();
         assert!(matches!(err, Error::BackendUnavailable(_)), "{err}");
+    }
+}
+
+#[cfg(test)]
+mod native_tests {
+    use super::*;
+
+    #[test]
+    fn native_copies_lose_the_builtin_marker_and_nothing_else() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (from, to) = (tmp.path().join("from"), tmp.path().join("to"));
+        std::fs::create_dir_all(&from).unwrap();
+        std::fs::create_dir_all(&to).unwrap();
+        let mut dll = vec![0u8; 0x80];
+        dll[..2].copy_from_slice(b"MZ");
+        dll[0x40..0x50].copy_from_slice(BUILTIN_MARKER);
+        dll[0x70] = 7;
+        std::fs::write(from.join("d3d11.dll"), &dll).unwrap();
+        std::fs::write(from.join("dxgi.dll"), b"MZ plain").unwrap();
+
+        copy_native(&from, &to, "d3d11").unwrap();
+        copy_native(&from, &to, "dxgi").unwrap();
+        copy_native(&from, &to, "missing").unwrap();
+        let copied = std::fs::read(to.join("d3d11.dll")).unwrap();
+        assert_eq!(&copied[0x40..0x50], &[0u8; 16]);
+        assert_eq!(
+            (&copied[..2], copied[0x70], copied.len()),
+            (&b"MZ"[..], 7, 0x80)
+        );
+        assert_eq!(std::fs::read(to.join("dxgi.dll")).unwrap(), b"MZ plain");
+        assert!(!to.join("missing.dll").exists());
     }
 }

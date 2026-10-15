@@ -27,10 +27,27 @@ pub struct ComponentInfo {
     pub sha256: String,
     pub size: u64,
     pub format: ArchiveFormat,
-    /// Top folder inside the archive, holding `x64/` and `x32/`.
+    /// Top folder inside the archive.
     pub root: String,
-    /// DLL names (without `.dll`) it provides in both `x64/` and `x32/`.
+    /// Folders under `root` with the 64- and 32-bit DLLs.
+    #[serde(default = "default_x64")]
+    pub x64: String,
+    #[serde(default = "default_x32")]
+    pub x32: String,
+    /// DLL names (without `.dll`) copied into bottles and loaded as native
+    /// (Wine's "builtin" marker, which release builds of DXMT carry, is
+    /// cleared on the copy).
     pub dlls: Vec<String>,
+    /// DLLs Wine must load as builtins because they come with a unix
+    /// library: copied unchanged into the runtime and the bottle.
+    #[serde(default)]
+    pub builtin_dlls: Vec<String>,
+    /// Folder under `root` with unix libraries, and their names (without
+    /// `.so`), copied into the runtime's `x86_64-unix`.
+    #[serde(default)]
+    pub unix: Option<String>,
+    #[serde(default)]
+    pub unix_libs: Vec<String>,
     pub license: String,
     pub source_url: String,
     pub release_url: String,
@@ -46,13 +63,27 @@ pub struct Component {
 impl Component {
     /// 64-bit DLLs (copied to `system32`).
     pub fn x64_dir(&self) -> PathBuf {
-        self.path.join(&self.info.root).join("x64")
+        self.path.join(&self.info.root).join(&self.info.x64)
     }
 
     /// 32-bit DLLs (copied to `syswow64`).
     pub fn x32_dir(&self) -> PathBuf {
-        self.path.join(&self.info.root).join("x32")
+        self.path.join(&self.info.root).join(&self.info.x32)
     }
+
+    /// Unix libraries, if the component has any.
+    pub fn unix_dir(&self) -> Option<PathBuf> {
+        let unix = self.info.unix.as_ref()?;
+        Some(self.path.join(&self.info.root).join(unix))
+    }
+}
+
+fn default_x64() -> String {
+    "x64".into()
+}
+
+fn default_x32() -> String {
+    "x32".into()
 }
 
 #[derive(Deserialize)]
@@ -135,11 +166,20 @@ where
             info: info.clone(),
             path: staging.clone(),
         };
-        for dll in &info.dlls {
+        for dll in info.dlls.iter().chain(&info.builtin_dlls) {
             let x64 = component.x64_dir().join(format!("{dll}.dll"));
             if !x64.is_file() {
                 return Err(Error::BadArchive(format!(
                     "{dll}.dll is missing from {}",
+                    info.name
+                )));
+            }
+        }
+        for lib in &info.unix_libs {
+            let so = component.unix_dir().map(|d| d.join(format!("{lib}.so")));
+            if !so.is_some_and(|so| so.is_file()) {
+                return Err(Error::BadArchive(format!(
+                    "{lib}.so is missing from {}",
                     info.name
                 )));
             }
@@ -207,7 +247,12 @@ pub(crate) mod tests {
             size: 1,
             format: ArchiveFormat::TarGz,
             root: root.into(),
+            x64: "x64".into(),
+            x32: "x32".into(),
             dlls: dlls.iter().map(|d| d.to_string()).collect(),
+            builtin_dlls: vec![],
+            unix: None,
+            unix_libs: vec![],
             license: "Zlib".into(),
             source_url: String::new(),
             release_url: String::new(),
@@ -224,12 +269,13 @@ pub(crate) mod tests {
             assert_eq!(c.sha256.len(), 64);
             assert!(!c.dlls.is_empty());
             assert!(matches!(c.os.as_str(), "macos" | "linux"));
-            for dll in &c.dlls {
-                validate_id(dll).unwrap();
+            for name in c.dlls.iter().chain(&c.builtin_dlls).chain(&c.unix_libs) {
+                validate_id(name).unwrap();
             }
         }
         assert!(for_backend(Backend::Dxvk, "macos").is_some());
         assert!(for_backend(Backend::Dxvk, "linux").is_some());
+        assert!(for_backend(Backend::Dxmt, "macos").is_some());
         assert!(for_backend(Backend::Wined3d, "macos").is_none());
     }
 
