@@ -1,0 +1,74 @@
+# Updates the Homebrew cask in praevit/homebrew-tap when a release is
+# published, so `brew install --cask praevit/tap/vinter` gets it.
+# Needs the HOMEBREW_TAP_TOKEN secret: a fine-grained token with Contents
+# read/write on praevit/homebrew-tap only. Without it, this does nothing.
+name: Homebrew
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, e.g. v0.1.3
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for the tap token
+        id: token
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "HOMEBREW_TAP_TOKEN is not set; skipping." >> "$GITHUB_STEP_SUMMARY"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.token.outputs.present == 'true'
+
+      - name: Fill in the cask
+        if: steps.token.outputs.present == 'true'
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          url="https://github.com/praevit/vinter/releases/download/${TAG}/Vinter_aarch64.dmg"
+          curl -fsSL -o vinter.dmg "$url"
+          sha=$(sha256sum vinter.dmg | cut -d' ' -f1)
+          sed -e "s/VERSION/${version}/" -e "s/SHA256/${sha}/" \
+            packaging/homebrew/vinter.rb.in > vinter.rb
+          echo "version=${version}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v5
+        if: steps.token.outputs.present == 'true'
+        with:
+          repository: praevit/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Commit to the tap
+        if: steps.token.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Casks
+          cp vinter.rb tap/Casks/vinter.rb
+          cd tap
+          git config user.name "Prævit"
+          git config user.email "software@praevit.dev"
+          git add Casks/vinter.rb
+          if git diff --cached --quiet; then
+            echo "Cask already up to date." >> "$GITHUB_STEP_SUMMARY"
+          else
+            git commit -m "vinter ${version}"
+            git push
+          fi
