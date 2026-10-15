@@ -9,6 +9,7 @@ import { useSettings } from "../api/settings";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
+import { RestoreButton } from "../components/BackupControls";
 import { Select } from "../components/Select";
 
 export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
@@ -67,6 +68,11 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
           programs. Use one per app, or group related apps together.
         </p>
       </header>
+
+      <div className="flex flex-col gap-2 rounded-xl border border-dashed border-frost-300 p-4 dark:border-slate-deep-700">
+        <p className="text-sm">Have a backup? Restore it as a new bottle.</p>
+        <RestoreButton />
+      </div>
 
       <Label title="Name">
         <input

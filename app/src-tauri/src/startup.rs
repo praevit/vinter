@@ -21,7 +21,8 @@ use crate::events::Notice;
 /// macOS delivers the link shortly after the app finished starting.
 const DEEP_LINK_GRACE: Duration = Duration::from_millis(700);
 
-/// `.exe`/`.msi` files opened with Vinter that the interface has not taken yet.
+/// Files opened with Vinter (`.exe`, `.msi`, `.vinterbottle`) that the
+/// interface has not taken yet.
 #[derive(Default)]
 pub struct OpenedFiles(Mutex<Vec<String>>);
 
@@ -45,9 +46,13 @@ pub fn take_opened_files(app: &AppHandle) -> Vec<String> {
     std::mem::take(&mut *app.state::<OpenedFiles>().0.lock().unwrap())
 }
 
+/// `.exe`/`.msi` to run, or a `.vinterbottle` backup to restore.
 fn is_windows_program(path: &std::path::Path) -> bool {
-    path.extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("exe") || e.eq_ignore_ascii_case("msi"))
+    path.extension().is_some_and(|e| {
+        ["exe", "msi", vinter_core::bottle::backup::EXTENSION]
+            .iter()
+            .any(|ext| e.eq_ignore_ascii_case(ext))
+    })
 }
 
 /// `.exe`/`.msi` paths among the process arguments (Linux file managers

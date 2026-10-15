@@ -70,6 +70,15 @@
         "role": "Viewer",
         "rank": "Alternate",
         "mimeType": "application/x-msi"
+      },
+      {
+        "ext": [
+          "vinterbottle"
+        ],
+        "name": "Vinter bottle backup",
+        "role": "Editor",
+        "rank": "Owner",
+        "mimeType": "application/x-vinterbottle"
       }
     ]
   },

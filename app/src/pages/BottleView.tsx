@@ -22,6 +22,7 @@ import { useEnsureRosetta } from "../api/rosetta";
 import { useRecipeState } from "../api/recipes";
 import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
+import { BackupButton } from "../components/BackupControls";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
@@ -364,6 +365,8 @@ function Settings({
         </div>
         {dupError && <ErrorText>{dupError}</ErrorText>}
       </section>
+
+      <BackupButton bottleId={bottle.id} />
 
       <section className="flex flex-col items-start gap-2 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <h2 className="text-sm font-medium">Delete</h2>

@@ -39,6 +39,16 @@ export const commands = {
 	bottleSetOptions: (id: string, options: BottleOptions_Deserialize) => __TAURI_INVOKE<string>("bottle_set_options", { id, options }),
 	/**  Copies a bottle under a new name. The copy is listed right away. */
 	bottleDuplicate: (id: string, newName: string) => __TAURI_INVOKE<StartedBottle>("bottle_duplicate", { id, newName }),
+	/**
+	 *  Asks where to save, then writes a backup of the bottle as a job.
+	 *  `None` if the save dialog was cancelled.
+	 */
+	bottleExport: (id: string) => __TAURI_INVOKE<string | null>("bottle_export", { id }),
+	/**
+	 *  Restores a backup as a new bottle, as a job. Without `path`, asks for
+	 *  the file. `None` if the dialog was cancelled.
+	 */
+	bottleImport: (path: string | null) => __TAURI_INVOKE<string | null>("bottle_import", { path }),
 	/**  Stops the bottle's programs and moves it to the Trash. */
 	bottleDelete: (id: string) => __TAURI_INVOKE<null>("bottle_delete", { id }),
 	/**  Opens the bottle's C: drive in Finder (or the file manager on Linux). */

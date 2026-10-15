@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-import"
+description = "Enables the bottle_import command without any pre-configured scope."
+commands.allow = ["bottle_import"]
+
+[[permission]]
+identifier = "deny-bottle-import"
+description = "Denies the bottle_import command without any pre-configured scope."
+commands.deny = ["bottle_import"]

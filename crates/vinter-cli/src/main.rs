@@ -171,6 +171,13 @@ enum BottleCommand {
     Unpin { bottle: String, program: usize },
     /// Print a debug report for bug reports.
     Report { bottle: String },
+    /// Save a bottle as one .vinterbottle file.
+    Backup {
+        bottle: String,
+        file: std::path::PathBuf,
+    },
+    /// Restore a .vinterbottle backup as a new bottle.
+    Restore { file: std::path::PathBuf },
 }
 
 #[derive(Subcommand)]
@@ -548,6 +555,15 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
                 );
             }
             println!("Log:           {}", r.log_id);
+        }
+        BottleCommand::Backup { bottle: key, file } => {
+            bottle::backup::export(paths, &id(&key)?, &file, |_, _| {})?;
+            println!("Saved {}", file.display());
+        }
+        BottleCommand::Restore { file } => {
+            let b = bottle::backup::import(paths, &file, |_, _| {})?;
+            vinter_core::launcher::sync_bottle(paths, &b.id, &launcher_target()?)?;
+            println!("Restored {} ({})", b.name, b.id);
         }
         BottleCommand::EditProgram {
             bottle: key,

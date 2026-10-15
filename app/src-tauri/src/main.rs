@@ -39,6 +39,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::bottles::bottle_set_windows_version,
             commands::bottles::bottle_set_options,
             commands::bottles::bottle_duplicate,
+            commands::backup::bottle_export,
+            commands::backup::bottle_import,
             commands::bottles::bottle_delete,
             commands::bottles::bottle_open_drive_c,
             commands::bottles::bottle_tool,

@@ -27,7 +27,7 @@ export function App() {
     const navigate = events.appNavigate.listen(({ payload }) => setRoute({ page: payload.to }));
     const dropped = getCurrentWebview().onDragDropEvent(({ payload }) => {
       if (payload.type !== "drop") return;
-      const files = payload.paths.filter((p) => /\.(exe|msi)$/i.test(p));
+      const files = payload.paths.filter((p) => /\.(exe|msi|vinterbottle)$/i.test(p));
       if (files.length) setOpenFiles((q) => [...q, ...files]);
     });
     return () => {

@@ -1,5 +1,6 @@
 //! Bottles: a Wine prefix plus its settings, under `<data>/bottles/<id>/`.
 
+pub mod backup;
 pub mod config;
 
 use std::path::{Path, PathBuf};

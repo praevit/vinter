@@ -22,6 +22,8 @@
     "allow-bottle-set-windows-version",
     "allow-bottle-set-options",
     "allow-bottle-duplicate",
+    "allow-bottle-export",
+    "allow-bottle-import",
     "allow-bottle-delete",
     "allow-bottle-open-drive-c",
     "allow-bottle-tool",

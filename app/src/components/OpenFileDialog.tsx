@@ -3,6 +3,7 @@ import { FileUp, Plus } from "lucide-react";
 import { useBottles } from "../api/bottles";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { Dialog } from "./Dialog";
+import { RestoreButton } from "./BackupControls";
 import { InstallDialog } from "./InstallDialog";
 import { Select } from "./Select";
 import type { Route } from "./Sidebar";
@@ -28,6 +29,21 @@ export function OpenFileDialog({
   const [confirmed, setConfirmed] = useState(false);
   const chosen = ready.find((b) => b.id === bottleId) ?? ready[0];
   const fileName = path.split(/[\\/]/).pop();
+
+  if (/\.vinterbottle$/i.test(path)) {
+    return (
+      <Dialog onClose={onClose}>
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">Restore {fileName}?</h2>
+          <p className={subtle}>The backup becomes a new bottle. Your other bottles are not changed.</p>
+          <RestoreButton path={path} />
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      </Dialog>
+    );
+  }
 
   if (confirmed && chosen) {
     return (

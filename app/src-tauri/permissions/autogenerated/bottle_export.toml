@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-export"
+description = "Enables the bottle_export command without any pre-configured scope."
+commands.allow = ["bottle_export"]
+
+[[permission]]
+identifier = "deny-bottle-export"
+description = "Denies the bottle_export command without any pre-configured scope."
+commands.deny = ["bottle_export"]
