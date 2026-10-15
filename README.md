@@ -33,18 +33,22 @@ Security** and click **Open Anyway**.
 ## Features
 
 - **Bottles**: one Windows environment per app, with its own C: drive and
-  Windows version. Create, duplicate and delete them in seconds.
-- **One-click recipes**: pick an app (Notepad++, 7-Zip, PuTTY, …) and Vinter
-  downloads its official installer, checks it, and sets everything up. You can
-  write your own recipes.
-- **Install anything else**: run any Windows installer (`.exe` or `.msi`) and
-  Vinter finds the programs it installed, with their icons.
-- **Graphics backends**: choose Wine's built-in renderer or DXVK (Direct3D 11 over
-  Vulkan) per bottle, and test what you get with one click.
-- **Native launchers**: pin a program and start it from Spotlight, Launchpad or
-  your Linux app menu, without opening Vinter first.
+  Windows version. Create, duplicate, back up and restore them.
+- **One-click apps**: pick an app (Notepad++, 7-Zip, WinRAR, SumatraPDF, Total
+  Commander, PuTTY, …) and Vinter downloads its official installer, checks it,
+  and sets everything up. You can write your own recipes.
+- **Open any installer**: double-click a Windows `.exe` or `.msi`, drop it on
+  Vinter, or install it into a bottle; Vinter finds the programs it installed.
+- **Feels like a Mac app**: Retina mode, ⌘ works as Ctrl, and installers keep
+  their shortcuts out of your Mac's Desktop.
+- **Launch from anywhere**: your apps show up in Spotlight, Launchpad, Raycast
+  and the Linux app menu, and in Vinter's menu bar icon.
+- **Graphics backends**: Wine's built-in renderer or DXVK (Direct3D 11 over
+  Vulkan) per bottle, with a one-click test and a frame rate overlay.
 - **Logs**: every run gets its own log, with live output and a debug report you
   can copy into a bug report.
+- **Housekeeping**: see how much space each bottle takes, clean up old logs
+  and temp files, and update Wine runtimes with your bottles moving along.
 - **Wine runtimes**: downloaded from their publishers and verified by checksum
   before anything is installed.
 
