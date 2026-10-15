@@ -108,6 +108,10 @@ export function About() {
           , licensed under the LGPL. Each runtime folder includes Wine's license and a link to its exact source.
         </p>
         <p>Graphics: DXVK (zlib license), MoltenVK (Apache 2.0). Winetricks (LGPL) for some recipes.</p>
+        <p>
+          Vinter is free software under the GNU General Public License, version 3 or later. "Vinter"
+          and its logo are trademarks of Prævit ehf.
+        </p>
         <p>Vinter is not affiliated with Wine, Apple or Microsoft.</p>
         <p className={subtle}>Made in Iceland by Prævit ehf.</p>
       </section>

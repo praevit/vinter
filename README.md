@@ -116,7 +116,17 @@ Bug reports and recipes for apps you got working are very welcome:
 [open an issue](https://github.com/praevit/vinter/issues). Please include the
 debug report from the bottle's **Logs** tab.
 
-## Credits and licenses
+## License
+
+Vinter is free software: you can redistribute it and/or modify it under the
+terms of the [GNU General Public License](LICENSE), version 3 or (at your
+option) any later version. Copyright © 2026 Prævit ehf.
+
+"Vinter" and the Vinter logo are trademarks of Prævit ehf. The license covers
+the code, not the name or logo: if you distribute a modified version, please
+give it a different name.
+
+## Credits
 
 Vinter is built on [Wine](https://www.winehq.org), licensed under the LGPL.
 Graphics use [DXVK](https://github.com/doitsujin/dxvk) (zlib) and MoltenVK
