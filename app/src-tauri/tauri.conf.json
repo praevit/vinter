@@ -51,8 +51,7 @@
     },
     "copyright": "\u00a9 2026 Pr\u00e6vit ehf.",
     "longDescription": "Vinter runs Windows programs on macOS and Linux using Wine: it manages Wine runtimes, bottles, app recipes and native launchers.",
-    "license": "GPL-3.0-or-later",
-    "licenseFile": "../../LICENSE"
+    "license": "GPL-3.0-or-later"
   },
   "plugins": {
     "deep-link": {

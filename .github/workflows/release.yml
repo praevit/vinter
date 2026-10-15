@@ -71,4 +71,7 @@ jobs:
           releaseName: Vinter v__VERSION__
           releaseDraft: true
           includeUpdaterJson: true
+          # No version in file names, so github.com/.../releases/latest/download/<name>
+          # always serves the newest build (the website's download links rely on it).
+          releaseAssetNamePattern: "[name]_[arch][ext]"
           args: ${{ matrix.args }}
