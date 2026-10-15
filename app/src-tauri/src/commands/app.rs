@@ -150,3 +150,10 @@ pub async fn program_set_pinned(
     })
     .await
 }
+
+/// `.exe`/`.msi` files opened with Vinter since the last call.
+#[tauri::command]
+#[specta::specta]
+pub fn open_files_take(app: AppHandle) -> Vec<String> {
+    crate::startup::take_opened_files(&app)
+}

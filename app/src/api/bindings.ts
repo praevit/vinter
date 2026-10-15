@@ -134,11 +134,14 @@ export const commands = {
 	 *  (Spotlight/Launchpad on macOS, the app menu on Linux).
 	 */
 	programSetPinned: (bottleId: string, index: number, pinned: boolean) => __TAURI_INVOKE<null>("program_set_pinned", { bottleId, index, pinned }),
+	/**  `.exe`/`.msi` files opened with Vinter since the last call. */
+	openFilesTake: () => __TAURI_INVOKE<string[]>("open_files_take"),
 };
 
 /** Events */
 export const events = {
 	appNotice: makeEvent<Notice>("app://notice"),
+	appOpenFiles: makeEvent<OpenFiles>("app://open-files"),
 	jobDone: makeEvent<JobDone>("job://done"),
 	jobProgress: makeEvent<JobProgress>("job://progress"),
 	runExit: makeEvent<RunExit>("run://exit"),
@@ -381,6 +384,12 @@ export type LogEntry = {
 export type Notice = {
 	message: string,
 };
+
+/**
+ *  Windows programs were opened with Vinter (Finder, Open With, or the
+ *  command line). The interface fetches them with `open_files_take`.
+ */
+export type OpenFiles = null;
 
 /**  A program shown in a bottle. */
 export type ProgramDef = {

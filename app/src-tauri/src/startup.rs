@@ -21,6 +21,45 @@ use crate::events::Notice;
 /// macOS delivers the link shortly after the app finished starting.
 const DEEP_LINK_GRACE: Duration = Duration::from_millis(700);
 
+/// `.exe`/`.msi` files opened with Vinter that the interface has not taken yet.
+#[derive(Default)]
+pub struct OpenedFiles(Mutex<Vec<String>>);
+
+/// Files opened with Vinter: shows the window, which asks which bottle to use.
+pub fn open_files(app: &AppHandle, files: Vec<std::path::PathBuf>) {
+    let files: Vec<String> = files
+        .into_iter()
+        .filter(|f| is_windows_program(f) && f.is_file())
+        .map(|f| f.display().to_string())
+        .collect();
+    if files.is_empty() {
+        return;
+    }
+    app.state::<OpenedFiles>().0.lock().unwrap().extend(files);
+    show_main_window(app);
+    let _ = crate::events::OpenFiles.emit(app);
+}
+
+/// Hands the opened files to the interface (once).
+pub fn take_opened_files(app: &AppHandle) -> Vec<String> {
+    std::mem::take(&mut *app.state::<OpenedFiles>().0.lock().unwrap())
+}
+
+fn is_windows_program(path: &std::path::Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("exe") || e.eq_ignore_ascii_case("msi"))
+}
+
+/// `.exe`/`.msi` paths among the process arguments (Linux file managers
+/// pass opened files this way).
+fn file_args(args: &[String]) -> Vec<std::path::PathBuf> {
+    args.iter()
+        .skip(1)
+        .map(std::path::PathBuf::from)
+        .filter(|p| is_windows_program(p))
+        .collect()
+}
+
 pub struct Startup {
     /// A launcher started a program (deep link or `--run`).
     launched_program: AtomicBool,
@@ -82,6 +121,7 @@ pub fn hide_main_window(app: &AppHandle) {
 
 /// Called once from `setup` with the process arguments.
 pub fn on_start(app: &AppHandle, args: Vec<String>) {
+    open_files(app, file_args(&args));
     let by_args = handle_args(app, &args);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -106,6 +146,7 @@ pub fn on_start(app: &AppHandle, args: Vec<String>) {
 
 /// Another Vinter was started (Linux `--run`, or the user opened it again).
 pub fn on_second_instance(app: &AppHandle, args: Vec<String>) {
+    open_files(app, file_args(&args));
     if !handle_args(app, &args) {
         show_main_window(app);
     }

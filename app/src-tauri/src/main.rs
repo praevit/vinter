@@ -69,13 +69,15 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app::update_check,
             commands::app::update_install,
             commands::app::program_set_pinned,
+            commands::app::open_files_take,
         ])
         .events(collect_events![
             events::JobProgress,
             events::JobDone,
             events::RunLog,
             events::RunExit,
-            events::Notice
+            events::Notice,
+            events::OpenFiles
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.
@@ -108,6 +110,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::new(paths))
         .manage(startup::Startup::default())
+        .manage(startup::OpenedFiles::default())
         .manage(tray::TrayState::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
@@ -142,8 +145,14 @@ fn main() {
     app.run(|app, event| {
         // macOS: clicking the Dock icon shows the window again.
         #[cfg(target_os = "macos")]
-        if let tauri::RunEvent::Reopen { .. } = event {
-            startup::show_main_window(app);
+        match &event {
+            tauri::RunEvent::Reopen { .. } => startup::show_main_window(app),
+            // Finder: double-click or Open With on a .exe/.msi.
+            tauri::RunEvent::Opened { urls } => startup::open_files(
+                app,
+                urls.iter().filter_map(|u| u.to_file_path().ok()).collect(),
+            ),
+            _ => {}
         }
         let _ = (app, event);
     });

@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { commands, events } from "./api/bindings";
+import { OpenFileDialog } from "./components/OpenFileDialog";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
 import { BottleView } from "./pages/BottleView";
@@ -12,6 +15,24 @@ import { Welcome } from "./pages/Welcome";
 export function App() {
   const [route, setRoute] = useState<Route>({ page: "home" });
   const bottles = useBottles();
+  // .exe/.msi files opened with Vinter or dropped on the window, one at a time.
+  const [openFiles, setOpenFiles] = useState<string[]>([]);
+
+  useEffect(() => {
+    const take = () =>
+      commands.openFilesTake().then((files) => files.length && setOpenFiles((q) => [...q, ...files]));
+    void take();
+    const opened = events.appOpenFiles.listen(() => void take());
+    const dropped = getCurrentWebview().onDragDropEvent(({ payload }) => {
+      if (payload.type !== "drop") return;
+      const files = payload.paths.filter((p) => /\.(exe|msi)$/i.test(p));
+      if (files.length) setOpenFiles((q) => [...q, ...files]);
+    });
+    return () => {
+      opened.then((u) => u());
+      dropped.then((u) => u());
+    };
+  }, []);
 
   // A deleted bottle's page falls back to home.
   const current =
@@ -39,6 +60,14 @@ export function App() {
           <Welcome onNavigate={setRoute} />
         )}
       </main>
+      {openFiles.length > 0 && (
+        <OpenFileDialog
+          key={openFiles[0]}
+          path={openFiles[0]}
+          onNavigate={setRoute}
+          onClose={() => setOpenFiles((q) => q.slice(1))}
+        />
+      )}
     </div>
   );
 }

@@ -18,18 +18,21 @@ export function InstallDialog({
   bottleId,
   needsRosetta,
   start,
+  initialPath,
   onClose,
 }: {
   bottleId: string;
   needsRosetta: boolean;
   start: "choose" | "pick";
+  /** An installer already chosen, e.g. a file opened with Vinter. */
+  initialPath?: string;
   onClose: () => void;
 }) {
   const jobs = useJobs();
   const ensureRosetta = useEnsureRosetta();
   const job = jobs.job(installerJobKey(bottleId));
   const [step, setStep] = useState<Step>(isRunning(job) ? "running" : start);
-  const [path, setPath] = useState<string>();
+  const [path, setPath] = useState<string | undefined>(initialPath);
   const [args, setArgs] = useState("");
   const [error, setError] = useState<string>();
 

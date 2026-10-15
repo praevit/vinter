@@ -63,3 +63,9 @@ pub struct JobDone {
     pub ok: bool,
     pub error: Option<String>,
 }
+
+/// Windows programs were opened with Vinter (Finder, Open With, or the
+/// command line). The interface fetches them with `open_files_take`.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://open-files")]
+pub struct OpenFiles;
