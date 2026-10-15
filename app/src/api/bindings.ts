@@ -337,9 +337,9 @@ export type Navigate = {
 	to: NavigateTo,
 };
 
-export type NavigateTo = "home" | "about" | 
-/**  The About page, checking for updates right away. */
-"check_updates";
+export type NavigateTo = 
+/**  Where there is no native About panel (Linux). */
+"about";
 
 /**
  *  A message for the user that has no other place to appear, e.g. a

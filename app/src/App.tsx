@@ -16,10 +16,7 @@ export function App() {
 
   // The menu bar icon's menu can ask for a page.
   useEffect(() => {
-    const unlisten = events.appNavigate.listen(({ payload }) => {
-      if (payload.to === "home") setRoute({ page: "home" });
-      else setRoute({ page: "about", check: payload.to === "check_updates" ? Date.now() : undefined });
-    });
+    const unlisten = events.appNavigate.listen(({ payload }) => setRoute({ page: payload.to }));
     return () => {
       unlisten.then((u) => u());
     };
@@ -46,7 +43,7 @@ export function App() {
         ) : current.page === "system" ? (
           <System />
         ) : current.page === "about" ? (
-          <About check={current.check} />
+          <About />
         ) : (
           <Welcome onNavigate={setRoute} />
         )}

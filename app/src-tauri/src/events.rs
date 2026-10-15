@@ -74,8 +74,6 @@ pub struct Navigate {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum NavigateTo {
-    Home,
+    /// Where there is no native About panel (Linux).
     About,
-    /// The About page, checking for updates right away.
-    CheckUpdates,
 }

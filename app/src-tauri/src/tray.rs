@@ -10,10 +10,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, Wry};
 use vinter_core::bottle;
 
-use tauri_specta::Event;
-
 use crate::commands::programs::launch_program;
-use crate::events::{Navigate, NavigateTo};
 use crate::startup;
 use crate::state::AppState;
 
@@ -160,7 +157,7 @@ mod app_menu {
         app.set_menu(menu)?;
         app.on_menu_event(|app, event| match event.id().as_ref() {
             HIDE => crate::startup::hide_main_window(app),
-            UPDATES => super::navigate(app, crate::events::NavigateTo::CheckUpdates),
+            UPDATES => crate::windows::show_updates(app),
             QUIT => app.exit(0),
             _ => {}
         });
@@ -192,17 +189,11 @@ pub fn refresh(app: &AppHandle) {
     }
 }
 
-/// Shows the window on a page.
-pub fn navigate(app: &AppHandle, to: NavigateTo) {
-    startup::show_main_window(app);
-    let _ = Navigate { to }.emit(app);
-}
-
 fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         OPEN => startup::show_main_window(app),
-        ABOUT => navigate(app, NavigateTo::About),
-        UPDATES => navigate(app, NavigateTo::CheckUpdates),
+        ABOUT => crate::windows::show_about(app),
+        UPDATES => crate::windows::show_updates(app),
         QUIT => app.exit(0),
         id => {
             let Some((bottle_id, index)) = id

@@ -6,16 +6,22 @@ import { RosettaProvider } from "./api/rosetta";
 import { RunsProvider } from "./api/runs";
 import { ToastProvider } from "./api/toasts";
 import { App } from "./App";
+import { UpdatesWindow } from "./pages/UpdatesWindow";
 import "./index.css";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
+// The same bundle serves the small update window (see `windows.rs`).
+const windowKind = (window as { __VINTER_WINDOW__?: string }).__VINTER_WINDOW__;
+const root =
+  windowKind === "updates" ? (
+    <JobsProvider>
+      <UpdatesWindow />
+    </JobsProvider>
+  ) : (
+    <ToastProvider>
       <JobsProvider>
         <RunsProvider>
           <RosettaProvider>
@@ -23,7 +29,11 @@ createRoot(document.getElementById("root")!).render(
           </RosettaProvider>
         </RunsProvider>
       </JobsProvider>
-      </ToastProvider>
-    </QueryClientProvider>
+    </ToastProvider>
+  );
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>{root}</QueryClientProvider>
   </StrictMode>,
 );

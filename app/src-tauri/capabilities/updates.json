@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "updates",
+  "description": "Permissions for the small Software Update window: check for and install updates, and close itself.",
+  "windows": [
+    "updates"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-close",
+    "allow-app-info",
+    "allow-update-check",
+    "allow-update-install"
+  ]
+}

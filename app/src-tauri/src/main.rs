@@ -8,6 +8,7 @@ mod jobs;
 mod startup;
 mod state;
 mod tray;
+mod windows;
 
 use tauri::Manager;
 use tauri_specta::{Builder, ErrorHandlingMode, collect_commands, collect_events};
