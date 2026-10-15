@@ -12,7 +12,8 @@
 //!
 //! Exit code 0 if a device was created, 1 otherwise.
 //! `no_std` so it builds on macOS/Linux with only `rustup target add
-//! x86_64-pc-windows-msvc`: see README.md.
+//! x86_64-pc-windows-msvc`. Rebuild and update the embedded copy with
+//! `tools/d3dprobe/build.sh`.
 
 #![no_std]
 #![no_main]

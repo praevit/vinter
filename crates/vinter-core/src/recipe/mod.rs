@@ -2,7 +2,8 @@
 //!
 //! Built-in recipes live in the repository's `recipes/` folder and are
 //! compiled in; user recipes are `<data>/recipes/*.toml`, with their files
-//! next to them. See `recipes/README.md` for the format.
+//! next to them. The format is the [`Recipe`] struct below; the built-in
+//! recipes in `recipes/` are examples.
 
 pub mod apply;
 pub mod winetricks;
@@ -445,7 +446,7 @@ mod tests {
 
     #[test]
     fn plan_example_parses() {
-        // From PLAN.md section 4.4, with its registry file present.
+        // A recipe using every kind of step, with its registry file present.
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("notepad-plus-plus.reg"), "REGEDIT4\n").unwrap();
         let text = r#"

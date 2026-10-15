@@ -164,7 +164,7 @@ impl Bottle {
 mod tests {
     use super::*;
 
-    /// The example from PLAN.md section 4.2.
+    /// A full example with every field set.
     const PLAN_EXAMPLE: &str = r#"
 id = "8f2c"
 name = "Office 2016"
