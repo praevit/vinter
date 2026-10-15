@@ -24,16 +24,52 @@ body {
   @apply bg-frost-50 text-slate-deep-900 antialiased select-none dark:bg-slate-deep-950 dark:text-frost-100;
 }
 
-/* The moving bar in the "Opening …" window. */
+/* The "Opening …" window. */
 @keyframes launch-slide {
   from {
-    left: -40%;
+    left: -50%;
   }
   to {
     left: 100%;
   }
 }
 
-.animate-launch {
-  animation: launch-slide 1.3s ease-in-out infinite;
+@keyframes launch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes launch-breathe {
+  50% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+}
+
+@keyframes launch-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+.launch-bar {
+  background: linear-gradient(90deg, transparent, #9b2348 30%, #e11d48 60%, #fda4af 85%, transparent);
+  box-shadow: 0 0 10px #e11d4880;
+  animation: launch-slide 1.4s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+/* The gradient that sweeps around the app icon's border. */
+.launch-ring {
+  background: conic-gradient(from 0deg, transparent 0deg 150deg, #9b2348 220deg, #fb7185 320deg, transparent 360deg);
+  animation: launch-spin 1.4s linear infinite;
+}
+
+.launch-breathe {
+  animation: launch-breathe 2.4s ease-in-out infinite;
+}
+
+.launch-fade {
+  animation: launch-fade 0.35s ease-out;
 }

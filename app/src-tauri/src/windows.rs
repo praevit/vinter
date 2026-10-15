@@ -54,7 +54,7 @@ pub fn show_launching(app: &AppHandle, name: &str, icon: Option<String>) -> Stri
             "window.__VINTER_WINDOW__ = 'launch'; window.__VINTER_LAUNCH__ = {data};"
         ))
         .title(format!("Opening {name}"))
-        .inner_size(320.0, 92.0)
+        .inner_size(360.0, 104.0)
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
@@ -65,6 +65,15 @@ pub fn show_launching(app: &AppHandle, name: &str, icon: Option<String>) -> Stri
         .skip_taskbar(true)
         .focused(false)
         .center();
+    // macOS: the system's frosted HUD material, with rounded corners.
+    #[cfg(target_os = "macos")]
+    let builder = builder.effects(
+        tauri::window::EffectsBuilder::new()
+            .effect(tauri::window::Effect::HudWindow)
+            .state(tauri::window::EffectState::Active)
+            .radius(20.0)
+            .build(),
+    );
     if let Err(e) = builder.build() {
         eprintln!("vinter: no launch window: {e}");
     }
