@@ -55,7 +55,7 @@ pub fn usage(paths: &AppPaths) -> Result<Usage> {
             name: b.name,
         })
         .collect();
-    bottles.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    bottles.sort_by_key(|b| std::cmp::Reverse(b.bytes));
     Ok(Usage {
         bottles,
         runtimes: dir_size(&paths.runtimes_dir()),
