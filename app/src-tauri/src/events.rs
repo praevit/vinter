@@ -69,3 +69,16 @@ pub struct JobDone {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[tauri_specta(event_name = "app://open-files")]
 pub struct OpenFiles;
+
+/// Asks the interface to show a page (from the app menu).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://navigate")]
+pub struct Navigate {
+    pub to: NavigateTo,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum NavigateTo {
+    Settings,
+}

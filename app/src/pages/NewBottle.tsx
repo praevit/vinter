@@ -5,6 +5,7 @@ import { errorMessage } from "../api/errors";
 import { useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useInstalledRuntimes } from "../api/runtimes";
+import { useSettings } from "../api/settings";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,9 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  const runtime = runtimes?.find((r) => r.id === runtimeId) ?? runtimes?.[0];
+  const { data: settings } = useSettings();
+  const runtime =
+    runtimes?.find((r) => r.id === (runtimeId ?? settings?.default_runtime)) ?? runtimes?.[0];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

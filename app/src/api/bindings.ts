@@ -36,7 +36,7 @@ export const commands = {
 	 *  Changes the bottle's display, keyboard and overlay options, as a job
 	 *  (display and keyboard changes take a few seconds).
 	 */
-	bottleSetOptions: (id: string, options: BottleOptions) => __TAURI_INVOKE<string>("bottle_set_options", { id, options }),
+	bottleSetOptions: (id: string, options: BottleOptions_Deserialize) => __TAURI_INVOKE<string>("bottle_set_options", { id, options }),
 	/**  Copies a bottle under a new name. The copy is listed right away. */
 	bottleDuplicate: (id: string, newName: string) => __TAURI_INVOKE<StartedBottle>("bottle_duplicate", { id, newName }),
 	/**  Stops the bottle's programs and moves it to the Trash. */
@@ -79,7 +79,7 @@ export const commands = {
 	/**  Extra environment variables. Applied last, so they win. */
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
-	options: BottleOptions,
+	options: BottleOptions_Serialize,
 	programs: ProgramDef[],
 } | null>("program_choose_icon", { bottleId, index }),
 	/**  A bottle's programs, with icons as `data:` URLs. */
@@ -136,10 +136,16 @@ export const commands = {
 	programSetPinned: (bottleId: string, index: number, pinned: boolean) => __TAURI_INVOKE<null>("program_set_pinned", { bottleId, index, pinned }),
 	/**  `.exe`/`.msi` files opened with Vinter since the last call. */
 	openFilesTake: () => __TAURI_INVOKE<string[]>("open_files_take"),
+	settingsGet: () => __TAURI_INVOKE<SettingsView_Serialize>("settings_get"),
+	/**  Saves the settings and applies the ones that act right away. */
+	settingsSet: (settings: Settings_Deserialize) => __TAURI_INVOKE<null>("settings_set", { settings }),
+	/**  Starts Vinter at login (in the menu bar, without its window), or stops that. */
+	settingsSetLaunchAtLogin: (enabled: boolean) => __TAURI_INVOKE<null>("settings_set_launch_at_login", { enabled }),
 };
 
 /** Events */
 export const events = {
+	appNavigate: makeEvent<Navigate>("app://navigate"),
 	appNotice: makeEvent<Notice>("app://notice"),
 	appOpenFiles: makeEvent<OpenFiles>("app://open-files"),
 	jobDone: makeEvent<JobDone>("job://done"),
@@ -187,7 +193,13 @@ export type Bottle = Bottle_Serialize | Bottle_Deserialize;
  *  `bottle.toml` as read from disk: everything after `created_at` is optional.
  *  Kept separate so the API type (and its generated TS) has no optional fields.
  */
-export type BottleFile = {
+export type BottleFile = BottleFile_Serialize | BottleFile_Deserialize;
+
+/**
+ *  `bottle.toml` as read from disk: everything after `created_at` is optional.
+ *  Kept separate so the API type (and its generated TS) has no optional fields.
+ */
+export type BottleFile_Deserialize = {
 	id: string,
 	name: string,
 	runtime: string,
@@ -197,8 +209,26 @@ export type BottleFile = {
 	recipe?: string | null,
 	env?: { [key in string]: string },
 	dll_overrides?: { [key in string]: string },
-	options?: BottleOptions,
+	options?: BottleOptions_Deserialize,
 	programs?: ProgramDef[],
+};
+
+/**
+ *  `bottle.toml` as read from disk: everything after `created_at` is optional.
+ *  Kept separate so the API type (and its generated TS) has no optional fields.
+ */
+export type BottleFile_Serialize = {
+	id: string,
+	name: string,
+	runtime: string,
+	created_at: string,
+	windows_version: WindowsVersion,
+	graphics: Graphics,
+	recipe: string | null,
+	env: { [key in string]: string },
+	dll_overrides: { [key in string]: string },
+	options: BottleOptions_Serialize,
+	programs: ProgramDef[],
 };
 
 export type BottleListItem = {
@@ -209,13 +239,32 @@ export type BottleListItem = {
  *  Per-bottle display, keyboard and performance switches. The default (all
  *  off) is what bottles made before these options existed had.
  */
-export type BottleOptions = {
-	/**  macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size). */
+export type BottleOptions = BottleOptions_Serialize | BottleOptions_Deserialize;
+
+/**  [`BottleOptions`] as read: missing switches are off. */
+export type BottleOptionsFile = {
 	retina_mode?: boolean,
-	/**  macOS: ⌘ works as Ctrl (so ⌘C copies) and ⌥ as Alt. */
 	command_as_ctrl?: boolean,
-	/**  Show a frame rate overlay in games (DXVK's and Metal's HUD). */
 	show_fps?: boolean,
+};
+
+/**
+ *  Per-bottle display, keyboard and performance switches. The default (all
+ *  off) is what bottles made before these options existed had.
+ */
+export type BottleOptions_Deserialize = BottleOptionsFile;
+
+/**
+ *  Per-bottle display, keyboard and performance switches. The default (all
+ *  off) is what bottles made before these options existed had.
+ */
+export type BottleOptions_Serialize = {
+	/**  macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size). */
+	retina_mode: boolean,
+	/**  macOS: ⌘ works as Ctrl (so ⌘C copies) and ⌥ as Alt. */
+	command_as_ctrl: boolean,
+	/**  Show a frame rate overlay in games (DXVK's and Metal's HUD). */
+	show_fps: boolean,
 };
 
 /**  Fields to change; missing (null) ones are left alone. */
@@ -246,7 +295,7 @@ export type BottleSummary = {
 };
 
 /**  Contents of `bottle.toml`. */
-export type Bottle_Deserialize = BottleFile;
+export type Bottle_Deserialize = BottleFile_Deserialize;
 
 /**  Contents of `bottle.toml`. */
 export type Bottle_Serialize = {
@@ -263,7 +312,7 @@ export type Bottle_Serialize = {
 	/**  Extra environment variables. Applied last, so they win. */
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
-	options: BottleOptions,
+	options: BottleOptions_Serialize,
 	programs: ProgramDef[],
 };
 
@@ -376,6 +425,13 @@ export type LogEntry = {
 	started_at: string,
 	size: number,
 };
+
+/**  Asks the interface to show a page (from the app menu). */
+export type Navigate = {
+	to: NavigateTo,
+};
+
+export type NavigateTo = "settings";
 
 /**
  *  A message for the user that has no other place to appear, e.g. a
@@ -560,6 +616,65 @@ export type RuntimeLink =
 "source" | 
 /**  The upstream release page of the build. */
 "release";
+
+export type Settings = Settings_Serialize | Settings_Deserialize;
+
+/**
+ *  [`Settings`] as read: missing fields keep their defaults, so the API type
+ *  (and its generated TS) has no optional fields.
+ */
+export type SettingsFile = SettingsFile_Serialize | SettingsFile_Deserialize;
+
+/**
+ *  [`Settings`] as read: missing fields keep their defaults, so the API type
+ *  (and its generated TS) has no optional fields.
+ */
+export type SettingsFile_Deserialize = {
+	new_bottle_options?: BottleOptions_Deserialize,
+	default_runtime?: string | null,
+	menu_bar_icon?: boolean,
+	notifications?: boolean,
+	check_for_updates?: boolean,
+};
+
+/**
+ *  [`Settings`] as read: missing fields keep their defaults, so the API type
+ *  (and its generated TS) has no optional fields.
+ */
+export type SettingsFile_Serialize = {
+	new_bottle_options: BottleOptions_Serialize,
+	default_runtime: string | null,
+	menu_bar_icon: boolean,
+	notifications: boolean,
+	check_for_updates: boolean,
+};
+
+export type SettingsView = SettingsView_Serialize | SettingsView_Deserialize;
+
+export type SettingsView_Deserialize = {
+	/**  Kept by the system (a login item), not in `settings.toml`. */
+	launch_at_login: boolean,
+} & Settings_Deserialize;
+
+export type SettingsView_Serialize = {
+	/**  Kept by the system (a login item), not in `settings.toml`. */
+	launch_at_login: boolean,
+} & Settings_Serialize;
+
+export type Settings_Deserialize = SettingsFile_Deserialize;
+
+export type Settings_Serialize = {
+	/**  Options new bottles start with. */
+	new_bottle_options: BottleOptions_Serialize,
+	/**  Runtime for new bottles, if not the newest installed one. */
+	default_runtime: string | null,
+	/**  Show the menu bar (tray) icon. */
+	menu_bar_icon: boolean,
+	/**  Notify when a long job finishes or a program fails to start. */
+	notifications: boolean,
+	/**  Check for a newer Vinter when it starts. */
+	check_for_updates: boolean,
+};
 
 /**  How a program was found. */
 export type Source = 

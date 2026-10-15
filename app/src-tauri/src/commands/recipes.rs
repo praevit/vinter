@@ -42,7 +42,13 @@ fn report(job: &JobReporter, p: RecipeProgress) {
 /// A finished recipe: creates launchers for the programs it pinned, so the
 /// app can be opened from Spotlight or the app menu right away.
 fn finish(app: &AppHandle, result: vinter_core::Result<Bottle>) -> Result<(), String> {
-    let bottle = result.map_err(|e| e.to_string())?;
+    let bottle = match result {
+        Ok(bottle) => bottle,
+        Err(e) => {
+            crate::notify::send(app, "Setting up the app did not finish", &e.to_string());
+            return Err(e.to_string());
+        }
+    };
     let paths = &app.state::<AppState>().paths;
     let launchers = crate::startup::launcher_target()
         .and_then(|target| vinter_core::launcher::sync_bottle(paths, &bottle.id, &target));
@@ -53,6 +59,11 @@ fn finish(app: &AppHandle, result: vinter_core::Result<Bottle>) -> Result<(), St
         ));
     }
     crate::tray::refresh(app);
+    crate::notify::send(
+        app,
+        &format!("{} is ready", bottle.name),
+        "Open it from Your apps, the menu bar or Spotlight.",
+    );
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-import type { BottleOptions } from "../api/bindings";
+import type { BottleOptions_Serialize as BottleOptions } from "../api/bindings";
 import { subtle } from "./ui";
 
 const OPTIONS: { key: keyof BottleOptions; label: string; help: string; macOnly: boolean }[] = [

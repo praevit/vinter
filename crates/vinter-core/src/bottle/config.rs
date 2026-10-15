@@ -66,7 +66,7 @@ pub enum Graphics {
 /// Per-bottle display, keyboard and performance switches. The default (all
 /// off) is what bottles made before these options existed had.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(from = "BottleOptionsFile")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct BottleOptions {
     /// macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size).
@@ -75,6 +75,26 @@ pub struct BottleOptions {
     pub command_as_ctrl: bool,
     /// Show a frame rate overlay in games (DXVK's and Metal's HUD).
     pub show_fps: bool,
+}
+
+/// [`BottleOptions`] as read: missing switches are off.
+#[derive(Deserialize, Default)]
+#[serde(default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+struct BottleOptionsFile {
+    retina_mode: bool,
+    command_as_ctrl: bool,
+    show_fps: bool,
+}
+
+impl From<BottleOptionsFile> for BottleOptions {
+    fn from(f: BottleOptionsFile) -> Self {
+        Self {
+            retina_mode: f.retina_mode,
+            command_as_ctrl: f.command_as_ctrl,
+            show_fps: f.show_fps,
+        }
+    }
 }
 
 impl BottleOptions {

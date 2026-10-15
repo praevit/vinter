@@ -48,6 +48,18 @@ pub fn runtime_install(
                 .lock()
                 .unwrap()
                 .remove(&info.id);
+            match &result {
+                Ok(_) => crate::notify::send(
+                    &app,
+                    &format!("{} is installed", info.name),
+                    "You can create bottles with it now.",
+                ),
+                Err(e) => crate::notify::send(
+                    &app,
+                    &format!("Could not install {}", info.name),
+                    &e.to_string(),
+                ),
+            }
             result.map(|_| ()).map_err(|e| e.to_string())
         }
     }))

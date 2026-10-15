@@ -6,6 +6,7 @@ pub mod graphics;
 pub mod programs;
 pub mod recipes;
 pub mod runtimes;
+pub mod settings;
 pub mod system;
 
 use serde::Serialize;

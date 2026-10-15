@@ -7,14 +7,14 @@ use crate::error::IoResultExt;
 use crate::{AppPaths, Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(from = "SettingsFile")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Settings {
     /// Options new bottles start with.
     pub new_bottle_options: BottleOptions,
     /// Runtime for new bottles, if not the newest installed one.
     pub default_runtime: Option<String>,
-    /// Show the menu bar (tray) icon. Takes effect after a restart.
+    /// Show the menu bar (tray) icon.
     pub menu_bar_icon: bool,
     /// Notify when a long job finishes or a program fails to start.
     pub notifications: bool,
@@ -30,6 +30,44 @@ impl Default for Settings {
             menu_bar_icon: true,
             notifications: true,
             check_for_updates: true,
+        }
+    }
+}
+
+/// [`Settings`] as read: missing fields keep their defaults, so the API type
+/// (and its generated TS) has no optional fields.
+#[derive(Deserialize)]
+#[serde(default)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+struct SettingsFile {
+    new_bottle_options: BottleOptions,
+    default_runtime: Option<String>,
+    menu_bar_icon: bool,
+    notifications: bool,
+    check_for_updates: bool,
+}
+
+impl Default for SettingsFile {
+    fn default() -> Self {
+        let d = Settings::default();
+        Self {
+            new_bottle_options: d.new_bottle_options,
+            default_runtime: d.default_runtime,
+            menu_bar_icon: d.menu_bar_icon,
+            notifications: d.notifications,
+            check_for_updates: d.check_for_updates,
+        }
+    }
+}
+
+impl From<SettingsFile> for Settings {
+    fn from(f: SettingsFile) -> Self {
+        Self {
+            new_bottle_options: f.new_bottle_options,
+            default_runtime: f.default_runtime,
+            menu_bar_icon: f.menu_bar_icon,
+            notifications: f.notifications,
+            check_for_updates: f.check_for_updates,
         }
     }
 }

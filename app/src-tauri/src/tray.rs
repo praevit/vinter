@@ -3,6 +3,7 @@
 //! macOS) only hides it, so Vinter stays in the menu bar.
 
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuBuilder, MenuEvent, MenuItem};
@@ -22,10 +23,17 @@ const QUIT: &str = "quit";
 /// Program items have the id `run/<bottle>/<index>`.
 const RUN_PREFIX: &str = "run/";
 
-/// The programs the menu was last built with; `None` if there is no tray icon
-/// (e.g. a Linux desktop without one).
 #[derive(Default)]
-pub struct TrayState(Mutex<Option<Vec<Entry>>>);
+pub struct TrayState {
+    /// The programs the menu was last built with; `None` if there is no tray
+    /// icon (e.g. a Linux desktop without one).
+    entries: Mutex<Option<Vec<Entry>>>,
+    /// Turned off in Settings.
+    hidden: AtomicBool,
+    /// macOS: the ⌘Q item, whose label follows the setting.
+    #[cfg(target_os = "macos")]
+    quit_item: Mutex<Option<MenuItem<Wry>>>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
@@ -107,12 +115,33 @@ pub fn create(app: &AppHandle) {
             .build(app)
     });
     match result {
-        Ok(_) => *app.state::<TrayState>().0.lock().unwrap() = Some(entries),
+        Ok(_) => *app.state::<TrayState>().entries.lock().unwrap() = Some(entries),
         Err(e) => return eprintln!("vinter: no menu bar icon: {e}"),
     }
     #[cfg(target_os = "macos")]
-    if let Err(e) = app_menu::install(app) {
-        eprintln!("vinter: could not change the app menu: {e}");
+    match app_menu::install(app) {
+        Ok(item) => *app.state::<TrayState>().quit_item.lock().unwrap() = Some(item),
+        Err(e) => eprintln!("vinter: could not change the app menu: {e}"),
+    }
+    let show = vinter_core::settings::load(&app.state::<AppState>().paths).menu_bar_icon;
+    set_visible(app, show);
+}
+
+/// Shows or hides the icon (the "Menu bar icon" setting). Without it,
+/// closing the window and ⌘Q quit as usual.
+pub fn set_visible(app: &AppHandle, visible: bool) {
+    let state = app.state::<TrayState>();
+    state.hidden.store(!visible, Ordering::SeqCst);
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        let _ = tray.set_visible(visible);
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(item) = state.quit_item.lock().unwrap().as_ref() {
+        let _ = item.set_text(if visible {
+            "Keep in Menu Bar"
+        } else {
+            "Quit Vinter"
+        });
     }
 }
 
@@ -126,11 +155,14 @@ mod app_menu {
     const ABOUT: &str = "app-menu-about";
     const HIDE: &str = "app-menu-hide";
     const UPDATES: &str = "app-menu-updates";
+    const SETTINGS: &str = "app-menu-settings";
     const QUIT: &str = "app-menu-quit";
 
-    pub fn install(app: &AppHandle) -> tauri::Result<()> {
+    /// Returns the ⌘Q item.
+    pub fn install(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
         // Tauri's standard menu, with the app menu's last item (Quit) replaced.
         let menu: Menu<Wry> = Menu::default(app)?;
+        let hide = MenuItem::with_id(app, HIDE, "Keep in Menu Bar", true, Some("CmdOrCtrl+Q"))?;
         if let Some(app_submenu) = menu.items()?.first().and_then(|i| i.as_submenu().cloned()) {
             // Vinter's own About window instead of the standard panel.
             app_submenu.remove_at(0)?;
@@ -143,15 +175,14 @@ mod app_menu {
                 &MenuItem::with_id(app, UPDATES, "Check for Updates…", true, None::<&str>)?,
                 1,
             )?;
+            app_submenu.insert(&PredefinedMenuItem::separator(app)?, 2)?;
+            app_submenu.insert(
+                &MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?,
+                3,
+            )?;
             let last = app_submenu.items()?.len().saturating_sub(1);
             app_submenu.remove_at(last)?;
-            app_submenu.append(&MenuItem::with_id(
-                app,
-                HIDE,
-                "Keep in Menu Bar",
-                true,
-                Some("CmdOrCtrl+Q"),
-            )?)?;
+            app_submenu.append(&hide)?;
             app_submenu.append(&PredefinedMenuItem::separator(app)?)?;
             app_submenu.append(&MenuItem::with_id(
                 app,
@@ -164,18 +195,28 @@ mod app_menu {
         app.set_menu(menu)?;
         app.on_menu_event(|app, event| match event.id().as_ref() {
             ABOUT => crate::windows::show_about(app),
-            HIDE => crate::startup::hide_main_window(app),
+            HIDE if super::is_shown(app) => crate::startup::hide_main_window(app),
+            HIDE => app.exit(0),
             UPDATES => crate::windows::show_updates(app),
+            SETTINGS => {
+                use tauri_specta::Event;
+                crate::startup::show_main_window(app);
+                let _ = crate::events::Navigate {
+                    to: crate::events::NavigateTo::Settings,
+                }
+                .emit(app);
+            }
             QUIT => app.exit(0),
             _ => {}
         });
-        Ok(())
+        Ok(hide)
     }
 }
 
 /// True if the icon exists, so hiding the window keeps Vinter reachable.
 pub fn is_shown(app: &AppHandle) -> bool {
-    app.state::<TrayState>().0.lock().unwrap().is_some()
+    let state = app.state::<TrayState>();
+    !state.hidden.load(Ordering::SeqCst) && state.entries.lock().unwrap().is_some()
 }
 
 /// Rebuilds the menu if the programs changed. Reads every bottle: call it
@@ -183,7 +224,7 @@ pub fn is_shown(app: &AppHandle) -> bool {
 pub fn refresh(app: &AppHandle) {
     let entries = entries(app);
     let state = app.state::<TrayState>();
-    let mut last = state.0.lock().unwrap();
+    let mut last = state.entries.lock().unwrap();
     if last.is_none() || last.as_ref() == Some(&entries) {
         return;
     }

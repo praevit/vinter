@@ -5,6 +5,7 @@ mod commands;
 mod events;
 mod focus;
 mod jobs;
+mod notify;
 mod startup;
 mod state;
 mod tray;
@@ -70,6 +71,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app::update_install,
             commands::app::program_set_pinned,
             commands::app::open_files_take,
+            commands::settings::settings_get,
+            commands::settings::settings_set,
+            commands::settings::settings_set_launch_at_login,
         ])
         .events(collect_events![
             events::JobProgress,
@@ -77,7 +81,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::RunLog,
             events::RunExit,
             events::Notice,
-            events::OpenFiles
+            events::OpenFiles,
+            events::Navigate
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.
@@ -108,6 +113,12 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        // "Start at login" starts Vinter in the menu bar, without its window.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![startup::HIDDEN_ARG]),
+        ))
         .manage(AppState::new(paths))
         .manage(startup::Startup::default())
         .manage(startup::OpenedFiles::default())
@@ -127,6 +138,7 @@ fn main() {
                 );
             });
             tray::create(app.handle());
+            startup::check_for_updates_later(app.handle());
             startup::on_start(app.handle(), std::env::args().collect());
             Ok(())
         })

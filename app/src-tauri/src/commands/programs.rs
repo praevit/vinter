@@ -13,6 +13,9 @@ use crate::focus;
 use crate::jobs::{self, JobId};
 use crate::state::AppState;
 
+/// A program that exits with an error within this time likely failed to start.
+const CRASH_WINDOW: std::time::Duration = std::time::Duration::from_secs(20);
+
 /// A program started from Vinter that is still running.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct RunInfo {
@@ -280,11 +283,27 @@ pub(crate) fn launch_program(
         },
         move |code| {
             let state = exit_app.state::<AppState>();
-            let none_left = {
+            let (run, none_left) = {
                 let mut runs = state.runs.lock().unwrap();
-                runs.remove(&exit_run);
-                runs.is_empty()
+                let run = runs.remove(&exit_run);
+                (run, runs.is_empty())
             };
+            // A program that fails right after starting likely crashed.
+            if let (Some(run), Some(code)) = (&run, code) {
+                let quick = humantime::parse_rfc3339(&run.started_at)
+                    .ok()
+                    .and_then(|t| t.elapsed().ok())
+                    .is_some_and(|d| d < CRASH_WINDOW);
+                if code != 0 && quick {
+                    crate::notify::send(
+                        &exit_app,
+                        &format!("{} quit unexpectedly", run.name),
+                        &format!(
+                            "It exited with code {code}. The bottle's Logs tab has the details."
+                        ),
+                    );
+                }
+            }
             let _ = RunExit {
                 run_id: exit_run,
                 code,

@@ -53,6 +53,9 @@
     "allow-update-check",
     "allow-update-install",
     "allow-program-set-pinned",
-    "allow-open-files-take"
+    "allow-open-files-take",
+    "allow-settings-get",
+    "allow-settings-set",
+    "allow-settings-set-launch-at-login"
   ]
 }

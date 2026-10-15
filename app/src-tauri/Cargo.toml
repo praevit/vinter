@@ -32,6 +32,8 @@ tauri-specta.workspace = true
 tauri-plugin-deep-link.workspace = true
 tauri-plugin-updater.workspace = true
 tauri-plugin-single-instance.workspace = true
+tauri-plugin-autostart.workspace = true
+tauri-plugin-notification.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Already in the tree via Tauri; used to bring Wine windows to the front.

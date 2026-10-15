@@ -49,6 +49,9 @@ fn main() {
             "update_install",
             "program_set_pinned",
             "open_files_take",
+            "settings_get",
+            "settings_set",
+            "settings_set_launch_at_login",
         ]),
     ))
     .expect("failed to run tauri-build");

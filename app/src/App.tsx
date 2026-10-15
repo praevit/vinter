@@ -9,6 +9,7 @@ import { About } from "./pages/About";
 import { InstallApp } from "./pages/InstallApp";
 import { NewBottle } from "./pages/NewBottle";
 import { Runtimes } from "./pages/Runtimes";
+import { Settings } from "./pages/Settings";
 import { System } from "./pages/System";
 import { Welcome } from "./pages/Welcome";
 
@@ -23,6 +24,7 @@ export function App() {
       commands.openFilesTake().then((files) => files.length && setOpenFiles((q) => [...q, ...files]));
     void take();
     const opened = events.appOpenFiles.listen(() => void take());
+    const navigate = events.appNavigate.listen(({ payload }) => setRoute({ page: payload.to }));
     const dropped = getCurrentWebview().onDragDropEvent(({ payload }) => {
       if (payload.type !== "drop") return;
       const files = payload.paths.filter((p) => /\.(exe|msi)$/i.test(p));
@@ -30,6 +32,7 @@ export function App() {
     });
     return () => {
       opened.then((u) => u());
+      navigate.then((u) => u());
       dropped.then((u) => u());
     };
   }, []);
@@ -54,6 +57,8 @@ export function App() {
           <Runtimes />
         ) : current.page === "system" ? (
           <System />
+        ) : current.page === "settings" ? (
+          <Settings />
         ) : current.page === "about" ? (
           <About />
         ) : (
