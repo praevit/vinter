@@ -46,7 +46,12 @@ pub fn wine_env(
     if !overrides.is_empty() {
         env.push(("WINEDLLOVERRIDES".into(), dll_overrides_string(&overrides)));
     }
-    let backend_env = crate::graphics::launch_env(bottle.graphics);
+    // Bottles live in <data>/bottles/<id>/prefix.
+    let data_dir = prefix
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent);
+    let backend_env = crate::graphics::launch_env(bottle.graphics, data_dir);
     let option_env = options_env(&bottle.options, std::env::consts::OS);
     let user_env = bottle.env.iter().map(|(k, v)| (k.clone(), v.clone()));
     for (key, value) in backend_env.into_iter().chain(option_env).chain(user_env) {

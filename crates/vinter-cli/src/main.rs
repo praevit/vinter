@@ -43,6 +43,24 @@ enum Command {
     Recipe(RecipeCommand),
     /// Install Rosetta 2 (Apple Silicon only). Running this accepts Apple's license.
     InstallRosetta,
+    /// Apple's D3DMetal, from your own copy of the Game Porting Toolkit.
+    #[command(subcommand)]
+    D3dmetal(D3dmetalCommand),
+}
+
+#[derive(Subcommand)]
+enum D3dmetalCommand {
+    /// Show whether D3DMetal is imported, and which version.
+    Status,
+    /// Import it from the Game Porting Toolkit (or its evaluation environment):
+    /// a .dmg or an opened folder. Shows Apple's license; --accept agrees to it.
+    Import {
+        source: std::path::PathBuf,
+        #[arg(long)]
+        accept: bool,
+    },
+    /// Remove the imported copy.
+    Remove,
 }
 
 #[derive(Subcommand)]
@@ -211,6 +229,34 @@ enum RecipeCommand {
     },
 }
 
+fn d3dmetal_command(paths: &AppPaths, cmd: D3dmetalCommand) -> Result<()> {
+    use vinter_core::graphics::d3dmetal;
+    match cmd {
+        D3dmetalCommand::Status => match d3dmetal::installed(paths) {
+            Some(d) => println!("D3DMetal {} (imported {})", d.version, d.imported_at),
+            None => println!("Not imported."),
+        },
+        D3dmetalCommand::Import { source, accept } => {
+            if !accept {
+                let found = d3dmetal::inspect(&source)?;
+                println!("{}\n", found.license.trim());
+                println!(
+                    "This is Apple's license for D3DMetal {}. Run again with --accept to agree and import it.",
+                    found.version
+                );
+                return Ok(());
+            }
+            let d = d3dmetal::import(paths, &source)?;
+            println!("Imported D3DMetal {}.", d.version);
+        }
+        D3dmetalCommand::Remove => {
+            d3dmetal::remove(paths)?;
+            println!("Removed.");
+        }
+    }
+    Ok(())
+}
+
 fn parse_backend(s: &str) -> Result<Backend, String> {
     Backend::parse(s).ok_or_else(|| "expected wined3d, dxvk, dxmt or d3dmetal".into())
 }
@@ -250,6 +296,7 @@ async fn main() -> Result<()> {
         },
         Command::Bottle(cmd) => bottle_command(&paths, cmd).await,
         Command::Recipe(cmd) => recipe_command(&paths, cmd).await,
+        Command::D3dmetal(cmd) => d3dmetal_command(&paths, cmd),
         Command::InstallRosetta => {
             println!("Installing Rosetta 2. macOS may ask for an administrator password.");
             rosetta::install()?;

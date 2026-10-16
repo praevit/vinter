@@ -6,6 +6,7 @@
 
 pub mod apply;
 pub mod component;
+pub mod d3dmetal;
 pub mod probe;
 
 use serde::Serialize;
@@ -95,7 +96,8 @@ pub(crate) fn backends_for(
         .into_iter()
         .map(|backend| {
             let component = component::for_backend(backend, os);
-            let reason = unavailable_reason(backend, runtime, os, component.is_some());
+            let imported = backend == Backend::D3dmetal && d3dmetal::installed(paths).is_some();
+            let reason = unavailable_reason(backend, runtime, os, component.is_some() || imported);
             BackendInfo {
                 backend,
                 name: backend.name().into(),
@@ -122,12 +124,17 @@ fn unavailable_reason(
     }
     match backend {
         Backend::Wined3d => None,
-        Backend::D3dmetal => Some(
-            "Needs Apple's Game Porting Toolkit, which Vinter is not allowed to include, \
-             and a Wine build made for it. Support for a toolkit you install yourself \
-             is planned."
+        Backend::D3dmetal if !runtime.graphics.contains(&backend) => Some(format!(
+            "D3DMetal needs a Vinter Wine build made for it; {} cannot run it.",
+            runtime.name
+        )),
+        // D3DMetal's "component" is the user's own import of Apple's toolkit.
+        Backend::D3dmetal if !has_component => Some(
+            "Import Apple's Game Porting Toolkit in Settings first. Vinter cannot \
+             include it, so you download it from Apple yourself."
                 .into(),
         ),
+        Backend::D3dmetal => None,
         // Tested with DXMT 0.80 on Gcenx Wine 11.0: the device works, but drawing
         // to a window needs Mac driver functions these Wine builds keep hidden.
         Backend::Dxmt if !runtime.graphics.contains(&backend) => Some(format!(
@@ -153,7 +160,17 @@ pub fn launch_overrides(backend: Backend) -> Vec<(String, String)> {
     launch_overrides_for(backend, std::env::consts::OS)
 }
 
+/// The DirectX DLLs the D3DMetal runtime takes over (as builtins, from
+/// `D3DMETAL_RUNTIME_DIR`).
+const D3DMETAL_DLLS: &[&str] = &["d3d10", "d3d10core", "d3d11", "d3d12", "d3d12core", "dxgi"];
+
 pub(crate) fn launch_overrides_for(backend: Backend, os: &str) -> Vec<(String, String)> {
+    if backend == Backend::D3dmetal {
+        return D3DMETAL_DLLS
+            .iter()
+            .map(|dll| (dll.to_string(), "n,b".to_string()))
+            .collect();
+    }
     match component::for_backend(backend, os) {
         Some(c) => c
             .dlls
@@ -164,12 +181,22 @@ pub(crate) fn launch_overrides_for(backend: Backend, os: &str) -> Vec<(String, S
     }
 }
 
-/// Environment variables a launch needs for `backend` (before the bottle's own).
-pub fn launch_env(backend: Backend) -> Vec<(String, String)> {
+/// Environment variables a launch needs for `backend` (before the bottle's
+/// own). `data_dir` is Vinter's data folder (for D3DMetal's location).
+pub fn launch_env(backend: Backend, data_dir: Option<&std::path::Path>) -> Vec<(String, String)> {
     match backend {
         // DXVK writes `<exe>_d3d11.log` next to the program by default; keep its
         // log on stderr only, where Vinter's run log captures it.
         Backend::Dxvk => vec![("DXVK_LOG_PATH".into(), "none".into())],
+        // Read by a Vinter Wine built for D3DMetal.
+        Backend::D3dmetal => {
+            let mut env = vec![("GRAPHICS_BACKEND".to_string(), "d3dmetal".to_string())];
+            if let Some(data) = data_dir {
+                let lib = d3dmetal::lib_dir(&crate::AppPaths::with_data_dir(data));
+                env.push(("D3DMETAL_RUNTIME_DIR".into(), lib.display().to_string()));
+            }
+            env
+        }
         _ => Vec::new(),
     }
 }
@@ -260,7 +287,7 @@ mod tests {
     #[test]
     fn launch_settings_per_backend() {
         assert!(launch_overrides_for(Backend::Wined3d, "macos").is_empty());
-        assert!(launch_env(Backend::Wined3d).is_empty());
+        assert!(launch_env(Backend::Wined3d, None).is_empty());
 
         // On macOS DXVK replaces only d3d11/d3d10core; Wine's dxgi stays.
         let mac: Vec<_> = launch_overrides_for(Backend::Dxvk, "macos");
@@ -277,7 +304,7 @@ mod tests {
             .collect();
         assert_eq!(linux, ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"]);
         assert_eq!(
-            launch_env(Backend::Dxvk),
+            launch_env(Backend::Dxvk, None),
             [("DXVK_LOG_PATH".into(), "none".into())]
         );
     }
