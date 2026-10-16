@@ -5,8 +5,7 @@ cask "vinter" do
   version "@VERSION@"
   sha256 "@SHA256@"
 
-  url "https://github.com/praevit/vinter/releases/download/v#{version}/Vinter_aarch64.dmg",
-      verified: "github.com/praevit/vinter/"
+  url "https://github.com/praevit/vinter/releases/download/v#{version}/Vinter_aarch64.dmg"
   name "Vinter"
   desc "Run Windows apps with Wine"
   homepage "https://getvinter.app/"
