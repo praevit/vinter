@@ -43,8 +43,9 @@ Security** and click **Open Anyway**.
   their shortcuts out of your Mac's Desktop.
 - **Launch from anywhere**: your apps show up in Spotlight, Launchpad, Raycast
   and the Linux app menu, and in Vinter's menu bar icon.
-- **Graphics backends**: Wine's built-in renderer or DXVK (Direct3D 11 over
-  Vulkan) per bottle, with a one-click test and a frame rate overlay.
+- **Graphics backends**: Wine's built-in renderer, DXVK (Direct3D 11 over
+  Vulkan) or DXMT (Direct3D 10/11 over Metal, with Vinter Wine) per bottle,
+  with a one-click test and a frame rate overlay.
 - **Logs**: every run gets its own log, with live output and a debug report you
   can copy into a bug report.
 - **Housekeeping**: see how much space each bottle takes, clean up old logs
@@ -147,9 +148,14 @@ give it a different name.
 ## Credits
 
 Vinter is built on [Wine](https://www.winehq.org), licensed under the LGPL.
-Graphics use [DXVK](https://github.com/doitsujin/dxvk) (zlib) and MoltenVK
-(Apache 2.0); some recipes use [winetricks](https://github.com/Winetricks/winetricks)
-(LGPL). These are downloaded from their publishers, not bundled.
+Graphics use [DXVK](https://github.com/doitsujin/dxvk) (zlib),
+[DXMT](https://github.com/3Shain/dxmt) (LGPL) and MoltenVK (Apache 2.0); some
+recipes use [winetricks](https://github.com/Winetricks/winetricks) (LGPL).
+These are downloaded from their publishers, not bundled.
+
+**Vinter Wine** is upstream Wine with a small patch so DXMT can draw (see
+[`wine/`](wine/)). It is built by this repository's GitHub Actions and
+published, with its source and changes, as `wine-*` pre-releases.
 
 Vinter is not affiliated with Wine, Apple or Microsoft.
 
