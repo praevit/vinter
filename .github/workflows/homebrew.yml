@@ -45,7 +45,7 @@ jobs:
           url="https://github.com/praevit/vinter/releases/download/${TAG}/Vinter_aarch64.dmg"
           curl -fsSL -o vinter.dmg "$url"
           sha=$(sha256sum vinter.dmg | cut -d' ' -f1)
-          sed -e "s/VERSION/${version}/" -e "s/SHA256/${sha}/" \
+          sed -e "s/@VERSION@/${version}/" -e "s/@SHA256@/${sha}/" \
             packaging/homebrew/vinter.rb.in > vinter.rb
           echo "version=${version}" >> "$GITHUB_ENV"
 
