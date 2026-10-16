@@ -125,7 +125,8 @@ fn unavailable_reason(
     match backend {
         Backend::Wined3d => None,
         Backend::D3dmetal if !runtime.graphics.contains(&backend) => Some(format!(
-            "D3DMetal needs a Vinter Wine build made for it; {} cannot run it.",
+            "D3DMetal needs a Vinter Wine made for it, which is on its way; {} cannot \
+             run it. You will also import Apple's Game Porting Toolkit in Settings.",
             runtime.name
         )),
         // D3DMetal's "component" is the user's own import of Apple's toolkit.

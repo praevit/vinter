@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="660" height="400" viewBox="0 0 660 400">
+  <!-- Vinter DMG window background. Palette from the logo: frost white, slate, one wine red.
+       Icons sit at (170,190) and (490,190) with 128pt icons; keep that band clear. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="0.65" stop-color="#EEF2F7"/>
+      <stop offset="1" stop-color="#E2E8F0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <g id="flake" fill="none" stroke-linecap="round">
+      <path d="M0 -10V10M-8.66 -5L8.66 5M-8.66 5L8.66 -5"/>
+      <path d="M-3 -7.5L0 -5L3 -7.5M-3 7.5L0 5L3 7.5"/>
+    </g>
+    <marker id="head" viewBox="0 0 12 12" refX="7" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M1 1L9 6L1 11" fill="none" stroke="#9B2348" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="660" height="400" fill="url(#sky)"/>
+  <rect width="660" height="400" fill="url(#glow)"/>
+
+  <!-- Distant ridges -->
+  <path d="M0 330L70 296L120 312L190 270L250 300L310 278L380 306L450 262L520 296L590 280L660 300V400H0Z" fill="#CBD5E1" opacity="0.55"/>
+  <path d="M0 352L60 334L130 348L210 318L290 344L360 326L430 350L510 322L580 342L660 330V400H0Z" fill="#94A3B8" opacity="0.35"/>
+  <path d="M0 372L90 360L180 370L270 356L360 368L450 354L540 366L660 358V400H0Z" fill="#2A3950" opacity="0.12"/>
+
+  <!-- Snowfall -->
+  <g stroke="#94A3B8" opacity="0.45" stroke-width="1.6">
+    <use xlink:href="#flake" transform="translate(48 58) scale(0.9)"/>
+    <use xlink:href="#flake" transform="translate(612 46) scale(1.2)"/>
+    <use xlink:href="#flake" transform="translate(586 128) scale(0.6)"/>
+    <use xlink:href="#flake" transform="translate(84 150) scale(0.55)"/>
+    <use xlink:href="#flake" transform="translate(330 300) scale(0.7)"/>
+    <use xlink:href="#flake" transform="translate(28 252) scale(0.7)"/>
+    <use xlink:href="#flake" transform="translate(632 236) scale(0.8)"/>
+    <use xlink:href="#flake" transform="translate(250 34) scale(0.5)"/>
+    <use xlink:href="#flake" transform="translate(420 30) scale(0.65)"/>
+  </g>
+  <g fill="#94A3B8" opacity="0.4">
+    <circle cx="140" cy="40" r="2"/><circle cx="520" cy="84" r="1.6"/><circle cx="36" cy="200" r="1.4"/>
+    <circle cx="300" cy="64" r="1.4"/><circle cx="560" cy="200" r="1.8"/><circle cx="110" cy="280" r="1.6"/>
+    <circle cx="380" cy="94" r="1.2"/><circle cx="460" cy="292" r="1.6"/><circle cx="210" cy="300" r="1.2"/>
+  </g>
+
+  <!-- Arrow from app to Applications -->
+  <path d="M258 182Q330 150 402 182" fill="none" stroke="#9B2348" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="1 8" marker-end="url(#head)"/>
+
+  <!-- Copy -->
+  <text x="330" y="66" text-anchor="middle" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif" font-size="26" font-weight="700" letter-spacing="-0.4" fill="#1A2433">Install Vinter</text>
+  <text x="330" y="92" text-anchor="middle" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif" font-size="14" fill="#475569">Drag the app into your Applications folder</text>
+</svg>
