@@ -26,6 +26,12 @@ installers, and lets you launch them like any other app on your computer.
 - **Linux (x86_64):** [Vinter for Linux](https://getvinter.app/download/linux) (.AppImage),
   or the `.deb` from the [latest release](https://github.com/praevit/vinter/releases/latest)
 
+Or with [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask praevit/tap/vinter
+```
+
 Vinter is not notarized by Apple yet. The first time you open it, macOS asks
 you to confirm: try to open Vinter, then go to **System Settings → Privacy &
 Security** and click **Open Anyway**.
