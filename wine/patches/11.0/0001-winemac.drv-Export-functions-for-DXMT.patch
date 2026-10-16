@@ -3,10 +3,12 @@ Subject: [PATCH] winemac.drv: Export functions for DXMT.
 
 DXMT (Metal-based Direct3D 10/11) finds the Mac driver's window and Metal
 view functions with dlsym() through a "macdrv_functions" table. winemac.so
-hides its symbols and its macdrv_win_data no longer has the layout DXMT
-expects, so export a table with a get_win_data that returns that layout.
+hides its symbols, its macdrv_win_data no longer has the layout DXMT
+expects, and a window only gets a client view for GL or Vulkan. Export a
+table whose get_win_data returns that layout, making a client surface first
+if the window has none.
 
-diff --color -ruN a/dlls/winemac.drv/Makefile.in b/dlls/winemac.drv/Makefile.in
+diff -ruN a/dlls/winemac.drv/Makefile.in b/dlls/winemac.drv/Makefile.in
 --- a/dlls/winemac.drv/Makefile.in
 +++ b/dlls/winemac.drv/Makefile.in
 @@ -27,6 +27,7 @@
@@ -17,10 +19,10 @@ diff --color -ruN a/dlls/winemac.drv/Makefile.in b/dlls/winemac.drv/Makefile.in
  	event.c \
  	gdi.c \
  	image.c \
-diff --color -ruN a/dlls/winemac.drv/dxmt.c b/dlls/winemac.drv/dxmt.c
+diff -ruN a/dlls/winemac.drv/dxmt.c b/dlls/winemac.drv/dxmt.c
 --- a/dlls/winemac.drv/dxmt.c
 +++ b/dlls/winemac.drv/dxmt.c
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,112 @@
 +/*
 + * Functions for DXMT, the Metal-based Direct3D 10/11 implementation
 + *
@@ -44,9 +46,10 @@ diff --color -ruN a/dlls/winemac.drv/dxmt.c b/dlls/winemac.drv/dxmt.c
 +/*
 + * DXMT's winemetal.so looks up a "macdrv_functions" table with dlsym() to
 + * put a Metal layer into a window's client view. winemac.so hides all its
-+ * symbols, and DXMT expects the older macdrv_win_data layout (with separate
-+ * cocoa_view and client_cocoa_view fields), so this exports a table whose
-+ * get_win_data returns that layout.
++ * symbols, DXMT expects the older macdrv_win_data layout (with separate
++ * cocoa_view and client_cocoa_view fields), and Wine now creates a client
++ * view only for GL and Vulkan surfaces. So this exports a table whose
++ * get_win_data returns that layout, with a client view made if needed.
 + */
 +
 +#if 0
@@ -74,6 +77,15 @@ diff --color -ruN a/dlls/winemac.drv/dxmt.c b/dlls/winemac.drv/dxmt.c
 +    struct macdrv_win_data *data = get_win_data(hwnd);
 +    struct dxmt_win_data *ret;
 +
++    if (data && !data->client_view)
++    {
++        /* Wine only gives a window a client view for a GL or Vulkan surface.
++         * Make one the same way; it stays attached to the window, and Wine
++         * detaches it when the window goes away. */
++        release_win_data(data);
++        macdrv_client_surface_create(hwnd);
++        data = get_win_data(hwnd);
++    }
 +    if (!data) return NULL;
 +    if (!(ret = malloc(sizeof(*ret))))
 +    {
