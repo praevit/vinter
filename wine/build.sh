@@ -65,8 +65,9 @@ make install-lib
 echo "::endgroup::"
 
 echo "::group::Bundle libraries"
-# Wine dlopen()s these by file name; its unix modules look in
-# @loader_path/../../ (that is, $prefix/lib) first.
+# Wine dlopen()s these by file name, which macOS also looks up in the
+# calling module's run paths; every unix module gets @loader_path/../../
+# (that is, $prefix/lib) below.
 lib="$prefix/lib"
 for dylib in \
   "$(brew --prefix freetype)/lib/libfreetype.6.dylib" \
@@ -81,12 +82,27 @@ for dylib in "$lib"/*.dylib; do
   dylibbundler --overwrite-files --bundle-deps --no-codesign \
     --fix-file "$dylib" --dest-dir "$lib" --install-path @loader_path/ >/dev/null
 done
-# dylibbundler and install_name_tool invalidate signatures; re-sign ad hoc.
-find "$prefix" -type f \( -name "*.dylib" -o -name "*.so" -o -perm -u+x \) -print0 |
-  xargs -0 -n 50 codesign --force --sign - 2>/dev/null || true
-for so in "$prefix"/lib/wine/x86_64-unix/ntdll.so; do
+for so in "$prefix"/lib/wine/x86_64-unix/*.so; do
   otool -l "$so" | grep -q "@loader_path/../../" || install_name_tool -add_rpath @loader_path/../../ "$so"
 done
+# install_name_tool and dylibbundler invalidate signatures; re-sign ad hoc.
+find "$prefix" -type f \( -name "*.dylib" -o -name "*.so" -o -perm -u+x \) -print0 |
+  xargs -0 -n 50 codesign --force --sign - 2>/dev/null || true
+echo "::endgroup::"
+
+echo "::group::Wine Mono and Gecko"
+# Bundled like the official macOS builds, so Wine never asks to download them.
+addons="$src/dlls/appwiz.cpl/addons.c"
+mono=$(sed -n 's/^#define MONO_VERSION "\(.*\)"/\1/p' "$addons")
+gecko=$(sed -n 's/^#define GECKO_VERSION "\(.*\)"/\1/p' "$addons")
+mkdir -p "$prefix/share/wine/mono" "$prefix/share/wine/gecko"
+curl -fsSL "https://dl.winehq.org/wine/wine-mono/$mono/wine-mono-$mono-x86.tar.xz" |
+  tar -xJ -C "$prefix/share/wine/mono"
+for arch in x86 x86_64; do
+  curl -fsSL "https://dl.winehq.org/wine/wine-gecko/$gecko/wine-gecko-$gecko-$arch.tar.xz" |
+    tar -xJ -C "$prefix/share/wine/gecko"
+done
+echo "Wine Mono $mono, Wine Gecko $gecko"
 echo "::endgroup::"
 
 echo "::group::Package"
@@ -100,6 +116,8 @@ Changes: the patches in share/vinter/patches (also at
 https://github.com/praevit/vinter/tree/main/wine/patches/$version).
 Build script: https://github.com/praevit/vinter/blob/main/wine/build.sh
 Wine is licensed under the GNU LGPL, version 2.1 or later (LICENSE-wine.txt).
+Includes Wine Mono and Wine Gecko from https://dl.winehq.org/wine/ (their
+licenses are inside share/wine/mono and share/wine/gecko).
 SRC
 "$prefix/bin/wine" --version
 archive="$out/$name-macos-x86_64.tar.xz"

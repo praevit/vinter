@@ -119,12 +119,14 @@ fn parse(text: &str, backend: Backend, code: Option<i32>, log_id: String) -> Gra
     let renderer = d3d11.as_deref().map(|kind| match (kind, backend) {
         ("builtin", _) => "Wine (wined3d)".to_string(),
         ("native", Backend::Dxvk) => "DXVK".to_string(),
+        ("native", Backend::Dxmt) => "DXMT".to_string(),
         ("native", other) => format!("{} (native DLL)", other.name()),
         _ => kind.to_string(),
     });
     let matches_backend = match (d3d11.as_deref(), backend) {
         (Some("builtin"), Backend::Wined3d) => true,
         (Some("native"), Backend::Dxvk) => dxvk_device.is_some() || ok,
+        (Some("native"), Backend::Dxmt) => ok,
         _ => false,
     };
     GraphicsReport {
@@ -208,6 +210,17 @@ vendor=0x10de
             "x.log".into(),
         );
         assert!(!r.ok && r.feature_level.is_none() && r.renderer.is_none());
+    }
+
+    #[test]
+    fn dxmt_report() {
+        let text = "0024:trace:loaddll:build_module Loaded L\"C:\\\\windows\\\\system32\\\\d3d11.dll\" at 0000: native\n\
+            info:  Using feature level D3D_FEATURE_LEVEL_11_0\n\
+            d3d11_create=0x00000000\nfeature_level=0xb000\nadapter=Apple M4 Pro\n\
+            swapchain=0x00000000\npresent=0x00000000\n";
+        let r = parse(text, Backend::Dxmt, Some(0), "x.log".into());
+        assert!(r.ok && r.matches_backend && r.draws == Some(true));
+        assert_eq!(r.renderer.as_deref(), Some("DXMT"));
     }
 
     #[test]
