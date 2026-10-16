@@ -6,6 +6,7 @@
 # Usage: wine/build.sh <wine-version> <build-number> [out-dir]
 #   e.g. wine/build.sh 11.0 1 out
 #
+# Built without debug info (-O2 only), which halves the size.
 # Runs on an Intel Mac with Homebrew (CI: macos-15-intel). The libraries come
 # from Homebrew bottles built for macOS 15, so the result needs macOS 15+.
 set -euo pipefail
@@ -52,6 +53,8 @@ cd "$work/build"
   --without-x \
   --without-gstreamer \
   --with-vulkan \
+  CFLAGS="-O2" \
+  CROSSCFLAGS="-O2" \
   CPPFLAGS="-I$brew_prefix/include" \
   LDFLAGS="-L$brew_prefix/lib"
 echo "::endgroup::"
