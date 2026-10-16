@@ -60,6 +60,10 @@ fn main() {
             "storage_clear_downloads",
             "bottle_disk_usage",
             "bottle_clean",
+            "d3dmetal_status",
+            "d3dmetal_choose",
+            "d3dmetal_import",
+            "d3dmetal_remove",
         ]),
     ))
     .expect("failed to run tauri-build");

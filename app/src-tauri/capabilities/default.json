@@ -64,6 +64,10 @@
     "allow-storage-usage",
     "allow-storage-clear-downloads",
     "allow-bottle-disk-usage",
-    "allow-bottle-clean"
+    "allow-bottle-clean",
+    "allow-d3dmetal-status",
+    "allow-d3dmetal-choose",
+    "allow-d3dmetal-import",
+    "allow-d3dmetal-remove"
   ]
 }

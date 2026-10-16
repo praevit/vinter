@@ -82,6 +82,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::storage_clear_downloads,
             commands::settings::bottle_disk_usage,
             commands::settings::bottle_clean,
+            commands::settings::d3dmetal_status,
+            commands::settings::d3dmetal_choose,
+            commands::settings::d3dmetal_import,
+            commands::settings::d3dmetal_remove,
         ])
         .events(collect_events![
             events::JobProgress,

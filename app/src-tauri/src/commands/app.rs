@@ -42,6 +42,8 @@ pub enum AppLink {
     DataFolder,
     LaunchersFolder,
     WineLicense,
+    /// Apple's download page for the Game Porting Toolkit (D3DMetal).
+    GamePortingToolkit,
 }
 
 #[tauri::command]
@@ -57,6 +59,9 @@ pub fn app_open_link(
         AppLink::Issues => "https://getvinter.app/issues",
         AppLink::Support => "https://getvinter.app/support",
         AppLink::WineLicense => "https://www.winehq.org/license",
+        AppLink::GamePortingToolkit => {
+            "https://developer.apple.com/download/all/?q=game%20porting%20toolkit"
+        }
         AppLink::DataFolder | AppLink::LaunchersFolder => {
             let dir = match link {
                 AppLink::DataFolder => state.paths.data_dir().to_path_buf(),

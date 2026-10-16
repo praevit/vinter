@@ -2,11 +2,12 @@ import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useAppInfo } from "../api/app";
-import { commands, type Settings_Serialize as SettingsData } from "../api/bindings";
+import { commands, type D3dMetalSource, type Settings_Serialize as SettingsData } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
 import { useSaveSettings, useSettings } from "../api/settings";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
+import { Dialog } from "../components/Dialog";
 import { Select } from "../components/Select";
 import { Button, ErrorText, subtle } from "../components/ui";
 
@@ -88,8 +89,124 @@ export function Settings() {
       </Group>
       {save.error && <ErrorText>{errorMessage(save.error)}</ErrorText>}
 
+      {mac && <D3dMetalGroup />}
+
       <StorageGroup />
     </div>
+  );
+}
+
+/** Importing Apple's D3DMetal from the user's own Game Porting Toolkit. */
+function D3dMetalGroup() {
+  const queryClient = useQueryClient();
+  const { data: imported } = useQuery({ queryKey: ["d3dmetal"], queryFn: () => commands.d3dmetalStatus() });
+  const [source, setSource] = useState<D3dMetalSource | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const refresh = () => queryClient.invalidateQueries();
+  const choose = async () => {
+    setError(undefined);
+    try {
+      const picked = await commands.d3dmetalChoose();
+      if (picked) {
+        setSource(picked);
+        setAgreed(false);
+      }
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+  const importIt = async () => {
+    if (!source) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await commands.d3dmetalImport(source.path);
+      setSource(null);
+      await refresh();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async () => {
+    setError(undefined);
+    try {
+      await commands.d3dmetalRemove();
+      await refresh();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <Group title="D3DMetal">
+      <div className="flex items-center gap-4 px-5 py-3.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm font-medium">
+            {imported ? `Apple D3DMetal ${imported.version}` : "Apple's Direct3D 11 and 12 over Metal"}
+          </span>
+          <span className={subtle}>
+            {imported
+              ? "Bottles on a Vinter Wine made for D3DMetal can use it."
+              : "Vinter cannot include it. Download the Game Porting Toolkit from Apple (free Apple developer sign-in), then import the .dmg here."}
+          </span>
+        </span>
+        {imported ? (
+          <Button onClick={remove}>
+            <Trash2 className="size-4" /> Remove
+          </Button>
+        ) : (
+          <Button onClick={choose}>Import…</Button>
+        )}
+      </div>
+      {!imported && (
+        <div className="px-5 py-3">
+          <button
+            type="button"
+            className={`${subtle} underline`}
+            onClick={() => commands.appOpenLink("game_porting_toolkit")}
+          >
+            Get the Game Porting Toolkit from Apple
+          </button>
+        </div>
+      )}
+      {error && (
+        <div className="px-5 py-3">
+          <ErrorText>{error}</ErrorText>
+        </div>
+      )}
+      {source && (
+        <Dialog onClose={busy ? undefined : () => setSource(null)}>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-lg font-semibold">Apple's license for D3DMetal {source.version}</h2>
+            <pre className="max-h-72 overflow-y-auto rounded-lg bg-frost-100 p-3 text-xs whitespace-pre-wrap select-text dark:bg-slate-deep-950">
+              {source.license.trim() || "This copy has no license file."}
+            </pre>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-wine-500"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+              />
+              I agree to Apple's license. D3DMetal stays on this Mac; Vinter does not share it.
+            </label>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setSource(null)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="primary" disabled={!agreed || busy} onClick={importIt}>
+                {busy ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+    </Group>
   );
 }
 

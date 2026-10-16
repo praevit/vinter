@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-d3dmetal-status"
+description = "Enables the d3dmetal_status command without any pre-configured scope."
+commands.allow = ["d3dmetal_status"]
+
+[[permission]]
+identifier = "deny-d3dmetal-status"
+description = "Denies the d3dmetal_status command without any pre-configured scope."
+commands.deny = ["d3dmetal_status"]

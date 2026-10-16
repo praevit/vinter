@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-d3dmetal-remove"
+description = "Enables the d3dmetal_remove command without any pre-configured scope."
+commands.allow = ["d3dmetal_remove"]
+
+[[permission]]
+identifier = "deny-d3dmetal-remove"
+description = "Denies the d3dmetal_remove command without any pre-configured scope."
+commands.deny = ["d3dmetal_remove"]

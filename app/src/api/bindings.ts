@@ -166,6 +166,26 @@ export const commands = {
 	bottleDiskUsage: (id: string) => __TAURI_INVOKE<number>("bottle_disk_usage", { id }),
 	/**  Removes a bottle's old logs and temp files. Returns the bytes freed. */
 	bottleClean: (id: string) => __TAURI_INVOKE<number>("bottle_clean", { id }),
+	/**  The imported copy of Apple's D3DMetal, if any. */
+	d3dmetalStatus: () => __TAURI_INVOKE<{
+	/**  e.g. "4.0 beta 3", from the evaluation environment's name. */
+	version: string,
+	/**  RFC 3339 timestamp. */
+	imported_at: string,
+} | null>("d3dmetal_status"),
+	/**
+	 *  Lets the user pick the toolkit (.dmg) and reads its version and license.
+	 *  `None` if the dialog was cancelled.
+	 */
+	d3dmetalChoose: () => __TAURI_INVOKE<{
+	path: string,
+	version: string,
+	license: string,
+} | null>("d3dmetal_choose"),
+	/**  Imports D3DMetal from a toolkit the user chose and agreed to. */
+	d3dmetalImport: (path: string) => __TAURI_INVOKE<D3dMetal>("d3dmetal_import", { path }),
+	/**  Removes the imported copy. */
+	d3dmetalRemove: () => __TAURI_INVOKE<null>("d3dmetal_remove"),
 };
 
 /** Events */
@@ -192,7 +212,9 @@ export type AppInfo = {
 /**  Fixed places the About screen can open. */
 export type AppLink = "website" | "source" | "issues" | 
 /**  GitHub Sponsors, through getvinter.app/support so the target can change. */
-"support" | "data_folder" | "launchers_folder" | "wine_license";
+"support" | "data_folder" | "launchers_folder" | "wine_license" | 
+/**  Apple's download page for the Game Porting Toolkit (D3DMetal). */
+"game_porting_toolkit";
 
 export type ArchiveFormat = "tar_xz" | "tar_gz";
 
@@ -408,6 +430,21 @@ export type ComponentInfo = {
 	license: string,
 	source_url: string,
 	release_url: string,
+};
+
+/**  An imported copy. */
+export type D3dMetal = {
+	/**  e.g. "4.0 beta 3", from the evaluation environment's name. */
+	version: string,
+	/**  RFC 3339 timestamp. */
+	imported_at: string,
+};
+
+/**  A Game Porting Toolkit download the user picked, with Apple's license. */
+export type D3dMetalSource = {
+	path: string,
+	version: string,
+	license: string,
 };
 
 /**  A program found in a bottle, offered to the user as a checkbox. */

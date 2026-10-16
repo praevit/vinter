@@ -1,6 +1,8 @@
 use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
+use tauri_plugin_dialog::DialogExt;
+use vinter_core::graphics::d3dmetal::{self, D3dMetal};
 use vinter_core::settings::{self, Settings};
 use vinter_core::storage::{self, Usage};
 
@@ -96,4 +98,61 @@ pub async fn bottle_clean(state: State<'_, AppState>, id: String) -> CommandResu
     }
     let paths = state.paths.clone();
     blocking(move || Ok(storage::clean_bottle(&paths, &id)?)).await
+}
+
+/// The imported copy of Apple's D3DMetal, if any.
+#[tauri::command]
+#[specta::specta]
+pub fn d3dmetal_status(state: State<'_, AppState>) -> Option<D3dMetal> {
+    d3dmetal::installed(&state.paths)
+}
+
+/// A Game Porting Toolkit download the user picked, with Apple's license.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct D3dMetalSource {
+    pub path: String,
+    pub version: String,
+    pub license: String,
+}
+
+/// Lets the user pick the toolkit (.dmg) and reads its version and license.
+/// `None` if the dialog was cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn d3dmetal_choose(app: AppHandle) -> CommandResult<Option<D3dMetalSource>> {
+    blocking(move || {
+        let picked = app
+            .dialog()
+            .file()
+            .set_title("Choose Apple's Game Porting Toolkit")
+            .add_filter("Disk images", &["dmg"])
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok());
+        let Some(path) = picked else {
+            return Ok(None);
+        };
+        let found = d3dmetal::inspect(&path)?;
+        Ok(Some(D3dMetalSource {
+            path: path.display().to_string(),
+            version: found.version,
+            license: found.license,
+        }))
+    })
+    .await
+}
+
+/// Imports D3DMetal from a toolkit the user chose and agreed to.
+#[tauri::command]
+#[specta::specta]
+pub async fn d3dmetal_import(state: State<'_, AppState>, path: String) -> CommandResult<D3dMetal> {
+    let paths = state.paths.clone();
+    blocking(move || Ok(d3dmetal::import(&paths, std::path::Path::new(&path))?)).await
+}
+
+/// Removes the imported copy.
+#[tauri::command]
+#[specta::specta]
+pub async fn d3dmetal_remove(state: State<'_, AppState>) -> CommandResult<()> {
+    let paths = state.paths.clone();
+    blocking(move || Ok(d3dmetal::remove(&paths)?)).await
 }
