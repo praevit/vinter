@@ -6,6 +6,13 @@
 # Usage: wine/build.sh <wine-version> <build-number> [out-dir]
 #   e.g. wine/build.sh 11.0 1 out
 #
+# By default the source is the official Wine release tarball and the patches
+# come from wine/patches/<wine-version>. To build another source tree
+# instead, set WINE_GIT and WINE_REF (a tag), and PATCHES to the patch
+# folder name under wine/patches (it may not exist: no patches), e.g.
+#   WINE_GIT=https://github.com/Alien4042x/WineForge WINE_REF=0.6.0.6 \
+#   PATCHES=wineforge-0.6.0.6 wine/build.sh 11.19 1 out
+#
 # Built without debug info (-O2 only), which halves the size.
 # Runs on an Intel Mac with Homebrew (CI: macos-15-intel). The libraries come
 # from Homebrew bottles built for macOS 15, so the result needs macOS 15+.
@@ -32,11 +39,18 @@ export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
 export MACOSX_DEPLOYMENT_TARGET=15.0
 echo "::endgroup::"
 
+patches="${PATCHES:-$version}"
 echo "::group::Source"
-curl -fsSL -o "$work/wine.tar.xz" "https://dl.winehq.org/wine/source/$series/wine-$version.tar.xz"
-tar -xf "$work/wine.tar.xz" -C "$work"
 src="$work/wine-$version"
-for patch in "$here/patches/$version"/*.patch; do
+if [ -n "${WINE_GIT:-}" ]; then
+  git clone --quiet --depth 1 --branch "$WINE_REF" "$WINE_GIT" "$src"
+  source_desc="$WINE_GIT at $WINE_REF ($(git -C "$src" rev-parse HEAD))"
+else
+  curl -fsSL -o "$work/wine.tar.xz" "https://dl.winehq.org/wine/source/$series/wine-$version.tar.xz"
+  tar -xf "$work/wine.tar.xz" -C "$work"
+  source_desc="https://dl.winehq.org/wine/source/$series/wine-$version.tar.xz"
+fi
+for patch in "$here/patches/$patches"/*.patch; do
   [ -e "$patch" ] || continue
   echo "Applying $(basename "$patch")"
   patch -d "$src" -p1 < "$patch"
@@ -108,12 +122,12 @@ echo "::endgroup::"
 echo "::group::Package"
 mkdir -p "$prefix/share/vinter"
 cp "$src/COPYING.LIB" "$prefix/LICENSE-wine.txt"
-cp -R "$here/patches/$version" "$prefix/share/vinter/patches" 2>/dev/null || true
+cp -R "$here/patches/$patches" "$prefix/share/vinter/patches" 2>/dev/null || true
 cat > "$prefix/share/vinter/SOURCE.txt" <<SRC
 Vinter Wine $version-$build
-Wine source: https://dl.winehq.org/wine/source/$series/wine-$version.tar.xz
-Changes: the patches in share/vinter/patches (also at
-https://github.com/praevit/vinter/tree/main/wine/patches/$version).
+Wine source: $source_desc
+Changes: the patches in share/vinter/patches, if any (also at
+https://github.com/praevit/vinter/tree/main/wine/patches/$patches).
 Build script: https://github.com/praevit/vinter/blob/main/wine/build.sh
 Wine is licensed under the GNU LGPL, version 2.1 or later (LICENSE-wine.txt).
 Includes Wine Mono and Wine Gecko from https://dl.winehq.org/wine/ (their
