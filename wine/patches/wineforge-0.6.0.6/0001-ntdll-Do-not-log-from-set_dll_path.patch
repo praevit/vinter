@@ -1,0 +1,24 @@
+From: Prævit <software@praevit.dev>
+Subject: [PATCH] ntdll: Do not log from set_dll_path().
+
+set_dll_path() runs from __wine_main() before the thread's TEB exists.
+TRACE() with debugstr_a() there writes the debug string through the
+uninitialized thread data, corrupting process memory (seen as a crash in
+setvbuf()/flockfile() or later in dyld's dlsym() on macOS 27) whenever
+D3DMETAL_RUNTIME_DIR points at a real D3DMetal runtime. Upstream Wine does
+not log from init_paths() for this reason.
+
+diff -ruN a/dlls/ntdll/unix/loader.c b/dlls/ntdll/unix/loader.c
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -323,10 +323,6 @@
+     for (i = 0; i < count; i++) dll_path_maxlen = max( dll_path_maxlen, strlen(dll_paths[i]) );
+     dll_paths[count] = NULL;
+ 
+-#if defined(__APPLE__) && defined(__x86_64__)
+-    if (d3dmetal_path)
+-        TRACE( "D3DMetal backend prepended DLL path %s\n", debugstr_a(d3dmetal_path) );
+-#endif
+ }
+ 
+ 
