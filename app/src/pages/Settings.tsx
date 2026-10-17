@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-react";
 import { useAppInfo } from "../api/app";
 import { commands, type D3dMetalSource, type Settings_Serialize as SettingsData } from "../api/bindings";
 import { errorMessage } from "../api/errors";
-import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
+import { formatBytes, useAvailableRuntimes, useInstalledRuntimes } from "../api/runtimes";
 import { useSaveSettings, useSettings } from "../api/settings";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { Dialog } from "../components/Dialog";
@@ -23,6 +23,10 @@ export function Settings() {
   const { launch_at_login, ...settings } = view;
   const set = (patch: Partial<SettingsData>) => save.mutate({ ...settings, ...patch });
   const mac = app?.os === "macos";
+  const { data: available } = useAvailableRuntimes();
+  const d3dmetalRuntime = [...(runtimes ?? []), ...(available ?? [])].some((r) =>
+    r.graphics.includes("d3dmetal"),
+  );
 
   const setLogin = async (enabled: boolean) => {
     setLoginError(undefined);
@@ -89,7 +93,8 @@ export function Settings() {
       </Group>
       {save.error && <ErrorText>{errorMessage(save.error)}</ErrorText>}
 
-      {mac && <D3dMetalGroup />}
+      {/* Only once a runtime can use it (none can yet; see the D3DMetal backend). */}
+      {mac && d3dmetalRuntime && <D3dMetalGroup />}
 
       <StorageGroup />
     </div>
