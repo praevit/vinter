@@ -50,7 +50,8 @@ Security** and click **Open Anyway**.
 - **Launch from anywhere**: your apps show up in Spotlight, Launchpad, Raycast
   and the Linux app menu, and in Vinter's menu bar icon.
 - **Graphics backends**: Wine's built-in renderer, DXVK (Direct3D 11 over
-  Vulkan) or DXMT (Direct3D 10/11 over Metal, with Vinter Wine) per bottle,
+  Vulkan), DXMT (Direct3D 10/11 over Metal) or Apple's D3DMetal (Direct3D
+  11/12, from the Game Porting Toolkit you download from Apple) per bottle,
   with a one-click test and a frame rate overlay.
 - **Logs**: every run gets its own log, with live output and a debug report you
   can copy into a bug report.
@@ -159,9 +160,12 @@ Graphics use [DXVK](https://github.com/doitsujin/dxvk) (zlib),
 recipes use [winetricks](https://github.com/Winetricks/winetricks) (LGPL).
 These are downloaded from their publishers, not bundled.
 
-**Vinter Wine** is upstream Wine with a small patch so DXMT can draw (see
-[`wine/`](wine/)). It is built by this repository's GitHub Actions and
-published, with its source and changes, as `wine-*` pre-releases.
+**Vinter Wine** is built by this repository's GitHub Actions and published,
+with its source and changes, as `wine-*` pre-releases (see [`wine/`](wine/)):
+11.0 is upstream Wine with a small patch so DXMT can draw; 11.19 is built from
+[WineForge](https://github.com/Alien4042x/WineForge) (Wine with D3DMetal
+support) with a startup fix. Vinter never includes Apple's D3DMetal: you
+import your own copy of the Game Porting Toolkit, under Apple's license.
 
 Vinter is not affiliated with Wine, Apple or Microsoft.
 

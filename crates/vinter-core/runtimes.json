@@ -44,6 +44,29 @@
       "min_os_version": "15.0"
     },
     {
+      "id": "vinter-wine-11.19-2-macos",
+      "name": "Vinter Wine 11.19",
+      "version": "11.19",
+      "flavor": "stable",
+      "os": "macos",
+      "arch": "x86_64",
+      "url": "https://github.com/praevit/vinter/releases/download/wine-11.19-2/vinter-wine-11.19-2-macos-x86_64.tar.xz",
+      "sha256": "5cfa5b8d0c0d7df627c7d2b020455c4bb4d0e8b14be1588d58f1534b5c2c6cd3",
+      "size": 232614028,
+      "format": "tar_xz",
+      "wine_bin": "vinter-wine-11.19-2/bin/wine",
+      "license": "LGPL-2.1-or-later",
+      "source_url": "https://github.com/Alien4042x/WineForge/tree/0.6.0.6",
+      "release_url": "https://github.com/praevit/vinter/releases/tag/wine-11.19-2",
+      "graphics": [
+        "wined3d",
+        "dxvk",
+        "dxmt",
+        "d3dmetal"
+      ],
+      "min_os_version": "15.0"
+    },
+    {
       "id": "wine-devel-11.18-macos",
       "name": "Wine Devel 11.18",
       "version": "11.18",

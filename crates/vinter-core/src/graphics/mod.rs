@@ -125,8 +125,8 @@ fn unavailable_reason(
     match backend {
         Backend::Wined3d => None,
         Backend::D3dmetal if !runtime.graphics.contains(&backend) => Some(format!(
-            "D3DMetal needs a Vinter Wine made for it, which is on its way; {} cannot \
-             run it. You will also import Apple's Game Porting Toolkit in Settings.",
+            "D3DMetal needs Vinter Wine 11.19 (macOS 15 or later); {} cannot run it. \
+             Install it on the Runtimes page and choose it as this bottle's runtime.",
             runtime.name
         )),
         // D3DMetal's "component" is the user's own import of Apple's toolkit.
@@ -140,7 +140,7 @@ fn unavailable_reason(
         // to a window needs Mac driver functions these Wine builds keep hidden.
         Backend::Dxmt if !runtime.graphics.contains(&backend) => Some(format!(
             "DXMT needs Vinter Wine (macOS 15 or later); {} cannot run it. Install \
-             Vinter Wine on the Runtimes page, then choose it as this bottle's runtime.",
+             it on the Runtimes page, then choose it as this bottle's runtime.",
             runtime.name
         )),
         _ if !runtime.graphics.contains(&backend) => Some(format!(
