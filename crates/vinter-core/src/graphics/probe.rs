@@ -116,7 +116,13 @@ fn parse(text: &str, backend: Backend, code: Option<i32>, log_id: String) -> Gra
         swapchain == "0x00000000" && value("present").as_deref() == Some("0x00000000")
     });
     let ok = device_ok && draws != Some(false);
+    // D3DMetal's DLLs load as Wine builtins too; it reports itself as an AMD
+    // card ("AMD Compatibility Mode"), where wined3d on macOS reports NVIDIA.
+    let d3dmetal = backend == Backend::D3dmetal
+        && value("vendor").as_deref() == Some("0x1002")
+        && value("adapter").is_some_and(|a| a.contains("Compatibility Mode"));
     let renderer = d3d11.as_deref().map(|kind| match (kind, backend) {
+        ("builtin", Backend::D3dmetal) if d3dmetal => "D3DMetal".to_string(),
         ("builtin", _) => "Wine (wined3d)".to_string(),
         ("native", Backend::Dxvk) => "DXVK".to_string(),
         ("native", Backend::Dxmt) => "DXMT".to_string(),
@@ -125,6 +131,7 @@ fn parse(text: &str, backend: Backend, code: Option<i32>, log_id: String) -> Gra
     });
     let matches_backend = match (d3d11.as_deref(), backend) {
         (Some("builtin"), Backend::Wined3d) => true,
+        (Some("builtin"), Backend::D3dmetal) => d3dmetal && ok,
         (Some("native"), Backend::Dxvk) => dxvk_device.is_some() || ok,
         (Some("native"), Backend::Dxmt) => ok,
         _ => false,
@@ -210,6 +217,19 @@ vendor=0x10de
             "x.log".into(),
         );
         assert!(!r.ok && r.feature_level.is_none() && r.renderer.is_none());
+    }
+
+    #[test]
+    fn d3dmetal_report() {
+        let text = "0024:trace:loaddll:build_module Loaded L\"C:\\\\windows\\\\system32\\\\d3d11.dll\" at 0000: builtin\n\
+            d3d11_create=0x00000000\nfeature_level=0xb000\nadapter=AMD Compatibility Mode\nvendor=0x1002\n\
+            swapchain=0x00000000\npresent=0x00000000\n";
+        let r = parse(text, Backend::D3dmetal, Some(0), "x.log".into());
+        assert!(r.ok && r.matches_backend);
+        assert_eq!(r.renderer.as_deref(), Some("D3DMetal"));
+        // wined3d answering a bottle set to D3DMetal is a mismatch.
+        let r = parse(WINED3D, Backend::D3dmetal, Some(0), "x.log".into());
+        assert!(!r.matches_backend);
     }
 
     #[test]
