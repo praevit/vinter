@@ -65,7 +65,8 @@ export const commands = {
 	/**  Stops every Wine process in the bottle (`wineserver -k`). */
 	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),
 	/**
-	 *  Lets the user pick an installer (.exe or .msi) with the system file dialog.
+	 *  Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
+	 *  the system file dialog.
 	 *  This is the only way a file path reaches the backend from the UI.
 	 */
 	installerChoose: () => __TAURI_INVOKE<string | null>("installer_choose"),

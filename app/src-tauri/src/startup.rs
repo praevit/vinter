@@ -46,12 +46,20 @@ pub fn take_opened_files(app: &AppHandle) -> Vec<String> {
     std::mem::take(&mut *app.state::<OpenedFiles>().0.lock().unwrap())
 }
 
-/// `.exe`/`.msi` to run, or a `.vinterbottle` backup to restore.
+/// `.exe`/`.msi`/MSIX to install or run, or a `.vinterbottle` backup to restore.
 fn is_windows_program(path: &std::path::Path) -> bool {
     path.extension().is_some_and(|e| {
-        ["exe", "msi", vinter_core::bottle::backup::EXTENSION]
-            .iter()
-            .any(|ext| e.eq_ignore_ascii_case(ext))
+        [
+            "exe",
+            "msi",
+            "msix",
+            "msixbundle",
+            "appx",
+            "appxbundle",
+            vinter_core::bottle::backup::EXTENSION,
+        ]
+        .iter()
+        .any(|ext| e.eq_ignore_ascii_case(ext))
     })
 }
 

@@ -42,7 +42,8 @@ pub struct ProgramView {
     pub pinned: bool,
 }
 
-/// Lets the user pick an installer (.exe or .msi) with the system file dialog.
+/// Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
+/// the system file dialog.
 /// This is the only way a file path reaches the backend from the UI.
 #[tauri::command]
 #[specta::specta]
@@ -51,7 +52,23 @@ pub async fn installer_choose(app: AppHandle) -> CommandResult<Option<String>> {
         app.dialog()
             .file()
             .set_title("Choose a Windows installer")
-            .add_filter("Windows installers", &["exe", "msi", "EXE", "MSI"])
+            .add_filter(
+                "Windows installers and packages",
+                &[
+                    "exe",
+                    "msi",
+                    "msix",
+                    "msixbundle",
+                    "appx",
+                    "appxbundle",
+                    "EXE",
+                    "MSI",
+                    "MSIX",
+                    "MSIXBUNDLE",
+                    "APPX",
+                    "APPXBUNDLE",
+                ],
+            )
             .blocking_pick_file()
     })
     .await?;

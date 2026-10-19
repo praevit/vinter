@@ -66,7 +66,7 @@ export function InstallDialog({
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold">Install a program</h2>
           <p className="text-sm text-slate-deep-700/80 dark:text-frost-300/80">
-            Choose the Windows installer you downloaded (an .exe or .msi file). It runs inside this
+            Choose the Windows installer you downloaded: an .exe, .msi or .msix file. It runs inside this
             bottle, and nothing is installed on your Mac itself.
           </p>
           <Button onClick={choose} className="self-start">

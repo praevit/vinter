@@ -89,6 +89,18 @@
       },
       {
         "ext": [
+          "msix",
+          "msixbundle",
+          "appx",
+          "appxbundle"
+        ],
+        "name": "Windows app package",
+        "role": "Viewer",
+        "rank": "Alternate",
+        "mimeType": "application/msix"
+      },
+      {
+        "ext": [
           "vinterbottle"
         ],
         "name": "Vinter bottle backup",

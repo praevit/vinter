@@ -1,6 +1,7 @@
 //! Finding programs installed in a bottle.
 
 pub mod icons;
+pub mod msix;
 pub mod winpath;
 
 use std::collections::HashSet;
@@ -329,6 +330,11 @@ pub fn run_installer(
     let prefix = dir.join(PREFIX_DIR);
     // Also for bottles made before Vinter did this at creation.
     bottle::keep_desktop_in_bottle(&prefix)?;
+    // MSIX/AppX packages are unpacked by Vinter; Wine cannot install them.
+    if msix::is_package(installer) {
+        msix::install(paths, bottle_id, installer)?;
+        return Ok(Some(0));
+    }
 
     let (log, _) = logs::create(&dir, "installer")?;
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
