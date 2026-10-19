@@ -18,7 +18,7 @@ own self-contained environment (a *bottle*), installs apps from their official
 installers, and lets you launch them like any other app on your computer.
 
 > **Status: early development.** Plenty of Windows software runs well and
-> plenty does not yet. The current version is 0.1.6.
+> plenty does not yet. The current version is 0.1.7.
 
 ## Download
 
@@ -43,8 +43,9 @@ Security** and click **Open Anyway**.
 - **One-click apps**: pick an app (Notepad++, 7-Zip, WinRAR, SumatraPDF, Total
   Commander, PuTTY, …) and Vinter downloads its official installer, checks it,
   and sets everything up. You can write your own recipes.
-- **Open any installer**: double-click a Windows `.exe` or `.msi`, drop it on
-  Vinter, or install it into a bottle; Vinter finds the programs it installed.
+- **Open any installer**: double-click a Windows `.exe`, `.msi` or `.msix`,
+  drop it on Vinter, or install it into a bottle; Vinter finds the programs it
+  installed.
 - **Feels like a Mac app**: Retina mode, ⌘ works as Ctrl, and installers keep
   their shortcuts out of your Mac's Desktop.
 - **Launch from anywhere**: your apps show up in Spotlight, Launchpad, Raycast
