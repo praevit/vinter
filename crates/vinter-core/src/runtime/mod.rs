@@ -81,12 +81,26 @@ pub struct Runtime {
     pub needs_rosetta: bool,
     /// Graphics backends it supports.
     pub graphics: Vec<Graphics>,
+    /// Built with Kerberos, so programs can sign in with a domain account.
+    pub kerberos: bool,
+    /// Reports a bottle's domain to programs (Vinter Wine's domain patch).
+    /// Other runtimes only take over the user name.
+    pub domain_identity: bool,
 }
 
 impl Runtime {
     fn from_record(path: PathBuf, record: RuntimeRecord) -> Self {
+        let wine_bin = path.join(&record.wine_bin);
+        // The Wine installation: the folder holding bin/, lib/ and share/.
+        let root = wine_bin
+            .parent()
+            .and_then(Path::parent)
+            .unwrap_or(&path)
+            .to_path_buf();
         Self {
-            wine_bin: path.join(&record.wine_bin),
+            kerberos: has_kerberos(&root),
+            domain_identity: has_domain_patch(&root),
+            wine_bin,
             size: crate::storage::dir_size(&path),
             id: record.id,
             name: record.name,
@@ -133,6 +147,26 @@ impl Runtime {
         }
         cmd
     }
+}
+
+/// Wine builds its Kerberos module only when it finds libkrb5.
+fn has_kerberos(root: &Path) -> bool {
+    ["lib", "lib64"].iter().any(|lib| {
+        root.join(lib)
+            .join("wine/x86_64-unix/kerberos.so")
+            .is_file()
+    })
+}
+
+/// Vinter Wine ships its patches in share/vinter/patches.
+fn has_domain_patch(root: &Path) -> bool {
+    std::fs::read_dir(root.join("share/vinter/patches")).is_ok_and(|entries| {
+        entries.filter_map(|e| e.ok()).any(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .contains("Active-Directory-domain")
+        })
+    })
 }
 
 fn read_record(dir: &Path) -> Result<RuntimeRecord> {

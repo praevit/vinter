@@ -1,0 +1,350 @@
+From: Prævit <software@praevit.dev>
+Subject: [PATCH] Report a configured Active Directory domain.
+
+Vinter can give a bottle a domain account. It then starts Wine with
+WINEDOMAIN (NetBIOS name, e.g. CORP), WINEDNSDOMAIN (e.g. corp.example.com)
+and optionally WINECOMPUTERNAME. With them set, programs see a workstation
+joined to that domain, with the user a member of it:
+
+- wineboot: computer name and DNS domain, USERDOMAIN and USERDNSDOMAIN.
+- advapi32: LookupAccountSid/LookupAccountName give DOMAIN\user, and
+  LsaQueryInformationPolicy reports the domain with a SID.
+- secur32: GetUserNameEx gives DOMAIN\user, user@dns.domain and
+  dns.domain\user.
+- NetGetJoinInformation and DsRoleGetPrimaryDomainInformation report a
+  domain member.
+
+Without the variables nothing changes.
+
+diff --git a/dlls/advapi32/lsa.c b/dlls/advapi32/lsa.c
+index 5ca7273..590c660 100644
+--- a/dlls/advapi32/lsa.c
++++ b/dlls/advapi32/lsa.c
+@@ -130,6 +130,13 @@ static void* ADVAPI_GetDomainName(unsigned sz, unsigned ofs)
+     return ptr;
+ }
+ 
++/* Vinter: the configured Active Directory domain, if any */
++static BOOL get_configured_domain( WCHAR *buffer, DWORD size )
++{
++    DWORD len = GetEnvironmentVariableW( L"WINEDOMAIN", buffer, size );
++    return len && len < size;
++}
++
+ /******************************************************************************
+  * LsaGetUserName [ADVAPI32.@]
+  *
+@@ -823,6 +830,39 @@ NTSTATUS WINAPI LsaQueryInformationPolicy(
+              * All other fields are zero.
+              */
+             PPOLICY_PRIMARY_DOMAIN_INFO pinfo;
++            struct
++            {
++                POLICY_PRIMARY_DOMAIN_INFO info;
++                struct
++                {
++                    SID sid;
++                    DWORD sid_subauthority[3];
++                } domain_sid;
++                WCHAR name[MAX_COMPUTERNAME_LENGTH + 1];
++            } *xdi;
++            struct
++            {
++                SID sid;
++                DWORD sid_subauthority[3];
++            } computer_sid;
++            DWORD size;
++
++            /* Vinter: a member of the configured domain has its name and SID */
++            if (!(xdi = calloc(1, sizeof(*xdi)))) return STATUS_NO_MEMORY;
++            if (get_configured_domain(xdi->name, ARRAY_SIZE(xdi->name)))
++            {
++                xdi->info.Name.Buffer = xdi->name;
++                xdi->info.Name.Length = lstrlenW(xdi->name) * sizeof(WCHAR);
++                xdi->info.Name.MaximumLength = xdi->info.Name.Length + sizeof(WCHAR);
++                size = sizeof(xdi->domain_sid);
++                if (ADVAPI_GetComputerSid(&computer_sid.sid) &&
++                    GetWindowsAccountDomainSid(&computer_sid.sid, &xdi->domain_sid.sid, &size))
++                    xdi->info.Sid = &xdi->domain_sid.sid;
++                TRACE("setting domain to %s\n", debugstr_w(xdi->name));
++                *Buffer = xdi;
++                break;
++            }
++            free(xdi);
+ 
+             pinfo = ADVAPI_GetDomainName(sizeof(*pinfo), offsetof(POLICY_PRIMARY_DOMAIN_INFO, Name));
+ 
+@@ -892,7 +932,8 @@ NTSTATUS WINAPI LsaQueryInformationPolicy(
+             if (!xdi) return STATUS_NO_MEMORY;
+ 
+             dwSize = 256;
+-            if (GetComputerNameExW(ComputerNamePhysicalDnsDomain, xdi->domain_name, &dwSize))
++            if (get_configured_domain(xdi->domain_name, ARRAY_SIZE(xdi->domain_name)) ||
++                GetComputerNameExW(ComputerNamePhysicalDnsDomain, xdi->domain_name, &dwSize))
+             {
+                 WCHAR *dot;
+ 
+diff --git a/dlls/advapi32/security.c b/dlls/advapi32/security.c
+index 42cc532..8f22173 100644
+--- a/dlls/advapi32/security.c
++++ b/dlls/advapi32/security.c
+@@ -804,6 +804,20 @@ LookupAccountSidLocalA(
+     return LookupAccountSidA(NULL, sid, account, accountSize, domain, domainSize, name_use);
+ }
+ 
++/* Vinter: the current user's domain is the configured Active Directory
++ * domain if there is one, else the computer, like a local account. */
++static BOOL get_user_domain( WCHAR *buffer, DWORD *size )
++{
++    DWORD len = GetEnvironmentVariableW( L"WINEDOMAIN", buffer, *size );
++
++    if (len && len < *size)
++    {
++        *size = len;
++        return TRUE;
++    }
++    return GetComputerNameW( buffer, size );
++}
++
+ /******************************************************************************
+  * LookupAccountSidW [ADVAPI32.@]
+  *
+@@ -924,7 +938,12 @@ LookupAccountSidW(
+                             size = UNLEN + 1;
+                             account_name = malloc(size * sizeof(WCHAR));
+                             if (GetUserNameW(account_name, &size))
++                            {
+                                 ac = account_name;
++                                size = MAX_COMPUTERNAME_LENGTH + 1;
++                                if (!get_user_domain(computer_name, &size))
++                                    dm = NULL;
++                            }
+                             else
+                                 dm = NULL;
+ 
+@@ -1135,7 +1154,7 @@ static BOOL lookup_user_account_name(PSID Sid, PDWORD cbSid, LPWSTR ReferencedDo
+     *cbSid = GetLengthSid(pSid);
+ 
+     nameLen = MAX_COMPUTERNAME_LENGTH + 1;
+-    if (!GetComputerNameW(domainName, &nameLen))
++    if (!get_user_domain(domainName, &nameLen))
+     {
+         domainName[0] = 0;
+         nameLen = 0;
+diff --git a/dlls/dsrole/dsrole.c b/dlls/dsrole/dsrole.c
+index f3aef1d..0798640 100644
+--- a/dlls/dsrole/dsrole.c
++++ b/dlls/dsrole/dsrole.c
+@@ -71,6 +71,8 @@ DWORD WINAPI DsRoleGetPrimaryDomainInformation(
+             int logon_domain_sz;
+             DWORD size;
+             PDSROLE_PRIMARY_DOMAIN_INFO_BASIC basic;
++            WCHAR flat[MAX_COMPUTERNAME_LENGTH + 1], dns[256];
++            DWORD flat_len, dns_len;
+ 
+             ZeroMemory(&ObjectAttributes, sizeof(ObjectAttributes));
+             NtStatus = LsaOpenPolicy(NULL, &ObjectAttributes,
+@@ -88,15 +90,35 @@ DWORD WINAPI DsRoleGetPrimaryDomainInformation(
+ 
+             size = sizeof(DSROLE_PRIMARY_DOMAIN_INFO_BASIC) +
+              logon_domain_sz * sizeof(WCHAR);
+-            basic = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
+-            if (basic)
++            /* Vinter: a member of the configured Active Directory domain */
++            flat_len = GetEnvironmentVariableW(L"WINEDOMAIN", flat, ARRAY_SIZE(flat));
++            dns_len = GetEnvironmentVariableW(L"WINEDNSDOMAIN", dns, ARRAY_SIZE(dns));
++            if (flat_len && flat_len < ARRAY_SIZE(flat) && dns_len && dns_len < ARRAY_SIZE(dns))
++            {
++                size = sizeof(DSROLE_PRIMARY_DOMAIN_INFO_BASIC) +
++                 (flat_len + 1 + 2 * (dns_len + 1)) * sizeof(WCHAR);
++                basic = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
++                if (basic)
++                {
++                    basic->MachineRole = DsRole_RoleMemberWorkstation;
++                    basic->DomainNameFlat = (LPWSTR)(basic + 1);
++                    lstrcpyW(basic->DomainNameFlat, flat);
++                    basic->DomainNameDns = basic->DomainNameFlat + flat_len + 1;
++                    lstrcpyW(basic->DomainNameDns, dns);
++                    basic->DomainForestName = basic->DomainNameDns + dns_len + 1;
++                    lstrcpyW(basic->DomainForestName, dns);
++                }
++            }
++            else
++                basic = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, size);
++            if (basic && !basic->DomainNameFlat)
+             {
+                 basic->MachineRole = DsRole_RoleStandaloneWorkstation;
+                 basic->DomainNameFlat = (LPWSTR)((LPBYTE)basic +
+                  sizeof(DSROLE_PRIMARY_DOMAIN_INFO_BASIC));
+                 lstrcpyW(basic->DomainNameFlat, DomainInfo->DomainName.Buffer);
+-                ret = ERROR_SUCCESS;
+             }
++            if (basic) ret = ERROR_SUCCESS;
+             else
+                 ret = ERROR_OUTOFMEMORY;
+             *Buffer = (PBYTE)basic;
+diff --git a/dlls/secur32/secur32.c b/dlls/secur32/secur32.c
+index 4ceb646..5a98d88 100644
+--- a/dlls/secur32/secur32.c
++++ b/dlls/secur32/secur32.c
+@@ -1119,6 +1119,26 @@ BOOLEAN WINAPI GetUserNameExA(
+     return rc;
+ }
+ 
++/* Vinter: the configured Active Directory domain names, if any */
++static BOOL get_configured_domain( const WCHAR *var, WCHAR *buffer, DWORD size )
++{
++    DWORD len = GetEnvironmentVariableW( var, buffer, size );
++    return len && len < size;
++}
++
++static BOOLEAN return_user_name( const WCHAR *name, LPWSTR buffer, PULONG size )
++{
++    if (lstrlenW(name) < *size)
++    {
++        lstrcpyW(buffer, name);
++        *size = lstrlenW(name);
++        return TRUE;
++    }
++    SetLastError(ERROR_MORE_DATA);
++    *size = lstrlenW(name) + 1;
++    return FALSE;
++}
++
+ BOOLEAN WINAPI GetUserNameExW(
+   EXTENDED_NAME_FORMAT NameFormat, LPWSTR lpNameBuffer, PULONG nSize)
+ {
+@@ -1132,9 +1152,9 @@ BOOLEAN WINAPI GetUserNameExW(
+             LPWSTR out;
+             DWORD len;
+ 
+-            /* This assumes the current user is always a local account */
++            /* A local account, unless a domain is configured */
+             len = MAX_COMPUTERNAME_LENGTH + 1;
+-            if (GetComputerNameW(samname, &len))
++            if (get_configured_domain(L"WINEDOMAIN", samname, len) || GetComputerNameW(samname, &len))
+             {
+                 out = samname + lstrlenW(samname);
+                 *out++ = '\\';
+@@ -1155,15 +1175,41 @@ BOOLEAN WINAPI GetUserNameExW(
+             return FALSE;
+         }
+ 
++    case NameUserPrincipal:
++    case NameDnsDomain:
++        {
++            WCHAR domain[256], user[UNLEN + 1], name[UNLEN + 1 + 256];
++            DWORD len = UNLEN + 1;
++
++            if (get_configured_domain(L"WINEDNSDOMAIN", domain, ARRAY_SIZE(domain)) &&
++                GetUserNameW(user, &len))
++            {
++                if (NameFormat == NameUserPrincipal)
++                {
++                    lstrcpyW(name, user);
++                    lstrcatW(name, L"@");
++                    lstrcatW(name, domain);
++                }
++                else
++                {
++                    lstrcpyW(name, domain);
++                    lstrcatW(name, L"\\");
++                    lstrcatW(name, user);
++                }
++                return return_user_name(name, lpNameBuffer, nSize);
++            }
++            FIXME("NameFormat %d needs a domain\n", NameFormat);
++            SetLastError(ERROR_NONE_MAPPED);
++            return FALSE;
++        }
++
+     case NameUnknown:
+     case NameFullyQualifiedDN:
+     case NameDisplay:
+     case NameUniqueId:
+     case NameCanonical:
+-    case NameUserPrincipal:
+     case NameCanonicalEx:
+     case NameServicePrincipal:
+-    case NameDnsDomain:
+         FIXME("NameFormat %d not implemented\n", NameFormat);
+         SetLastError(ERROR_NONE_MAPPED);
+         return FALSE;
+diff --git a/dlls/wkscli/wkscli.c b/dlls/wkscli/wkscli.c
+index 016a751..1b43f8d 100644
+--- a/dlls/wkscli/wkscli.c
++++ b/dlls/wkscli/wkscli.c
+@@ -36,12 +36,24 @@ NET_API_STATUS NET_API_FUNCTION NetGetJoinInformation(
+     PNETSETUP_JOIN_STATUS type)
+ {
+     static const WCHAR workgroupW[] = L"Workgroup";
++    WCHAR domain[MAX_COMPUTERNAME_LENGTH + 1];
++    DWORD len;
+ 
+     FIXME("Semi-stub %s %p %p\n", wine_dbgstr_w(Server), Name, type);
+ 
+     if (!Name || !type)
+         return ERROR_INVALID_PARAMETER;
+ 
++    /* Vinter: joined to the configured Active Directory domain */
++    len = GetEnvironmentVariableW(L"WINEDOMAIN", domain, ARRAY_SIZE(domain));
++    if (len && len < ARRAY_SIZE(domain))
++    {
++        NetApiBufferAllocate((len + 1) * sizeof(WCHAR), (LPVOID *)Name);
++        lstrcpyW(*Name, domain);
++        *type = NetSetupDomainName;
++        return NERR_Success;
++    }
++
+     NetApiBufferAllocate(sizeof(workgroupW), (LPVOID *)Name);
+     lstrcpyW(*Name, workgroupW);
+     *type = NetSetupWorkgroupName;
+diff --git a/programs/wineboot/wineboot.c b/programs/wineboot/wineboot.c
+index 0a88a98..a94869c 100644
+--- a/programs/wineboot/wineboot.c
++++ b/programs/wineboot/wineboot.c
+@@ -828,7 +828,7 @@ static void create_dynamic_registry_keys(void)
+ static void create_computer_name_keys(void)
+ {
+     struct addrinfo hints = {0}, *res;
+-    char *dot, buffer[256], *name = buffer;
++    char *dot, buffer[256], *name = buffer, *override;
+     HKEY key, subkey;
+ 
+     if (gethostname( buffer, sizeof(buffer) )) return;
+@@ -840,6 +840,9 @@ static void create_computer_name_keys(void)
+     dot = strchr( name, '.' );
+     if (dot) *dot++ = 0;
+     else dot = name + strlen(name);
++    /* Vinter: a configured computer name and Active Directory domain win over the host's */
++    if ((override = getenv( "WINECOMPUTERNAME" )) && *override) name = override;
++    if ((override = getenv( "WINEDNSDOMAIN" )) && *override) dot = override;
+     SetComputerNameExA( ComputerNamePhysicalDnsDomain, dot );
+     SetComputerNameExA( ComputerNamePhysicalDnsHostname, name );
+     if (res) freeaddrinfo( res );
+@@ -867,6 +870,7 @@ static void create_volatile_environment_registry_key(void)
+ {
+     WCHAR path[MAX_PATH];
+     WCHAR computername[MAX_COMPUTERNAME_LENGTH + 1 + 2];
++    const WCHAR *domain;
+     DWORD size;
+     HKEY hkey;
+     HRESULT hr;
+@@ -908,6 +912,17 @@ static void create_volatile_environment_registry_key(void)
+         set_reg_value( hkey, L"LOGONSERVER", computername );
+     }
+ 
++    /* Vinter: the user's configured Active Directory domain */
++    if ((domain = _wgetenv( L"WINEDOMAIN" )) && *domain)
++        set_reg_value( hkey, L"USERDOMAIN", domain );
++    if ((domain = _wgetenv( L"WINEDNSDOMAIN" )) && *domain)
++    {
++        WCHAR dns_domain[256];
++
++        lstrcpynW( dns_domain, domain, ARRAY_SIZE(dns_domain) );
++        set_reg_value( hkey, L"USERDNSDOMAIN", wcsupr( dns_domain ) );
++    }
++
+     set_reg_value( hkey, L"SESSIONNAME", L"Console" );
+     RegCloseKey( hkey );
+ }

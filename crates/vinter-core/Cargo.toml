@@ -42,5 +42,8 @@ specta = { workspace = true, features = ["derive"], optional = true }
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true

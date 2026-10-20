@@ -25,6 +25,7 @@ fn bottle_with_programs(paths: &AppPaths, id: &str, name: &str, programs: &[&str
                 pinned: false,
             })
             .collect(),
+        domain: None,
     }
     .save(&dir)
     .unwrap();

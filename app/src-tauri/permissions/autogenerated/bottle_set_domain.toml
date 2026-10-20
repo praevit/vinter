@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-set-domain"
+description = "Enables the bottle_set_domain command without any pre-configured scope."
+commands.allow = ["bottle_set_domain"]
+
+[[permission]]
+identifier = "deny-bottle-set-domain"
+description = "Denies the bottle_set_domain command without any pre-configured scope."
+commands.deny = ["bottle_set_domain"]

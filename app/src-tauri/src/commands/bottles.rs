@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use vinter_core::bottle::{
-    self, Bottle, BottleOptions, BottleSummary, Graphics, NewBottle, Tool, WindowsVersion,
+    self, Bottle, BottleOptions, BottleSummary, DomainAccount, Graphics, NewBottle, Tool,
+    WindowsVersion,
 };
 
 use super::{CommandResult, blocking};
@@ -199,6 +200,71 @@ pub fn bottle_set_windows_version(
             result.map(|_| ()).map_err(|e| e.to_string())
         }
     }))
+}
+
+/// What the domain account section shows besides the account itself.
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct DomainStatus {
+    /// A password is saved in the keychain.
+    pub has_password: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn bottle_domain_status(
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<DomainStatus> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        let bottle = bottle::get(&paths, &id)?;
+        Ok(DomainStatus {
+            has_password: bottle.domain.is_some() && bottle::domain::has_password(&id)?,
+        })
+    })
+    .await
+}
+
+/// Sets, changes or (with no account) removes the bottle's domain account.
+/// A password, if given, replaces the saved one; otherwise it is kept.
+#[tauri::command]
+#[specta::specta]
+pub async fn bottle_set_domain(
+    state: State<'_, AppState>,
+    id: String,
+    account: Option<DomainAccount>,
+    password: Option<String>,
+) -> CommandResult<Bottle> {
+    let running = state
+        .runs
+        .lock()
+        .unwrap()
+        .values()
+        .any(|r| r.bottle_id == id);
+    if running {
+        return Err("Close this bottle's programs first.".into());
+    }
+    if !state.mark_busy(&id) {
+        return Err("This bottle is busy. Try again in a moment.".into());
+    }
+    let paths = state.paths.clone();
+    let busy_id = id.clone();
+    let result = blocking(move || {
+        // A running Wine keeps the old identity until it restarts.
+        let _ = bottle::kill_all(&paths, &id);
+        Ok(bottle::domain::set(&paths, &id, account, password)?)
+    })
+    .await;
+    state.clear_busy(&busy_id);
+    result
+}
+
+/// Signs in to the domain now, to check the account and password.
+#[tauri::command]
+#[specta::specta]
+pub async fn bottle_domain_sign_in(state: State<'_, AppState>, id: String) -> CommandResult<()> {
+    let paths = state.paths.clone();
+    blocking(move || Ok(bottle::domain::sign_in(&paths, &id)?)).await
 }
 
 /// Copies a bottle under a new name. The copy is listed right away.

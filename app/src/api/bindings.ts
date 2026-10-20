@@ -44,6 +44,28 @@ export const commands = {
 	 *  (display and keyboard changes take a few seconds).
 	 */
 	bottleSetOptions: (id: string, options: BottleOptions_Deserialize) => __TAURI_INVOKE<string>("bottle_set_options", { id, options }),
+	bottleDomainStatus: (id: string) => __TAURI_INVOKE<DomainStatus>("bottle_domain_status", { id }),
+	/**
+	 *  Sets, changes or (with no account) removes the bottle's domain account.
+	 *  A password, if given, replaces the saved one; otherwise it is kept.
+	 */
+	bottleSetDomain: (id: string, account: {
+	/**  Windows user name, e.g. `jdoe`. */
+	user: string,
+	/**  NetBIOS domain name, e.g. `CORP`. */
+	domain: string,
+	/**  DNS domain, e.g. `corp.example.com`. In upper case, also the Kerberos realm. */
+	dns_domain: string,
+	/**  Windows computer name; empty keeps the Mac's. */
+	computer_name?: string,
+	/**
+	 *  Domain controller to sign in with, e.g. `dc01.corp.example.com`;
+	 *  empty finds one through DNS.
+	 */
+	kdc?: string,
+} | null, password: string | null) => __TAURI_INVOKE<Bottle_Serialize>("bottle_set_domain", { id, account, password }),
+	/**  Signs in to the domain now, to check the account and password. */
+	bottleDomainSignIn: (id: string) => __TAURI_INVOKE<null>("bottle_domain_sign_in", { id }),
 	/**  Copies a bottle under a new name. The copy is listed right away. */
 	bottleDuplicate: (id: string, newName: string) => __TAURI_INVOKE<StartedBottle>("bottle_duplicate", { id, newName }),
 	/**
@@ -99,6 +121,8 @@ export const commands = {
 	dll_overrides: { [key in string]: string },
 	options: BottleOptions_Serialize,
 	programs: ProgramDef[],
+	/**  Domain account the programs run as, if any. */
+	domain: DomainAccount | null,
 } | null>("program_choose_icon", { bottleId, index }),
 	/**  A bottle's programs, with icons as `data:` URLs. */
 	programsList: (bottleId: string) => __TAURI_INVOKE<ProgramView[]>("programs_list", { bottleId }),
@@ -259,6 +283,7 @@ export type BottleFile_Deserialize = {
 	dll_overrides?: { [key in string]: string },
 	options?: BottleOptions_Deserialize,
 	programs?: ProgramDef[],
+	domain?: DomainAccount | null,
 };
 
 /**
@@ -277,6 +302,7 @@ export type BottleFile_Serialize = {
 	dll_overrides: { [key in string]: string },
 	options: BottleOptions_Serialize,
 	programs: ProgramDef[],
+	domain: DomainAccount | null,
 };
 
 export type BottleListItem = {
@@ -368,6 +394,8 @@ export type Bottle_Serialize = {
 	dll_overrides: { [key in string]: string },
 	options: BottleOptions_Serialize,
 	programs: ProgramDef[],
+	/**  Domain account the programs run as, if any. */
+	domain: DomainAccount | null,
 };
 
 /**  A user recipe that could not be loaded. */
@@ -461,6 +489,32 @@ export type DiscoveredProgram = {
 	source: Source,
 	/**  Already one of the bottle's programs. */
 	already_added: boolean,
+};
+
+/**
+ *  A Windows domain account the bottle's programs run as. The password is
+ *  not stored here but in the system keychain (see [`super::domain`]).
+ */
+export type DomainAccount = {
+	/**  Windows user name, e.g. `jdoe`. */
+	user: string,
+	/**  NetBIOS domain name, e.g. `CORP`. */
+	domain: string,
+	/**  DNS domain, e.g. `corp.example.com`. In upper case, also the Kerberos realm. */
+	dns_domain: string,
+	/**  Windows computer name; empty keeps the Mac's. */
+	computer_name?: string,
+	/**
+	 *  Domain controller to sign in with, e.g. `dc01.corp.example.com`;
+	 *  empty finds one through DNS.
+	 */
+	kdc?: string,
+};
+
+/**  What the domain account section shows besides the account itself. */
+export type DomainStatus = {
+	/**  A password is saved in the keychain. */
+	has_password: boolean,
 };
 
 export type Flavor = "stable" | "devel" | "staging" | "gptk";
@@ -645,6 +699,13 @@ export type Runtime = {
 	needs_rosetta: boolean,
 	/**  Graphics backends it supports. */
 	graphics: Graphics[],
+	/**  Built with Kerberos, so programs can sign in with a domain account. */
+	kerberos: boolean,
+	/**
+	 *  Reports a bottle's domain to programs (Vinter Wine's domain patch).
+	 *  Other runtimes only take over the user name.
+	 */
+	domain_identity: boolean,
 };
 
 /**  One downloadable Wine build. */

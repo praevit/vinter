@@ -110,6 +110,12 @@ pub enum Error {
     #[error("could not move the bottle to the Trash: {0}")]
     Trash(String),
 
+    #[error("could not use the keychain: {0}")]
+    Keychain(String),
+
+    #[error("signing in to the domain failed: {0}")]
+    DomainSignIn(String),
+
     #[error("Rosetta 2 installation failed: {0}")]
     RosettaInstall(String),
 

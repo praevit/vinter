@@ -88,6 +88,7 @@ fn fake_bottle() -> (tempfile::TempDir, AppPaths, String, PathBuf) {
         dll_overrides: Default::default(),
         options: Default::default(),
         programs: vec![],
+        domain: None,
     }
     .save(&dir)
     .unwrap();

@@ -128,6 +128,8 @@ mod find_tests {
             arch: "x86_64".into(),
             needs_rosetta: false,
             graphics: vec![],
+            kerberos: false,
+            domain_identity: false,
         }
     }
 

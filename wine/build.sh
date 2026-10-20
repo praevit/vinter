@@ -33,9 +33,13 @@ case $version in
 esac
 
 echo "::group::Dependencies"
-brew install --quiet bison flex mingw-w64 pkgconf freetype gnutls molten-vk sdl2 dylibbundler
+brew install --quiet bison flex mingw-w64 pkgconf freetype gnutls molten-vk sdl2 krb5 dylibbundler
 brew_prefix=$(brew --prefix)
 export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+# MIT Kerberos for Wine's Kerberos and Negotiate support (domain sign-in).
+# It is keg-only; pkg-config finds it here instead of macOS's Heimdal.
+krb5=$(brew --prefix krb5)
+export PKG_CONFIG_PATH="$krb5/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 export MACOSX_DEPLOYMENT_TARGET=15.0
 echo "::endgroup::"
 
@@ -76,18 +80,23 @@ echo "::endgroup::"
 echo "::group::Build"
 make -j"$(sysctl -n hw.ncpu)"
 make install-lib
+# Vinter's domain accounts need Kerberos; never ship a build without it.
+test -e "$prefix/lib/wine/x86_64-unix/kerberos.so" || { echo "Kerberos support was not built" >&2; exit 1; }
 echo "::endgroup::"
 
 echo "::group::Bundle libraries"
 # Wine dlopen()s these by file name, which macOS also looks up in the
 # calling module's run paths; every unix module gets @loader_path/../../
-# (that is, $prefix/lib) below.
+# (that is, $prefix/lib) below. The Kerberos libraries are the ones kinit
+# links, which include the two Wine loads (libkrb5, libgssapi_krb5).
 lib="$prefix/lib"
+krb5_libs=$(otool -L "$krb5/bin/kinit" | awk '/\/krb5\/.*\.dylib/ {print $1}')
 for dylib in \
   "$(brew --prefix freetype)/lib/libfreetype.6.dylib" \
   "$(brew --prefix gnutls)/lib/libgnutls.30.dylib" \
   "$(brew --prefix molten-vk)/lib/libMoltenVK.dylib" \
-  "$(brew --prefix sdl2)/lib/libSDL2-2.0.0.dylib"; do
+  "$(brew --prefix sdl2)/lib/libSDL2-2.0.0.dylib" \
+  $krb5_libs; do
   cp "$dylib" "$lib/"
   chmod u+w "$lib/$(basename "$dylib")"
 done
@@ -96,6 +105,13 @@ for dylib in "$lib"/*.dylib; do
   dylibbundler --overwrite-files --bundle-deps --no-codesign \
     --fix-file "$dylib" --dest-dir "$lib" --install-path @loader_path/ >/dev/null
 done
+# kinit gets a domain account's Kerberos ticket before programs start.
+cp "$krb5/bin/kinit" "$prefix/bin/kinit"
+chmod u+w "$prefix/bin/kinit"
+for dep in $krb5_libs; do
+  install_name_tool -change "$dep" "@rpath/$(basename "$dep")" "$prefix/bin/kinit"
+done
+install_name_tool -add_rpath @executable_path/../lib "$prefix/bin/kinit"
 for so in "$prefix"/lib/wine/x86_64-unix/*.so; do
   otool -l "$so" | grep -q "@loader_path/../../" || install_name_tool -add_rpath @loader_path/../../ "$so"
 done

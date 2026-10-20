@@ -15,6 +15,7 @@ pub mod programs;
 pub mod recipe;
 pub mod report;
 pub mod runtime;
+pub mod secret;
 pub mod settings;
 pub mod storage;
 pub mod system;
