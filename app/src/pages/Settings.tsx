@@ -15,15 +15,16 @@ export function Settings() {
   const { data: view } = useSettings();
   const { data: app } = useAppInfo();
   const { data: runtimes } = useInstalledRuntimes();
+  const { data: available } = useAvailableRuntimes();
   const save = useSaveSettings();
   const queryClient = useQueryClient();
   const [loginError, setLoginError] = useState<string>();
 
+  // All hooks above this line: React needs the same ones on every render.
   if (!view) return null;
   const { launch_at_login, ...settings } = view;
   const set = (patch: Partial<SettingsData>) => save.mutate({ ...settings, ...patch });
   const mac = app?.os === "macos";
-  const { data: available } = useAvailableRuntimes();
   const d3dmetalRuntime = [...(runtimes ?? []), ...(available ?? [])].some((r) =>
     r.graphics.includes("d3dmetal"),
   );
