@@ -18,7 +18,7 @@ own self-contained environment (a *bottle*), installs apps from their official
 installers, and lets you launch them like any other app on your computer.
 
 > **Status: early development.** Plenty of Windows software runs well and
-> plenty does not yet. The current version is 0.1.7.
+> plenty does not yet. The current version is 0.1.8.
 
 ## Download
 
