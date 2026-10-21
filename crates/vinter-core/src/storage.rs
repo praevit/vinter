@@ -181,6 +181,7 @@ mod tests {
             dll_overrides: Default::default(),
             options: Default::default(),
             programs: vec![],
+            domain: None,
         }
         .save(&{
             std::fs::create_dir_all(&dir).unwrap();

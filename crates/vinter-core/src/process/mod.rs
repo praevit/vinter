@@ -20,6 +20,9 @@ use crate::{Error, Result};
 /// `WINEPREFIX`, `WINEDEBUG`, merged `WINEDLLOVERRIDES`, then the bottle's
 /// `[env]` table last so the user wins (except for `WINEPREFIX`).
 ///
+/// A domain account's variables (user name, domain, Kerberos) come just
+/// before the bottle's `[env]`.
+///
 /// `base_overrides` come first and are overridden by the bottle's own
 /// overrides (graphics backends will pass theirs here in M4).
 /// `winemenubuilder` is always disabled: Vinter makes its own launchers (M6),
@@ -53,8 +56,17 @@ pub fn wine_env(
         .and_then(Path::parent);
     let backend_env = crate::graphics::launch_env(bottle.graphics, data_dir);
     let option_env = options_env(&bottle.options, std::env::consts::OS);
+    let domain_env = match (&bottle.domain, prefix.parent()) {
+        (Some(account), Some(dir)) => crate::bottle::domain::env(dir, account),
+        _ => Vec::new(),
+    };
     let user_env = bottle.env.iter().map(|(k, v)| (k.clone(), v.clone()));
-    for (key, value) in backend_env.into_iter().chain(option_env).chain(user_env) {
+    for (key, value) in backend_env
+        .into_iter()
+        .chain(option_env)
+        .chain(domain_env)
+        .chain(user_env)
+    {
         if key == "WINEPREFIX" {
             continue;
         }
@@ -129,12 +141,54 @@ pub fn run_status(
     let err_file = file
         .try_clone()
         .map_err(|e| failed(what, e.to_string(), log))?;
-    let mut child = cmd
+    let child = cmd
         .stdout(file)
         .stderr(err_file)
         .spawn()
         .map_err(|e| failed(what, e.to_string(), log))?;
+    wait_with_timeout(child, log, what, timeout)
+}
 
+/// Like [`run_and_wait`], with `input` written to the process's standard
+/// input (e.g. a password, so it never shows up in the process list).
+pub fn run_with_input(
+    mut cmd: Command,
+    input: &[u8],
+    log: &Path,
+    what: &str,
+    timeout: Duration,
+) -> Result<()> {
+    let file = std::fs::File::options()
+        .create(true)
+        .append(true)
+        .open(log)
+        .map_err(|e| failed(what, e.to_string(), log))?;
+    let err_file = file
+        .try_clone()
+        .map_err(|e| failed(what, e.to_string(), log))?;
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(file)
+        .stderr(err_file)
+        .spawn()
+        .map_err(|e| failed(what, e.to_string(), log))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        // A process that exits early closes its end; the exit code tells why.
+        let _ = stdin.write_all(input);
+    }
+    match wait_with_timeout(child, log, what, timeout)? {
+        Some(0) => Ok(()),
+        Some(code) => Err(failed(what, format!("exited with code {code}"), log)),
+        None => Err(failed(what, "was stopped by a signal".into(), log)),
+    }
+}
+
+fn wait_with_timeout(
+    mut child: std::process::Child,
+    log: &Path,
+    what: &str,
+    timeout: Duration,
+) -> Result<Option<i32>> {
     let started = Instant::now();
     loop {
         match child.try_wait() {
@@ -312,6 +366,7 @@ mod tests {
             dll_overrides: BTreeMap::new(),
             options: Default::default(),
             programs: vec![],
+            domain: None,
         }
     }
 
@@ -384,6 +439,28 @@ mod tests {
     }
 
     #[test]
+    fn domain_account_env() {
+        let mut b = bottle();
+        assert_eq!(
+            get(&wine_env(Path::new("/b/prefix"), &b, &[]), "WINEDOMAIN"),
+            None
+        );
+        b.domain = Some(crate::bottle::DomainAccount {
+            user: "jdoe".into(),
+            domain: "CORP".into(),
+            dns_domain: "corp.example.com".into(),
+            computer_name: String::new(),
+            kdc: String::new(),
+        });
+        b.env.insert("USER".into(), "override".into());
+        let env = wine_env(Path::new("/b/prefix"), &b, &[]);
+        assert_eq!(get(&env, "WINEDOMAIN"), Some("CORP"));
+        assert_eq!(get(&env, "KRB5CCNAME"), Some("FILE:/b/kerberos/ccache"));
+        // The bottle's own variables still win.
+        assert_eq!(get(&env, "USER"), Some("override"));
+    }
+
+    #[test]
     fn bottle_env_is_last_but_cannot_move_the_prefix() {
         let mut b = bottle();
         b.env.insert("WINEDEBUG".into(), "+loaddll".into());
@@ -419,6 +496,21 @@ mod tests {
         slow.args(["-c", "sleep 5"]);
         let err = run_and_wait(slow, &log, "slow", Duration::from_millis(200)).unwrap_err();
         assert!(err.to_string().contains("timed out"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_with_input_feeds_stdin() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log = tmp.path().join("x.log");
+        let mut cmd = Command::new("/bin/sh");
+        cmd.args(["-c", "read line; test \"$line\" = secret"]);
+        run_with_input(cmd, b"secret\n", &log, "read", Duration::from_secs(10)).unwrap();
+
+        let mut cmd = Command::new("/bin/sh");
+        cmd.args(["-c", "read line; echo wrong >&2; exit 1"]);
+        let err = run_with_input(cmd, b"x\n", &log, "read", Duration::from_secs(10)).unwrap_err();
+        assert!(err.to_string().contains("wrong"), "{err}");
     }
 
     #[cfg(unix)]

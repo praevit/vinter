@@ -39,6 +39,7 @@ lnk = "0.6"
 pelite = { version = "0.10", default-features = false, features = ["std", "mmap"] }
 image = { version = "0.25", default-features = false, features = ["ico", "png", "jpeg"] }
 base64 = "0.23"
+security-framework = "3"
 tauri-plugin-dialog = "2.8"
 tauri-plugin-deep-link = "2.6"
 tauri-plugin-updater = "2.14"

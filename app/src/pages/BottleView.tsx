@@ -24,6 +24,7 @@ import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
 import { BackupButton } from "../components/BackupControls";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
+import { DomainSection } from "../components/DomainSection";
 import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
@@ -317,6 +318,13 @@ function Settings({
         </p>
         {optJob?.done && !optJob.done.ok && <ErrorText>{optJob.done.error}</ErrorText>}
       </section>
+
+      <DomainSection
+        key={bottle.id}
+        bottle={bottle}
+        runtime={runtimes?.find((r) => r.id === bottle.runtime)}
+        os={app?.os}
+      />
 
       <div className="border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <GraphicsSection

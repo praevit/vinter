@@ -117,6 +117,26 @@ impl BottleOptions {
     }
 }
 
+/// A Windows domain account the bottle's programs run as. The password is
+/// not stored here but in the system keychain (see [`super::domain`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct DomainAccount {
+    /// Windows user name, e.g. `jdoe`.
+    pub user: String,
+    /// NetBIOS domain name, e.g. `CORP`.
+    pub domain: String,
+    /// DNS domain, e.g. `corp.example.com`. In upper case, also the Kerberos realm.
+    pub dns_domain: String,
+    /// Windows computer name; empty keeps the Mac's.
+    #[serde(default)]
+    pub computer_name: String,
+    /// Domain controller to sign in with, e.g. `dc01.corp.example.com`;
+    /// empty finds one through DNS.
+    #[serde(default)]
+    pub kdc: String,
+}
+
 /// A program shown in a bottle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -153,6 +173,8 @@ pub struct Bottle {
     pub dll_overrides: BTreeMap<String, String>,
     pub options: BottleOptions,
     pub programs: Vec<ProgramDef>,
+    /// Domain account the programs run as, if any.
+    pub domain: Option<DomainAccount>,
 }
 
 /// `bottle.toml` as read from disk: everything after `created_at` is optional.
@@ -178,6 +200,8 @@ struct BottleFile {
     options: BottleOptions,
     #[serde(default)]
     programs: Vec<ProgramDef>,
+    #[serde(default)]
+    domain: Option<DomainAccount>,
 }
 
 impl From<BottleFile> for Bottle {
@@ -194,6 +218,7 @@ impl From<BottleFile> for Bottle {
             dll_overrides: f.dll_overrides,
             options: f.options,
             programs: f.programs,
+            domain: f.domain,
         }
     }
 }
@@ -244,6 +269,11 @@ exe = 'C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE'
 args = []
 icon = "icons/word.png"
 pinned = true
+
+[domain]
+user = "jdoe"
+domain = "CORP"
+dns_domain = "corp.example.com"
 "#;
 
     #[test]
@@ -253,6 +283,11 @@ pinned = true
         assert_eq!(bottle.graphics, Graphics::Dxmt);
         assert_eq!(bottle.env["WINEESYNC"], "1");
         assert_eq!(bottle.dll_overrides["d3d11"], "native,builtin");
+        let domain = bottle.domain.as_ref().unwrap();
+        assert_eq!(
+            (domain.user.as_str(), domain.computer_name.as_str()),
+            ("jdoe", "")
+        );
         assert_eq!(
             bottle.programs[0].exe,
             r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE"
@@ -283,6 +318,7 @@ pinned = true
         assert_eq!(bottle.windows_version, WindowsVersion::Win10);
         assert_eq!(bottle.graphics, Graphics::Wined3d);
         assert!(bottle.programs.is_empty() && bottle.env.is_empty());
+        assert!(bottle.domain.is_none());
     }
 
     #[test]

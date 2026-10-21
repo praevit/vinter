@@ -172,6 +172,7 @@ mod tests {
             dll_overrides: Default::default(),
             options: Default::default(),
             programs: vec![],
+            domain: None,
         }
         .save(&dir)
         .unwrap();

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-domain-sign-in"
+description = "Enables the bottle_domain_sign_in command without any pre-configured scope."
+commands.allow = ["bottle_domain_sign_in"]
+
+[[permission]]
+identifier = "deny-bottle-domain-sign-in"
+description = "Denies the bottle_domain_sign_in command without any pre-configured scope."
+commands.deny = ["bottle_domain_sign_in"]

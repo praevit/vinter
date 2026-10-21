@@ -268,6 +268,7 @@ fn interrupted_setup_is_reported() {
         dll_overrides: Default::default(),
         options: Default::default(),
         programs: vec![],
+        domain: None,
     }
     .save(&d)
     .unwrap();
@@ -297,6 +298,7 @@ fn env_and_override_editors_validate_input() {
         dll_overrides: Default::default(),
         options: Default::default(),
         programs: vec![],
+        domain: None,
     }
     .save(&d)
     .unwrap();

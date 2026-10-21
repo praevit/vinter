@@ -283,6 +283,7 @@ pub fn launch(
     })?;
 
     let (log, _) = logs::create(&dir, &program.name)?;
+    bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
     // Skip empty or NUL-containing arguments; programs added before the
     // shortcut fix may have a stray "\0" argument saved.
@@ -339,6 +340,7 @@ pub fn run_installer(
     }
 
     let (log, _) = logs::create(&dir, "installer")?;
+    bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
     // Wine's msiexec crashes on long host paths (seen with a 153-character
     // path: msi.dll read part of the file name as a pointer). MSI packages are

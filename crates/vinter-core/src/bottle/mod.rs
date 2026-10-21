@@ -2,6 +2,7 @@
 
 pub mod backup;
 pub mod config;
+pub mod domain;
 pub mod snapshot;
 
 use std::path::{Path, PathBuf};
@@ -9,7 +10,9 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-pub use config::{Bottle, BottleOptions, CONFIG_FILE, Graphics, ProgramDef, WindowsVersion};
+pub use config::{
+    Bottle, BottleOptions, CONFIG_FILE, DomainAccount, Graphics, ProgramDef, WindowsVersion,
+};
 
 use crate::error::{IoResultExt, validate_id};
 use crate::process::{self, logs};
@@ -219,6 +222,7 @@ pub fn prepare_create(paths: &AppPaths, new: NewBottle) -> Result<Bottle> {
         dll_overrides: Default::default(),
         options: crate::settings::load(paths).new_bottle_options,
         programs: Vec::new(),
+        domain: None,
     };
     let dir = dir(paths, &bottle.id)?;
     std::fs::create_dir_all(dir.join(PREFIX_DIR)).at(&dir)?;
@@ -519,6 +523,10 @@ pub fn finish_duplicate(paths: &AppPaths, source_id: &str, copy: &Bottle) -> Res
                 copy_tree(&from, &dst_dir.join(sub))?;
             }
         }
+        if copy.domain.is_some() {
+            // Best effort: without it, the copy asks for the password again.
+            let _ = domain::copy_password(source_id, &copy.id, &format!("Vinter: {}", copy.name));
+        }
         std::fs::remove_file(dst_dir.join(SETUP_MARKER)).at(&dst_dir)
     })();
     if result.is_err() {
@@ -636,6 +644,9 @@ pub fn delete(paths: &AppPaths, id: &str) -> Result<()> {
     let bottle = get(paths, id)?;
     let _ = kill_all(paths, id);
     let dir = dir(paths, id)?;
+    if bottle.domain.is_some() {
+        let _ = crate::secret::delete(id);
+    }
 
     let staging_root = paths.data_dir().join("cache").join("trash");
     let staging = staging_root.join(id);
@@ -696,6 +707,7 @@ pub fn run_tool(paths: &AppPaths, id: &str, tool: Tool) -> Result<u32> {
     rt.check_can_run()?;
     let dir = dir(paths, id)?;
     let (log, _) = logs::create(&dir, tool.program())?;
+    domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine");
     cmd.arg(tool.program());
     process::spawn_detached(cmd, &log, &format!("Opening {}", tool.program()))
