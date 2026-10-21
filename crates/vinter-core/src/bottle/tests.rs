@@ -403,3 +403,90 @@ fn desktop_link_becomes_a_folder_of_its_own() {
     // Running it again changes nothing.
     keep_desktop_in_bottle(&prefix).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn snapshot_restore_rolls_back_files_and_settings() {
+    let (_tmp, paths) = setup();
+    let b = create(&paths, new_bottle("Base", "fake"), |_| {}).unwrap();
+    let clean = snapshot::create(&paths, &b.id, " Clean ", false).unwrap();
+    assert_eq!(clean.label, "Clean");
+
+    let pfx = prefix(&paths, &b.id);
+    std::fs::write(pfx.join("user.reg"), "changed").unwrap();
+    std::fs::write(pfx.join("drive_c/new.txt"), "new").unwrap();
+    let env = [("FOO".to_string(), "1".to_string())].into();
+    set_env(&paths, &b.id, env).unwrap();
+    rename(&paths, &b.id, "Renamed").unwrap();
+
+    let restored = snapshot::restore(&paths, &b.id, &clean.id).unwrap();
+    assert_eq!(restored.name, "Renamed", "the name is kept");
+    assert!(restored.env.is_empty());
+    assert_eq!(get(&paths, &b.id).unwrap(), restored);
+    assert_eq!(read(pfx.join("user.reg")).trim(), "registry");
+    assert!(!pfx.join("drive_c/new.txt").exists());
+    let z = pfx.join("dosdevices/z:");
+    assert_eq!(std::fs::read_link(&z).unwrap(), Path::new("/"));
+    assert!(!dir(&paths, &b.id).unwrap().join(".restore-old").exists());
+
+    // Restoring snapshotted the state it replaced, so it can be undone.
+    let snaps = snapshot::list(&paths, &b.id).unwrap();
+    assert_eq!(snaps.len(), 2);
+    let before = snaps.iter().find(|s| s.label == "Before restore").unwrap();
+    assert!(before.automatic);
+    snapshot::restore(&paths, &b.id, &before.id).unwrap();
+    assert_eq!(read(pfx.join("user.reg")), "changed");
+    assert_eq!(get(&paths, &b.id).unwrap().env["FOO"], "1");
+}
+
+#[cfg(unix)]
+#[test]
+fn automatic_snapshots_are_pruned_and_manual_ones_kept() {
+    let (_tmp, paths) = setup();
+    let b = create(&paths, new_bottle("Base", "fake"), |_| {}).unwrap();
+    let manual = snapshot::create(&paths, &b.id, "Mine", false).unwrap();
+    for i in 0..snapshot::KEEP_AUTOMATIC + 2 {
+        snapshot::create(&paths, &b.id, &format!("auto {i}"), true).unwrap();
+    }
+    let snaps = snapshot::list(&paths, &b.id).unwrap();
+    assert_eq!(
+        snaps.iter().filter(|s| s.automatic).count(),
+        snapshot::KEEP_AUTOMATIC
+    );
+    assert!(snaps.iter().any(|s| s.id == manual.id));
+    assert!(
+        !snaps
+            .iter()
+            .any(|s| s.label == "auto 0" || s.label == "auto 1")
+    );
+
+    snapshot::delete(&paths, &b.id, &manual.id).unwrap();
+    assert!(matches!(
+        snapshot::restore(&paths, &b.id, &manual.id),
+        Err(Error::SnapshotNotFound(_))
+    ));
+    assert!(matches!(
+        snapshot::delete(&paths, &b.id, "../escape"),
+        Err(Error::InvalidId(_))
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn switching_runtime_snapshots_first_where_clones_are_free() {
+    let (_tmp, paths) = setup();
+    install_fake_runtime(&paths, "other", FAKE_WINE);
+    let b = create(&paths, new_bottle("Base", "fake"), |_| {}).unwrap();
+    set_runtime(&paths, &b.id, "other").unwrap();
+    let snaps = snapshot::list(&paths, &b.id).unwrap();
+    if can_clone(&dir(&paths, &b.id).unwrap()) {
+        assert_eq!(snaps.len(), 1);
+        assert_eq!(snaps[0].label, "Before switching to other");
+    } else {
+        assert!(snaps.is_empty());
+    }
+    // The snapshot is not counted in the bottle's size.
+    let usage = crate::storage::usage(&paths).unwrap();
+    let total = crate::storage::dir_size(&dir(&paths, &b.id).unwrap());
+    assert!(snaps.is_empty() || usage.bottles[0].bytes < total);
+}

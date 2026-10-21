@@ -8,6 +8,7 @@ pub mod programs;
 pub mod recipes;
 pub mod runtimes;
 pub mod settings;
+pub mod snapshots;
 pub mod system;
 
 use serde::Serialize;

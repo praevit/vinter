@@ -45,12 +45,28 @@ pub fn dir_size(dir: &Path) -> u64 {
         .sum()
 }
 
+/// Size of a bottle's files. Snapshots are left out: they are mostly clones
+/// sharing the bottle's space, and counting them would multiply its size.
+fn bottle_size(dir: &Path) -> u64 {
+    let snapshots = dir.join(bottle::snapshot::SNAPSHOTS_DIR);
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|e| e.path() != snapshots)
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok())
+        .map(|m| m.len())
+        .sum()
+}
+
 /// Disk usage of everything. Walks every bottle, so it can take a moment.
 pub fn usage(paths: &AppPaths) -> Result<Usage> {
     let mut bottles: Vec<BottleUsage> = bottle::list(paths)?
         .into_iter()
         .map(|b| BottleUsage {
-            bytes: bottle::dir(paths, &b.id).map(|d| dir_size(&d)).unwrap_or(0),
+            bytes: bottle::dir(paths, &b.id)
+                .map(|d| bottle_size(&d))
+                .unwrap_or(0),
             id: b.id,
             name: b.name,
         })

@@ -42,6 +42,9 @@ pub enum Error {
     #[error("no bottle {0:?}")]
     BottleNotFound(String),
 
+    #[error("no snapshot {0:?}")]
+    SnapshotNotFound(String),
+
     #[error("{0:?} matches more than one bottle; use its id")]
     AmbiguousBottle(String),
 

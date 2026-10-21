@@ -40,7 +40,10 @@ pub fn export(
             let entry = entry.map_err(|e| Error::BadArchive(e.to_string()))?;
             let rel = entry.path().strip_prefix(&src).expect("inside the bottle");
             let first = rel.components().next().map(|c| c.as_os_str().to_owned());
-            if first.as_deref() == Some(LOGS_DIR.as_ref()) || rel == Path::new(SETUP_MARKER) {
+            let skipped = [LOGS_DIR, super::snapshot::SNAPSHOTS_DIR, ".restore-old"];
+            if first.is_some_and(|f| skipped.iter().any(|s| f == *s))
+                || rel == Path::new(SETUP_MARKER)
+            {
                 continue;
             }
             let name = Path::new(ROOT).join(rel);

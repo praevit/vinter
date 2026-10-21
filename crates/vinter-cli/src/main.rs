@@ -40,6 +40,9 @@ enum Command {
     /// Manage bottles (Wine prefixes). Bottles can be named by id, id prefix or name.
     #[command(subcommand)]
     Bottle(BottleCommand),
+    /// Snapshots of a bottle, to roll back to. Snapshots can be named by id or id prefix.
+    #[command(subcommand)]
+    Snapshot(SnapshotCommand),
     /// App recipes: list them, check one, or set up an app from one.
     #[command(subcommand)]
     Recipe(RecipeCommand),
@@ -202,6 +205,24 @@ enum BottleCommand {
 }
 
 #[derive(Subcommand)]
+enum SnapshotCommand {
+    /// List a bottle's snapshots, newest first.
+    List { bottle: String },
+    /// Snapshot a bottle. Close its programs first.
+    Create {
+        bottle: String,
+        /// What it is for, e.g. "before mods".
+        #[arg(long, default_value = "Snapshot")]
+        label: String,
+    },
+    /// Put a bottle back as it was in a snapshot (the current state is
+    /// snapshotted first). Stops the bottle's programs.
+    Restore { bottle: String, snapshot: String },
+    /// Delete a snapshot.
+    Delete { bottle: String, snapshot: String },
+}
+
+#[derive(Subcommand)]
 enum RecipeCommand {
     /// List recipes (built-in and your own).
     List,
@@ -342,6 +363,7 @@ async fn run(out: Out, command: Command) -> Result<()> {
             RuntimeCommand::Exec { id, command } => runtime_exec(&paths, &id, &command),
         },
         Command::Bottle(cmd) => bottle_command(&paths, out, cmd).await,
+        Command::Snapshot(cmd) => snapshot_command(&paths, out, cmd),
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
         Command::InstallRosetta => {
@@ -858,6 +880,64 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                     })
                 }
             }
+        }
+    }
+}
+
+fn snapshot_command(paths: &AppPaths, out: Out, cmd: SnapshotCommand) -> Result<()> {
+    use bottle::snapshot;
+    // A snapshot by id or unique id prefix.
+    let find = |bottle_id: &str, key: &str| -> Result<snapshot::Snapshot> {
+        let all = snapshot::list(paths, bottle_id)?;
+        let mut matches = all
+            .into_iter()
+            .filter(|s| s.id == key || (key.len() >= 4 && s.id.starts_with(key)));
+        match (matches.next(), matches.next()) {
+            (Some(one), None) => Ok(one),
+            (None, _) => anyhow::bail!("no snapshot {key:?}"),
+            (Some(_), Some(_)) => anyhow::bail!("{key:?} matches more than one snapshot"),
+        }
+    };
+    match cmd {
+        SnapshotCommand::List { bottle: key } => {
+            let snaps = snapshot::list(paths, &bottle::resolve(paths, &key)?.id)?;
+            out.print(&snaps, || {
+                if snaps.is_empty() {
+                    println!("No snapshots. Make one with `vinter snapshot create {key}`.");
+                }
+                for s in &snaps {
+                    let auto = if s.automatic { "auto" } else { "    " };
+                    println!("{}  {}  {auto}  {}", &s.id[..8], s.created_at, s.label);
+                }
+            })
+        }
+        SnapshotCommand::Create { bottle: key, label } => {
+            let id = bottle::resolve(paths, &key)?.id;
+            let s = snapshot::create(paths, &id, &label, false)?;
+            out.print(&s, || println!("Snapshot {} ({})", s.label, &s.id[..8]))
+        }
+        SnapshotCommand::Restore {
+            bottle: key,
+            snapshot: snap,
+        } => {
+            let id = bottle::resolve(paths, &key)?.id;
+            let s = find(&id, &snap)?;
+            let b = snapshot::restore(paths, &id, &s.id)?;
+            sync_launchers(paths, &b.id)?;
+            out.print(&b, || {
+                println!("{} is back to \"{}\" ({}).", b.name, s.label, s.created_at)
+            })
+        }
+        SnapshotCommand::Delete {
+            bottle: key,
+            snapshot: snap,
+        } => {
+            let id = bottle::resolve(paths, &key)?.id;
+            let s = find(&id, &snap)?;
+            snapshot::delete(paths, &id, &s.id)?;
+            out.print(&json!({ "deleted": s.id }), || {
+                println!("Deleted {}.", s.label)
+            })
         }
     }
 }

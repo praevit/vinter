@@ -2,6 +2,7 @@
 
 pub mod backup;
 pub mod config;
+pub mod snapshot;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -373,6 +374,9 @@ pub fn rename(paths: &AppPaths, id: &str, name: &str) -> Result<Bottle> {
 pub fn set_runtime(paths: &AppPaths, id: &str, runtime_id: &str) -> Result<Bottle> {
     let mut bottle = get(paths, id)?;
     runtime::get(paths, runtime_id)?;
+    if bottle.runtime != runtime_id {
+        snapshot::auto(paths, id, &format!("Before switching to {runtime_id}"))?;
+    }
     bottle.runtime = runtime_id.to_string();
     bottle.save(&dir(paths, id)?)?;
     Ok(bottle)
@@ -520,9 +524,19 @@ pub fn finish_duplicate(paths: &AppPaths, source_id: &str, copy: &Bottle) -> Res
     result
 }
 
-/// Copies a folder tree. Symlinks are recreated as symlinks and never followed:
-/// a Wine prefix links `dosdevices/z:` to `/`.
+/// Copies a folder tree, as copy-on-write clones where the file system has
+/// them (APFS, btrfs, XFS): instant, and no extra space until files change.
+/// Symlinks are recreated as symlinks and never followed: a Wine prefix links
+/// `dosdevices/z:` to `/`. `to` must not exist yet.
 fn copy_tree(from: &Path, to: &Path) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    if !to.exists() {
+        if clone_path(from, to) {
+            return Ok(());
+        }
+        // A failed directory clone may leave part of the tree behind.
+        let _ = std::fs::remove_dir_all(to);
+    }
     for entry in walkdir::WalkDir::new(from).follow_links(false) {
         let entry = entry.map_err(|e| Error::Io {
             path: e
@@ -545,11 +559,72 @@ fn copy_tree(from: &Path, to: &Path) -> Result<()> {
             std::os::unix::fs::symlink(&link, &target).at(&target)?;
             #[cfg(not(unix))]
             let _ = link;
-        } else {
+        } else if !clone_path(entry.path(), &target) {
             std::fs::copy(entry.path(), &target).at(&target)?;
         }
     }
     Ok(())
+}
+
+/// Whether files in `dir` can be cloned, i.e. copies there are free.
+pub(crate) fn can_clone(dir: &Path) -> bool {
+    let probe = dir.join(".clone-probe");
+    let copy = dir.join(".clone-probe-copy");
+    let ok = std::fs::write(&probe, b"vinter").is_ok() && clone_path(&probe, &copy);
+    let _ = std::fs::remove_file(&probe);
+    let _ = std::fs::remove_file(&copy);
+    ok
+}
+
+/// Clones a file, or on macOS a whole folder tree, without following
+/// symlinks. False if the file system cannot; `to` is then left absent.
+#[cfg(target_os = "macos")]
+fn clone_path(from: &Path, to: &Path) -> bool {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    /// From `<sys/clonefile.h>`.
+    const CLONE_NOFOLLOW: u32 = 0x0001;
+    let (Ok(src), Ok(dst)) = (
+        CString::new(from.as_os_str().as_bytes()),
+        CString::new(to.as_os_str().as_bytes()),
+    ) else {
+        return false;
+    };
+    unsafe { libc::clonefile(src.as_ptr(), dst.as_ptr(), CLONE_NOFOLLOW) == 0 }
+}
+
+/// Reflinks a file (`FICLONE`), keeping its permissions.
+#[cfg(target_os = "linux")]
+fn clone_path(from: &Path, to: &Path) -> bool {
+    use std::os::fd::AsRawFd;
+    let Ok(src) = std::fs::File::open(from) else {
+        return false;
+    };
+    let Ok(meta) = src.metadata() else {
+        return false;
+    };
+    if !meta.is_file() {
+        return false;
+    }
+    let Ok(dst) = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(to)
+    else {
+        return false;
+    };
+    let ok = unsafe { libc::ioctl(dst.as_raw_fd(), libc::FICLONE, src.as_raw_fd()) } == 0
+        && dst.set_permissions(meta.permissions()).is_ok();
+    drop(dst);
+    if !ok {
+        let _ = std::fs::remove_file(to);
+    }
+    ok
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn clone_path(_from: &Path, _to: &Path) -> bool {
+    false
 }
 
 /// Stops the bottle's Wine processes and moves its folder to the OS trash

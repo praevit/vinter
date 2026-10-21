@@ -64,6 +64,12 @@ export const commands = {
 	bottleTool: (id: string, tool: Tool) => __TAURI_INVOKE<null>("bottle_tool", { id, tool }),
 	/**  Stops every Wine process in the bottle (`wineserver -k`). */
 	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),
+	/**  A bottle's snapshots, newest first. */
+	snapshotsList: (id: string) => __TAURI_INVOKE<Snapshot[]>("snapshots_list", { id }),
+	snapshotCreate: (id: string, label: string) => __TAURI_INVOKE<Snapshot>("snapshot_create", { id, label }),
+	/**  Stops the bottle's programs and puts it back as it was in the snapshot. */
+	snapshotRestore: (id: string, snapshotId: string) => __TAURI_INVOKE<Bottle_Serialize>("snapshot_restore", { id, snapshotId }),
+	snapshotDelete: (id: string, snapshotId: string) => __TAURI_INVOKE<null>("snapshot_delete", { id, snapshotId }),
 	/**
 	 *  Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
 	 *  the system file dialog.
@@ -796,6 +802,15 @@ export type Settings_Serialize = {
 	notifications: boolean,
 	/**  Check for a newer Vinter when it starts. */
 	check_for_updates: boolean,
+};
+
+export type Snapshot = {
+	id: string,
+	label: string,
+	/**  Made by Vinter before a change, rather than by hand. */
+	automatic: boolean,
+	/**  RFC 3339 with microseconds, so snapshots sort in the order they were made. */
+	created_at: string,
 };
 
 /**  How a program was found. */

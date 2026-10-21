@@ -28,6 +28,7 @@ import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
 import { ProgramsTab } from "../components/ProgramsTab";
+import { SnapshotsSection } from "../components/SnapshotsSection";
 import { ProgressBar } from "../components/ProgressBar";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field, subtle } from "../components/ui";
@@ -323,6 +324,8 @@ function Settings({
           onShowLog={onShowLog}
         />
       </div>
+
+      <SnapshotsSection bottleId={bottle.id} />
 
       <BottleStorage bottleId={bottle.id} />
 

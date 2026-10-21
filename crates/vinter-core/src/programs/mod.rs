@@ -326,6 +326,8 @@ pub fn run_installer(
     }
     let rt = runtime::get(paths, &bottle.runtime)?;
     rt.check_can_run()?;
+    let file = installer.file_name().unwrap_or_default().to_string_lossy();
+    bottle::snapshot::auto(paths, bottle_id, &format!("Before installing {file}"))?;
     let dir = bottle::dir(paths, bottle_id)?;
     let prefix = dir.join(PREFIX_DIR);
     // Also for bottles made before Vinter did this at creation.
