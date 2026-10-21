@@ -71,19 +71,24 @@ pub enum Graphics {
 pub struct BottleOptions {
     /// macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size).
     pub retina_mode: bool,
-    /// macOS: ⌘ works as Ctrl (so ⌘C copies) and ⌥ as Alt.
+    /// macOS: ⌘ works as Ctrl (so ⌘C copies).
     pub command_as_ctrl: bool,
+    /// macOS: ⌥ works as Alt. Off keeps ⌥ for typing characters such as @ on
+    /// many European keyboards.
+    pub option_as_alt: bool,
     /// Show a frame rate overlay in games (DXVK's and Metal's HUD).
     pub show_fps: bool,
 }
 
-/// [`BottleOptions`] as read: missing switches are off.
+/// [`BottleOptions`] as read: missing switches are off, except
+/// `option_as_alt`, which follows `command_as_ctrl` (it was part of it).
 #[derive(Deserialize, Default)]
 #[serde(default)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 struct BottleOptionsFile {
     retina_mode: bool,
     command_as_ctrl: bool,
+    option_as_alt: Option<bool>,
     show_fps: bool,
 }
 
@@ -92,6 +97,7 @@ impl From<BottleOptionsFile> for BottleOptions {
         Self {
             retina_mode: f.retina_mode,
             command_as_ctrl: f.command_as_ctrl,
+            option_as_alt: f.option_as_alt.unwrap_or(f.command_as_ctrl),
             show_fps: f.show_fps,
         }
     }
@@ -104,6 +110,7 @@ impl BottleOptions {
         Self {
             retina_mode: mac,
             command_as_ctrl: mac,
+            option_as_alt: mac,
             show_fps: false,
         }
     }
@@ -253,6 +260,17 @@ pinned = true
         let tmp = tempfile::tempdir().unwrap();
         bottle.save(tmp.path()).unwrap();
         assert_eq!(Bottle::load(tmp.path()).unwrap(), bottle);
+    }
+
+    #[test]
+    fn option_as_alt_follows_command_as_ctrl_in_older_files() {
+        let old: BottleOptions = toml::from_str("command_as_ctrl = true").unwrap();
+        assert!(old.option_as_alt);
+        let old: BottleOptions = toml::from_str("command_as_ctrl = false").unwrap();
+        assert!(!old.option_as_alt);
+        let new: BottleOptions =
+            toml::from_str("command_as_ctrl = true\noption_as_alt = false").unwrap();
+        assert!(new.command_as_ctrl && !new.option_as_alt);
     }
 
     #[test]

@@ -289,10 +289,14 @@ export type BottleListItem = {
  */
 export type BottleOptions = BottleOptions_Serialize | BottleOptions_Deserialize;
 
-/**  [`BottleOptions`] as read: missing switches are off. */
+/**
+ *  [`BottleOptions`] as read: missing switches are off, except
+ *  `option_as_alt`, which follows `command_as_ctrl` (it was part of it).
+ */
 export type BottleOptionsFile = {
 	retina_mode?: boolean,
 	command_as_ctrl?: boolean,
+	option_as_alt?: boolean | null,
 	show_fps?: boolean,
 };
 
@@ -309,8 +313,13 @@ export type BottleOptions_Deserialize = BottleOptionsFile;
 export type BottleOptions_Serialize = {
 	/**  macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size). */
 	retina_mode: boolean,
-	/**  macOS: ⌘ works as Ctrl (so ⌘C copies) and ⌥ as Alt. */
+	/**  macOS: ⌘ works as Ctrl (so ⌘C copies). */
 	command_as_ctrl: boolean,
+	/**
+	 *  macOS: ⌥ works as Alt. Off keeps ⌥ for typing characters such as @ on
+	 *  many European keyboards.
+	 */
+	option_as_alt: boolean,
 	/**  Show a frame rate overlay in games (DXVK's and Metal's HUD). */
 	show_fps: boolean,
 };

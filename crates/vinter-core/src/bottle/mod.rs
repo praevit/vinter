@@ -276,6 +276,7 @@ fn apply_windows_version(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()
 fn options_reg(options: &BottleOptions) -> String {
     let yes_no = |on: bool| if on { "y" } else { "n" };
     let cmd = yes_no(options.command_as_ctrl);
+    let opt = yes_no(options.option_as_alt);
     let dpi = if options.retina_mode { 192 } else { 96 };
     format!(
         "REGEDIT4\r\n\r\n\
@@ -283,8 +284,8 @@ fn options_reg(options: &BottleOptions) -> String {
          \"RetinaMode\"=\"{retina}\"\r\n\
          \"LeftCommandIsCtrl\"=\"{cmd}\"\r\n\
          \"RightCommandIsCtrl\"=\"{cmd}\"\r\n\
-         \"LeftOptionIsAlt\"=\"{cmd}\"\r\n\
-         \"RightOptionIsAlt\"=\"{cmd}\"\r\n\r\n\
+         \"LeftOptionIsAlt\"=\"{opt}\"\r\n\
+         \"RightOptionIsAlt\"=\"{opt}\"\r\n\r\n\
          [HKEY_CURRENT_USER\\Control Panel\\Desktop]\r\n\
          \"LogPixels\"=dword:{dpi:08x}\r\n",
         retina = yes_no(options.retina_mode),
@@ -295,7 +296,9 @@ fn options_reg(options: &BottleOptions) -> String {
 /// options there are for Wine's Mac driver).
 fn needs_registry(old: &BottleOptions, new: &BottleOptions) -> bool {
     cfg!(target_os = "macos")
-        && (old.retina_mode != new.retina_mode || old.command_as_ctrl != new.command_as_ctrl)
+        && (old.retina_mode != new.retina_mode
+            || old.command_as_ctrl != new.command_as_ctrl
+            || old.option_as_alt != new.option_as_alt)
 }
 
 fn apply_options(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {

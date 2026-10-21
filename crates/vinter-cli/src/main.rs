@@ -156,9 +156,12 @@ enum BottleCommand {
         /// macOS: full Retina resolution.
         #[arg(long)]
         retina: Option<bool>,
-        /// macOS: ⌘ works as Ctrl, ⌥ as Alt.
+        /// macOS: ⌘ works as Ctrl.
         #[arg(long)]
         command_as_ctrl: Option<bool>,
+        /// macOS: ⌥ works as Alt (off keeps ⌥ for typing characters like @).
+        #[arg(long)]
+        option_as_alt: Option<bool>,
         /// Frame rate overlay in games.
         #[arg(long)]
         fps: Option<bool>,
@@ -646,18 +649,21 @@ async fn bottle_command(paths: &AppPaths, cmd: BottleCommand) -> Result<()> {
             bottle: key,
             retina,
             command_as_ctrl,
+            option_as_alt,
             fps,
         } => {
             let id = id(&key)?;
             let mut options = bottle::get(paths, &id)?.options;
             options.retina_mode = retina.unwrap_or(options.retina_mode);
             options.command_as_ctrl = command_as_ctrl.unwrap_or(options.command_as_ctrl);
+            options.option_as_alt = option_as_alt.unwrap_or(options.option_as_alt);
             options.show_fps = fps.unwrap_or(options.show_fps);
             let b = bottle::set_options(paths, &id, options)?;
             println!(
-                "Retina mode: {}\n⌘ as Ctrl: {}\nFrame rate overlay: {}",
+                "Retina mode: {}\n⌘ as Ctrl: {}\n⌥ as Alt: {}\nFrame rate overlay: {}",
                 on_off(b.options.retina_mode),
                 on_off(b.options.command_as_ctrl),
+                on_off(b.options.option_as_alt),
                 on_off(b.options.show_fps)
             );
         }
