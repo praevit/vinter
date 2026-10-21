@@ -5,6 +5,7 @@
 //! Tauri app and the `vinter` CLI.
 
 pub mod bottle;
+pub mod components;
 pub mod doctor;
 pub mod download;
 pub mod error;

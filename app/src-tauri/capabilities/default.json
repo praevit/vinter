@@ -30,6 +30,8 @@
     "allow-bottle-open-drive-c",
     "allow-bottle-tool",
     "allow-bottle-kill-all",
+    "allow-components-list",
+    "allow-components-install",
     "allow-snapshots-list",
     "allow-snapshot-create",
     "allow-snapshot-restore",

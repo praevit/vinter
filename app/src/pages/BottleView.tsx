@@ -28,6 +28,7 @@ import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
 import { ProgramsTab } from "../components/ProgramsTab";
+import { ComponentsSection } from "../components/ComponentsSection";
 import { SnapshotsSection } from "../components/SnapshotsSection";
 import { ProgressBar } from "../components/ProgressBar";
 import type { Route } from "../components/Sidebar";
@@ -214,6 +215,7 @@ function Tools({ bottle, needsRosetta }: { bottle: BottleDetails; needsRosetta: 
       </div>
       {started && <p className={subtle}>{started}</p>}
       {error && <ErrorText>{error}</ErrorText>}
+      <ComponentsSection bottleId={bottle.id} />
     </div>
   );
 }

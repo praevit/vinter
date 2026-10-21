@@ -97,9 +97,12 @@ pub enum Error {
     RecipeNotFound(String),
 
     #[error(
-        "this recipe uses winetricks to install {0}, which may download software from Microsoft and others under their own licenses; agree to continue"
+        "installing {0} uses winetricks, which may download software from Microsoft and others under their own licenses; agree to continue"
     )]
     ConsentRequired(String),
+
+    #[error("{0:?} is not a component Vinter can install")]
+    UnknownComponent(String),
 
     #[error("this recipe needs an installer file. {0}")]
     InstallerRequired(String),

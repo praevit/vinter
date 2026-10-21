@@ -47,6 +47,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::bottles::bottle_open_drive_c,
             commands::bottles::bottle_tool,
             commands::bottles::bottle_kill_all,
+            commands::components::components_list,
+            commands::components::components_install,
             commands::snapshots::snapshots_list,
             commands::snapshots::snapshot_create,
             commands::snapshots::snapshot_restore,

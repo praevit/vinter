@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Stethoscope, XCircle } from "lucide-react";
 import { commands, type Finding } from "../api/bindings";
 import { useJobs, isRunning } from "../api/jobs";
+import { CONSENT, JobProgress, useInstallComponents } from "./ComponentsSection";
 import { graphicsJobKey } from "./GraphicsSection";
 import { Button, ErrorText, subtle } from "./ui";
 
@@ -69,10 +70,24 @@ function FixAction({ bottleId, finding }: { bottleId: string; finding: Finding }
       );
     }
     case "components":
-      return <p className={subtle}>Fix: install {fix.verbs.join(", ")}.</p>;
+      return <InstallFix bottleId={bottleId} verbs={fix.verbs} />;
     case "restore_snapshot":
       return <p className={subtle}>Fix: restore a snapshot in Settings → Snapshots.</p>;
     case "manual":
       return null;
   }
+}
+
+function InstallFix({ bottleId, verbs }: { bottleId: string; verbs: string[] }) {
+  const { install, job, error } = useInstallComponents(bottleId);
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Button disabled={isRunning(job)} onClick={() => install(verbs)}>
+        Agree and install {verbs.join(", ")}
+      </Button>
+      <p className={subtle}>{CONSENT}</p>
+      <JobProgress job={job} />
+      {error && <ErrorText>{error}</ErrorText>}
+    </div>
+  );
 }

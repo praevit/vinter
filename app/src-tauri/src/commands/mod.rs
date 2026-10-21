@@ -3,6 +3,7 @@
 pub mod app;
 pub mod backup;
 pub mod bottles;
+pub mod components;
 pub mod graphics;
 pub mod programs;
 pub mod recipes;

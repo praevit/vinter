@@ -25,6 +25,8 @@ fn main() {
             "bottle_open_drive_c",
             "bottle_tool",
             "bottle_kill_all",
+            "components_list",
+            "components_install",
             "snapshots_list",
             "snapshot_create",
             "snapshot_restore",

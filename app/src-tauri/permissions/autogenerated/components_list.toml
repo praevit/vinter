@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-components-list"
+description = "Enables the components_list command without any pre-configured scope."
+commands.allow = ["components_list"]
+
+[[permission]]
+identifier = "deny-components-list"
+description = "Denies the components_list command without any pre-configured scope."
+commands.deny = ["components_list"]

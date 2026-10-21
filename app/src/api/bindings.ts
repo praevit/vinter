@@ -64,6 +64,13 @@ export const commands = {
 	bottleTool: (id: string, tool: Tool) => __TAURI_INVOKE<null>("bottle_tool", { id, tool }),
 	/**  Stops every Wine process in the bottle (`wineserver -k`). */
 	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),
+	/**  Windows components that can be installed, marked installed or not. */
+	componentsList: (bottleId: string) => __TAURI_INVOKE<WindowsComponent[]>("components_list", { bottleId }),
+	/**
+	 *  Installs components with winetricks. `accepted`: the user agreed to
+	 *  downloads from Microsoft and others.
+	 */
+	componentsInstall: (bottleId: string, verbs: string[], accepted: boolean) => __TAURI_INVOKE<string>("components_install", { bottleId, verbs, accepted }),
 	/**  A bottle's snapshots, newest first. */
 	snapshotsList: (id: string) => __TAURI_INVOKE<Snapshot[]>("snapshots_list", { id }),
 	snapshotCreate: (id: string, label: string) => __TAURI_INVOKE<Snapshot>("snapshot_create", { id, label }),
@@ -383,6 +390,8 @@ export type BrokenRecipe = {
 	file: string,
 	error: string,
 };
+
+export type Category = "runtimes" | "dotnet" | "directx" | "fonts" | "other";
 
 export type Check = {
 	/**  Stable identifier, e.g. `"rosetta"`. */
@@ -888,6 +897,16 @@ export type Usage = {
 	components: number,
 	/**  Leftover downloads: installers and archives from setups that stopped. */
 	downloads: number,
+};
+
+export type WindowsComponent = {
+	/**  Winetricks verb, e.g. "vcrun2022". */
+	verb: string,
+	name: string,
+	description: string,
+	category: Category,
+	/**  Installed in this bottle (for [`list`]). */
+	installed: boolean,
 };
 
 /**  Windows version reported to programs, set with `winecfg /v`. */

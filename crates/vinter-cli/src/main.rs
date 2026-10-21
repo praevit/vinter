@@ -41,6 +41,9 @@ enum Command {
     /// Manage bottles (Wine prefixes). Bottles can be named by id, id prefix or name.
     #[command(subcommand)]
     Bottle(BottleCommand),
+    /// Windows components (Visual C++, .NET, DirectX parts, fonts) for a bottle.
+    #[command(subcommand)]
+    Component(ComponentCommand),
     /// Snapshots of a bottle, to roll back to. Snapshots can be named by id or id prefix.
     #[command(subcommand)]
     Snapshot(SnapshotCommand),
@@ -208,6 +211,21 @@ enum BottleCommand {
 }
 
 #[derive(Subcommand)]
+enum ComponentCommand {
+    /// List the components and which are installed in a bottle.
+    List { bottle: String },
+    /// Install components with winetricks, e.g. `vcrun2022 corefonts`.
+    Install {
+        bottle: String,
+        #[arg(required = true)]
+        verbs: Vec<String>,
+        /// Agree to downloads from Microsoft and others, under their own licenses.
+        #[arg(long)]
+        accept_downloads: bool,
+    },
+}
+
+#[derive(Subcommand)]
 enum SnapshotCommand {
     /// List a bottle's snapshots, newest first.
     List { bottle: String },
@@ -366,6 +384,7 @@ async fn run(out: Out, command: Command) -> Result<()> {
             RuntimeCommand::Exec { id, command } => runtime_exec(&paths, &id, &command),
         },
         Command::Bottle(cmd) => bottle_command(&paths, out, cmd).await,
+        Command::Component(cmd) => component_command(&paths, out, cmd).await,
         Command::Snapshot(cmd) => snapshot_command(&paths, out, cmd),
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
@@ -891,7 +910,10 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                     println!("[{mark}] {}\n        {}", f.title, f.detail);
                     match &f.fix {
                         Fix::Components { verbs } => {
-                            println!("        Fix: install {}", verbs.join(", "))
+                            println!(
+                                "        Fix: vinter component install {key} {} --accept-downloads",
+                                verbs.join(" ")
+                            )
                         }
                         Fix::Graphics { backend } => {
                             println!("        Fix: vinter bottle graphics {key} {}", backend.id())
@@ -927,6 +949,53 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                     })
                 }
             }
+        }
+    }
+}
+
+async fn component_command(paths: &AppPaths, out: Out, cmd: ComponentCommand) -> Result<()> {
+    use vinter_core::components;
+    match cmd {
+        ComponentCommand::List { bottle: key } => {
+            let list = components::list(paths, &bottle::resolve(paths, &key)?.id)?;
+            out.print(&list, || {
+                for c in &list {
+                    let mark = if c.installed { "installed" } else { "" };
+                    println!("{:<16} {:<36} {mark}", c.verb, c.name);
+                }
+            })
+        }
+        ComponentCommand::Install {
+            bottle: key,
+            verbs,
+            accept_downloads,
+        } => {
+            let id = bottle::resolve(paths, &key)?.id;
+            out.note(format_args!(
+                "Installing {} with winetricks. This can take a while.",
+                verbs.join(", ")
+            ));
+            components::install(paths, &id, &verbs, accept_downloads, |p| {
+                if !out.json {
+                    print_progress(p)
+                }
+            })
+            .await?;
+            let installed: Vec<_> = components::list(paths, &id)?
+                .into_iter()
+                .filter(|c| verbs.contains(&c.verb))
+                .collect();
+            out.print(&installed, || {
+                println!();
+                for c in &installed {
+                    let state = if c.installed {
+                        "installed"
+                    } else {
+                        "not recorded by winetricks"
+                    };
+                    println!("{}: {state}", c.name);
+                }
+            })
         }
     }
 }
