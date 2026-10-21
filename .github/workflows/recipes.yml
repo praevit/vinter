@@ -1,0 +1,110 @@
+# Recipe CI: installs recipes headlessly in fresh bottles and checks that
+# their programs were installed and their logs show no known errors
+# (scripts/recipe_ci.py). Recipes with a user-provided installer are skipped.
+#
+#   Pull requests: the recipes they change, with the newest stable runtime
+#     (every recipe if they change how recipes run, or every runtime if they
+#     change runtimes.json).
+#   A runtime bump on main, every Monday, or by hand: every recipe with every
+#     runtime, so breakage shows up before users find it.
+name: Recipes
+
+on:
+  pull_request:
+    paths:
+      - "recipes/**"
+      - "crates/vinter-core/runtimes.json"
+      - "crates/vinter-core/src/recipe/**"
+      - "crates/vinter-cli/**"
+      - "scripts/recipe_ci.py"
+      - ".github/workflows/recipes.yml"
+  push:
+    branches: [main]
+    paths:
+      - "recipes/**"
+      - "crates/vinter-core/runtimes.json"
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recipes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p vinter-cli
+      - name: Validate every recipe
+        run: |
+          status=0
+          for f in recipes/*.toml; do
+            target/release/vinter recipe check "$f" || status=1
+          done
+          exit $status
+      - id: matrix
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            matrix=$(python3 scripts/recipe_ci.py matrix --changed "origin/${{ github.base_ref }}")
+          else
+            matrix=$(python3 scripts/recipe_ci.py matrix)
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "$matrix" | python3 -m json.tool
+
+  install:
+    needs: plan
+    if: fromJSON(needs.plan.outputs.matrix).include[0] != null
+    name: ${{ matrix.recipe }} / ${{ matrix.runtime }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      VINTER: ${{ github.workspace }}/target/release/vinter
+    steps:
+      # A data folder of its own, so the runner's home stays untouched.
+      - run: echo "VINTER_DATA_DIR=$RUNNER_TEMP/vinter" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p vinter-cli
+
+      - name: macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          # Wine for macOS is x86_64.
+          softwareupdate --install-rosetta --agree-to-license
+          brew install cabextract
+
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb cabextract libfreetype6 libfontconfig1 \
+            libgnutls30 libx11-6 libxext6 libxrandr2 libxrender1 libxi6 libxcursor1 libgl1
+
+      - name: Install ${{ matrix.recipe }}
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then run="xvfb-run -a"; else run=""; fi
+          $run python3 scripts/recipe_ci.py run "${{ matrix.recipe }}" "${{ matrix.runtime }}"
+
+      - name: Keep the logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.recipe }}-${{ matrix.runtime }}
+          path: ${{ runner.temp }}/vinter/bottles/*/logs/
+          if-no-files-found: ignore
