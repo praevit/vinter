@@ -70,6 +70,12 @@ pub struct JobDone {
 #[tauri_specta(event_name = "app://open-files")]
 pub struct OpenFiles;
 
+/// An AI agent asked to do something (`vinter://approve/<id>`). The
+/// interface fetches the requests with `approvals_pending`.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://approval")]
+pub struct ApprovalRequested;
+
 /// Asks the interface to show a page (from the app menu).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[tauri_specta(event_name = "app://navigate")]

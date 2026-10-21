@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { commands, events } from "./api/bindings";
+import { ApprovalDialog } from "./components/ApprovalDialog";
 import { OpenFileDialog } from "./components/OpenFileDialog";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
@@ -65,6 +66,7 @@ export function App() {
           <Welcome onNavigate={setRoute} />
         )}
       </main>
+      <ApprovalDialog />
       {openFiles.length > 0 && (
         <OpenFileDialog
           key={openFiles[0]}

@@ -48,6 +48,8 @@ tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+rmcp = { version = "3.6", default-features = false, features = ["server", "macros", "transport-io", "schemars"] }
+schemars = "1"
 tauri = "2.12"
 tauri-build = "2.7"
 # tauri-specta has no stable v2 release yet; these RCs must move together.

@@ -17,6 +17,7 @@ const MAX_LINE: usize = 300;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Severity {
     /// Likely why the program failed.
@@ -28,6 +29,7 @@ pub enum Severity {
 /// What would fix a finding.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Fix {
     /// Install these components (winetricks verbs) into the bottle.
@@ -41,6 +43,7 @@ pub enum Fix {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Finding {
     /// Stable id of the pattern, e.g. "missing_dll".

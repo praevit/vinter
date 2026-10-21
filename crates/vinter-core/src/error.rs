@@ -42,6 +42,9 @@ pub enum Error {
     #[error("no bottle {0:?}")]
     BottleNotFound(String),
 
+    #[error("no approval request {0:?}")]
+    ApprovalNotFound(String),
+
     #[error("no snapshot {0:?}")]
     SnapshotNotFound(String),
 

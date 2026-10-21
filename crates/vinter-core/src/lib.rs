@@ -4,6 +4,7 @@
 //! prefixes) lives here, so it can be tested without a UI and shared by the
 //! Tauri app and the `vinter` CLI.
 
+pub mod approval;
 pub mod bottle;
 pub mod components;
 pub mod doctor;

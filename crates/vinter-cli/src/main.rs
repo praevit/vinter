@@ -3,6 +3,8 @@
 use std::io::Write;
 use std::path::PathBuf;
 
+mod mcp;
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use serde::Serialize;
@@ -50,6 +52,9 @@ enum Command {
     /// App recipes: list them, check one, or set up an app from one.
     #[command(subcommand)]
     Recipe(RecipeCommand),
+    /// Serve the Model Context Protocol on stdio, for AI agents. Changes they
+    /// ask for must be allowed in the Vinter app.
+    Mcp,
     /// Install Rosetta 2 (Apple Silicon only). Running this accepts Apple's license.
     InstallRosetta,
     /// Apple's D3DMetal, from your own copy of the Game Porting Toolkit.
@@ -388,6 +393,7 @@ async fn run(out: Out, command: Command) -> Result<()> {
         Command::Snapshot(cmd) => snapshot_command(&paths, out, cmd),
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
+        Command::Mcp => mcp::serve(paths).await,
         Command::InstallRosetta => {
             out.note("Installing Rosetta 2. macOS may ask for an administrator password.");
             rosetta::install()?;

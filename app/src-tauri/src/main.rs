@@ -82,6 +82,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app::update_install,
             commands::app::program_set_pinned,
             commands::app::open_files_take,
+            commands::app::approvals_pending,
+            commands::app::approval_decide,
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_set_launch_at_login,
@@ -101,7 +103,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::RunExit,
             events::Notice,
             events::OpenFiles,
-            events::Navigate
+            events::Navigate,
+            events::ApprovalRequested
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.

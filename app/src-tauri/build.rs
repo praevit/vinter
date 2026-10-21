@@ -60,6 +60,8 @@ fn main() {
             "update_install",
             "program_set_pinned",
             "open_files_take",
+            "approvals_pending",
+            "approval_decide",
             "settings_get",
             "settings_set",
             "settings_set_launch_at_login",

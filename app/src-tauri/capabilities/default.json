@@ -65,6 +65,8 @@
     "allow-update-install",
     "allow-program-set-pinned",
     "allow-open-files-take",
+    "allow-approvals-pending",
+    "allow-approval-decide",
     "allow-settings-get",
     "allow-settings-set",
     "allow-settings-set-launch-at-login",

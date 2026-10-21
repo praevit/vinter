@@ -15,7 +15,7 @@ use tauri_specta::Event;
 use vinter_core::launcher;
 
 use crate::commands::programs::launch_program;
-use crate::events::Notice;
+use crate::events::{ApprovalRequested, Notice};
 
 /// How long to wait for a launch deep link before showing the window.
 /// macOS delivers the link shortly after the app finished starting.
@@ -172,9 +172,20 @@ pub fn on_second_instance(app: &AppHandle, args: Vec<String>) {
     }
 }
 
-/// Deep links: `vinter://run/<bottle>/<program>`.
+/// Deep links: `vinter://run/<bottle>/<program>`, and `vinter://approve/<id>`
+/// from `vinter mcp` (the request itself is read from the data folder).
 pub fn on_urls(app: &AppHandle, urls: Vec<String>) {
     for url in urls.into_iter().filter(|u| first_time(app, u)) {
+        if url.starts_with("vinter://approve/") {
+            show_main_window(app);
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                // Give a freshly shown window a moment to subscribe to events.
+                tokio::time::sleep(Duration::from_millis(800)).await;
+                let _ = ApprovalRequested.emit(&app);
+            });
+            continue;
+        }
         match launcher::parse_deep_link(&url) {
             Some((bottle_id, index)) => run(app, bottle_id, index),
             None => notify(app, format!("Vinter does not understand the link {url}.")),

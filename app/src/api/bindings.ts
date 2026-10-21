@@ -169,6 +169,9 @@ export const commands = {
 	programSetPinned: (bottleId: string, index: number, pinned: boolean) => __TAURI_INVOKE<null>("program_set_pinned", { bottleId, index, pinned }),
 	/**  `.exe`/`.msi` files opened with Vinter since the last call. */
 	openFilesTake: () => __TAURI_INVOKE<string[]>("open_files_take"),
+	/**  What AI agents (through `vinter mcp`) are waiting for the person to allow. */
+	approvalsPending: () => __TAURI_INVOKE<ApprovalRequest[]>("approvals_pending"),
+	approvalDecide: (id: string, decision: Decision) => __TAURI_INVOKE<null>("approval_decide", { id, decision }),
 	settingsGet: () => __TAURI_INVOKE<SettingsView_Serialize>("settings_get"),
 	/**  Saves the settings and applies the ones that act right away. */
 	settingsSet: (settings: Settings_Deserialize) => __TAURI_INVOKE<null>("settings_set", { settings }),
@@ -206,6 +209,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	appApproval: makeEvent<ApprovalRequested>("app://approval"),
 	appNavigate: makeEvent<Navigate>("app://navigate"),
 	appNotice: makeEvent<Notice>("app://notice"),
 	appOpenFiles: makeEvent<OpenFiles>("app://open-files"),
@@ -231,6 +235,24 @@ export type AppLink = "website" | "source" | "issues" |
 "support" | "data_folder" | "launchers_folder" | "wine_license" | 
 /**  Apple's download page for the Game Porting Toolkit (D3DMetal). */
 "game_porting_toolkit";
+
+export type ApprovalRequest = {
+	id: string,
+	/**  Who asks, e.g. the MCP client's name ("Claude Code"). */
+	client: string,
+	/**  What it wants to do, e.g. "install_components". */
+	action: string,
+	/**  One line for people, e.g. "Install vcrun2022 into “Steam”". */
+	summary: string,
+	/**  RFC 3339. */
+	created_at: string,
+};
+
+/**
+ *  An AI agent asked to do something (`vinter://approve/<id>`). The
+ *  interface fetches the requests with `approvals_pending`.
+ */
+export type ApprovalRequested = null;
 
 export type ArchiveFormat = "tar_xz" | "tar_gz";
 
@@ -464,6 +486,12 @@ export type D3dMetalSource = {
 	version: string,
 	license: string,
 };
+
+export type Decision = 
+/**  Allow this one request. */
+"once" | 
+/**  Allow this kind of action until the agent's session ends. */
+"session" | "deny";
 
 /**  A program found in a bottle, offered to the user as a checkbox. */
 export type DiscoveredProgram = {

@@ -6,6 +6,7 @@ use tauri_plugin_updater::UpdaterExt;
 use super::{CommandResult, blocking};
 use crate::jobs::{self, JobId};
 use crate::state::AppState;
+use vinter_core::approval;
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct AppInfo {
@@ -161,4 +162,22 @@ pub async fn program_set_pinned(
 #[specta::specta]
 pub fn open_files_take(app: AppHandle) -> Vec<String> {
     crate::startup::take_opened_files(&app)
+}
+
+/// What AI agents (through `vinter mcp`) are waiting for the person to allow.
+#[tauri::command]
+#[specta::specta]
+pub fn approvals_pending(state: State<'_, AppState>) -> Vec<approval::ApprovalRequest> {
+    approval::pending(&state.paths)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn approval_decide(
+    state: State<'_, AppState>,
+    id: String,
+    decision: approval::Decision,
+) -> CommandResult<()> {
+    approval::decide(&state.paths, &id, decision)
+        .map_err(|_| "The agent stopped waiting for this, so nothing was done.".into())
 }

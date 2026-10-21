@@ -54,6 +54,7 @@ impl WindowsVersion {
 /// Graphics translation layer. Only stored in M2; applied in M4.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum Graphics {
     #[default]
