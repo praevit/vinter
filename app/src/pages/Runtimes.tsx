@@ -88,9 +88,13 @@ function Updates() {
           <li key={u.installed_id} className="flex flex-col gap-2 px-4 py-3">
             <div className="flex items-center gap-4">
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="text-sm font-medium">{u.newer.name} is available</span>
+                <span className="text-sm font-medium">
+                  {u.newer.name}
+                  {u.newer_build !== null && ` build ${u.newer_build}`} is available
+                </span>
                 <span className="text-xs text-slate-deep-700/60 dark:text-frost-300/60">
-                  You have {u.installed_version}.{" "}
+                  You have {u.installed_version}
+                  {u.installed_build !== null && ` build ${u.installed_build}`}.{" "}
                   {u.bottles.length > 0 ? `Moves ${u.bottles.join(", ")} onto it.` : "No bottles use it yet."}{" "}
                   {formatBytes(u.newer.size)} download.
                 </span>

@@ -853,25 +853,45 @@ export type RuntimeLink =
 /**  The upstream release page of the build. */
 "release";
 
-/**  A newer build of the same flavor as an installed runtime. */
+/**
+ *  A newer build of the same flavor as an installed runtime: a newer Wine
+ *  version, or a newer build of the same runtime (e.g. Vinter Wine 11.19
+ *  build 3 for build 2).
+ */
 export type RuntimeUpdate = RuntimeUpdate_Serialize | RuntimeUpdate_Deserialize;
 
-/**  A newer build of the same flavor as an installed runtime. */
+/**
+ *  A newer build of the same flavor as an installed runtime: a newer Wine
+ *  version, or a newer build of the same runtime (e.g. Vinter Wine 11.19
+ *  build 3 for build 2).
+ */
 export type RuntimeUpdate_Deserialize = {
 	/**  The installed runtime it replaces. */
 	installed_id: string,
 	installed_version: string,
+	/**  Build number of the installed runtime, if its id has one. */
+	installed_build: number | null,
 	newer: RuntimeInfo_Deserialize,
+	/**  Build number of the newer runtime, if its id has one. */
+	newer_build: number | null,
 	/**  Names of the bottles that use the installed runtime now. */
 	bottles: string[],
 };
 
-/**  A newer build of the same flavor as an installed runtime. */
+/**
+ *  A newer build of the same flavor as an installed runtime: a newer Wine
+ *  version, or a newer build of the same runtime (e.g. Vinter Wine 11.19
+ *  build 3 for build 2).
+ */
 export type RuntimeUpdate_Serialize = {
 	/**  The installed runtime it replaces. */
 	installed_id: string,
 	installed_version: string,
+	/**  Build number of the installed runtime, if its id has one. */
+	installed_build: number | null,
 	newer: RuntimeInfo_Serialize,
+	/**  Build number of the newer runtime, if its id has one. */
+	newer_build: number | null,
 	/**  Names of the bottles that use the installed runtime now. */
 	bottles: string[],
 };
