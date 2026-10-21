@@ -87,16 +87,13 @@ echo "::endgroup::"
 echo "::group::Bundle libraries"
 # Wine dlopen()s these by file name, which macOS also looks up in the
 # calling module's run paths; every unix module gets @loader_path/../../
-# (that is, $prefix/lib) below. The Kerberos libraries are the ones kinit
-# links, which include the two Wine loads (libkrb5, libgssapi_krb5).
+# (that is, $prefix/lib) below.
 lib="$prefix/lib"
-krb5_libs=$(otool -L "$krb5/bin/kinit" | awk '/\/krb5\/.*\.dylib/ {print $1}')
 for dylib in \
   "$(brew --prefix freetype)/lib/libfreetype.6.dylib" \
   "$(brew --prefix gnutls)/lib/libgnutls.30.dylib" \
   "$(brew --prefix molten-vk)/lib/libMoltenVK.dylib" \
-  "$(brew --prefix sdl2)/lib/libSDL2-2.0.0.dylib" \
-  $krb5_libs; do
+  "$(brew --prefix sdl2)/lib/libSDL2-2.0.0.dylib"; do
   cp "$dylib" "$lib/"
   chmod u+w "$lib/$(basename "$dylib")"
 done
@@ -104,6 +101,21 @@ for dylib in "$lib"/*.dylib; do
   install_name_tool -id "@rpath/$(basename "$dylib")" "$dylib"
   dylibbundler --overwrite-files --bundle-deps --no-codesign \
     --fix-file "$dylib" --dest-dir "$lib" --install-path @loader_path/ >/dev/null
+done
+# Kerberos: the libraries kinit links, which include the two Wine loads
+# (libkrb5, libgssapi_krb5). They only link each other and system libraries,
+# so they are relinked here; dylibbundler trips over their cross-links.
+krb5_libs=$(otool -L "$krb5/bin/kinit" | awk '/\/krb5\/.*\.dylib/ {print $1}')
+for dep in $krb5_libs; do
+  cp "$dep" "$lib/"
+  chmod u+w "$lib/$(basename "$dep")"
+done
+for dep in $krb5_libs; do
+  file="$lib/$(basename "$dep")"
+  install_name_tool -id "@rpath/$(basename "$dep")" "$file"
+  for link in $(otool -L "$file" | awk 'NR > 1 && /\/krb5\// {print $1}'); do
+    install_name_tool -change "$link" "@loader_path/$(basename "$link")" "$file"
+  done
 done
 # kinit gets a domain account's Kerberos ticket before programs start.
 cp "$krb5/bin/kinit" "$prefix/bin/kinit"

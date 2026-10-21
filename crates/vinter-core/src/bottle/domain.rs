@@ -146,10 +146,15 @@ pub fn env(dir: &Path, account: &DomainAccount) -> Vec<(String, String)> {
     env
 }
 
-/// The bottle's `krb5.conf`. Without a domain controller set, Kerberos finds
-/// one through the domain's DNS records, as Windows does.
-pub fn krb5_conf(account: &DomainAccount) -> String {
+/// The bottle's `krb5.conf` (in folder `kerberos`). Without a domain
+/// controller set, Kerberos finds one through the domain's DNS records, as
+/// Windows does. Plugins are looked for in an empty folder: MIT Kerberos
+/// would otherwise load optional ones (smart cards, SPAKE) from where it was
+/// built, which on a Mac with Homebrew's krb5 brings in a second copy of it.
+pub fn krb5_conf(account: &DomainAccount, kerberos: &Path) -> String {
     let realm = realm(account);
+    let plugins = kerberos.join("plugins");
+    let plugins = plugins.display();
     let dns = &account.dns_domain;
     let kdc = if account.kdc.is_empty() {
         String::new()
@@ -168,6 +173,7 @@ pub fn krb5_conf(account: &DomainAccount) -> String {
          \x20   dns_lookup_realm = false\n\
          \x20   rdns = false\n\
          \x20   forwardable = true\n\
+         \x20   plugin_base_dir = {plugins}\n\
          \n\
          [realms]\n\
          \x20   {realm} = {{\n\
@@ -283,7 +289,7 @@ pub fn set(
         Some(account) => {
             std::fs::create_dir_all(&kerberos).at(&kerberos)?;
             let conf = kerberos.join(CONFIG_FILE);
-            std::fs::write(&conf, krb5_conf(account)).at(&conf)?;
+            std::fs::write(&conf, krb5_conf(account, &kerberos)).at(&conf)?;
             if let Some(password) = password.as_deref().filter(|p| !p.is_empty()) {
                 let label = format!("Vinter: {} ({})", bottle.name, principal(account));
                 secret::set(id, &label, password)?;
@@ -374,7 +380,7 @@ fn kinit(
     let kerberos = dir.join(KERBEROS_DIR);
     std::fs::create_dir_all(&kerberos).at(&kerberos)?;
     let conf = kerberos.join(CONFIG_FILE);
-    std::fs::write(&conf, krb5_conf(account)).at(&conf)?;
+    std::fs::write(&conf, krb5_conf(account, &kerberos)).at(&conf)?;
 
     let (program, heimdal) = kinit_program(rt);
     let mut cmd = Command::new(&program);
@@ -518,7 +524,7 @@ mod tests {
     #[test]
     fn krb5_conf_names_the_realm() {
         let mut a = normalize(&account()).unwrap();
-        let conf = krb5_conf(&a);
+        let conf = krb5_conf(&a, Path::new("/b/kerberos"));
         assert!(
             conf.contains("default_realm = CORP.EXAMPLE.COM\n"),
             "{conf}"
@@ -528,8 +534,12 @@ mod tests {
             "{conf}"
         );
         assert!(!conf.contains(" kdc ="), "{conf}");
+        assert!(
+            conf.contains("plugin_base_dir = /b/kerberos/plugins\n"),
+            "{conf}"
+        );
         a.kdc = "dc01.corp.example.com:88".into();
-        let conf = krb5_conf(&a);
+        let conf = krb5_conf(&a, Path::new("/b/kerberos"));
         assert!(
             conf.contains("        kdc = dc01.corp.example.com:88\n"),
             "{conf}"
