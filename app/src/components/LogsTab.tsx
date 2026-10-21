@@ -4,6 +4,7 @@ import { commands } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { useLog, useLogs } from "../api/programs";
 import { useRuns } from "../api/runs";
+import { DoctorPanel } from "./DoctorPanel";
 import { Button, ErrorText, subtle } from "./ui";
 
 /** Run history of a bottle, with live output for programs still running. */
@@ -89,6 +90,7 @@ export function LogsTab({ bottleId, initial }: { bottleId: string; initial?: str
           )}
         </div>
         {file.error && !liveRun && <ErrorText>{errorMessage(file.error)}</ErrorText>}
+        {current && !liveRun && <DoctorPanel bottleId={bottleId} logId={current} />}
         <pre
           ref={view}
           className="min-h-0 flex-1 overflow-auto rounded-lg border border-frost-200 bg-frost-50 p-3 font-mono text-xs whitespace-pre-wrap select-text dark:border-slate-deep-700 dark:bg-slate-deep-950"

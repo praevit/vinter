@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-log-diagnose"
+description = "Enables the log_diagnose command without any pre-configured scope."
+commands.allow = ["log_diagnose"]
+
+[[permission]]
+identifier = "deny-log-diagnose"
+description = "Denies the log_diagnose command without any pre-configured scope."
+commands.deny = ["log_diagnose"]

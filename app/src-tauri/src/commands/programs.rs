@@ -431,3 +431,20 @@ pub async fn log_read(
     let paths = state.paths.clone();
     blocking(move || Ok(logs::read(&bottle::dir(&paths, &bottle_id)?, &log_id)?)).await
 }
+
+/// Known problems in one of a bottle's logs, with how to fix them.
+#[tauri::command]
+#[specta::specta]
+pub async fn log_diagnose(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    log_id: String,
+) -> CommandResult<Vec<vinter_core::doctor::Finding>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        Ok(vinter_core::doctor::diagnose_log(
+            &paths, &bottle_id, &log_id,
+        )?)
+    })
+    .await
+}

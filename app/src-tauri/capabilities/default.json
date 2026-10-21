@@ -47,6 +47,7 @@
     "allow-runs-list",
     "allow-logs-list",
     "allow-log-read",
+    "allow-log-diagnose",
     "allow-graphics-backends",
     "allow-bottle-set-graphics",
     "allow-bottle-test-graphics",

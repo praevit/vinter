@@ -9,6 +9,7 @@ use serde::Serialize;
 use serde_json::json;
 use vinter_core::AppPaths;
 use vinter_core::bottle::{self, Graphics, NewBottle, Tool, WindowsVersion};
+use vinter_core::doctor::{Fix, Severity};
 use vinter_core::graphics::{self, Backend};
 use vinter_core::process::logs;
 use vinter_core::programs;
@@ -147,6 +148,8 @@ enum BottleCommand {
     Run { bottle: String, program: usize },
     /// List a bottle's logs, or print one.
     Logs { bottle: String, log: Option<String> },
+    /// Look for known problems in a log (the newest one by default) and say how to fix them.
+    Doctor { bottle: String, log: Option<String> },
     /// Show the graphics backends, or switch to one (downloading it if needed).
     Graphics {
         bottle: String,
@@ -860,6 +863,50 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
         BottleCommand::Report { bottle: key } => {
             let report = vinter_core::report::debug_report(paths, &id(&key)?)?;
             out.print(&json!({ "report": report }), || print!("{report}"))
+        }
+        BottleCommand::Doctor { bottle: key, log } => {
+            let id = id(&key)?;
+            let log = match log {
+                Some(log) => log,
+                None => {
+                    logs::list(&bottle::dir(paths, &id)?)?
+                        .into_iter()
+                        .next()
+                        .context("this bottle has no logs yet")?
+                        .id
+                }
+            };
+            let findings = vinter_core::doctor::diagnose_log(paths, &id, &log)?;
+            let value = json!({ "log_id": log, "findings": findings });
+            out.print(&value, || {
+                println!("Log: {log}\n");
+                if findings.is_empty() {
+                    println!("No known problems found.");
+                }
+                for f in &findings {
+                    let mark = match f.severity {
+                        Severity::Error => "error",
+                        Severity::Warning => "warn ",
+                    };
+                    println!("[{mark}] {}\n        {}", f.title, f.detail);
+                    match &f.fix {
+                        Fix::Components { verbs } => {
+                            println!("        Fix: install {}", verbs.join(", "))
+                        }
+                        Fix::Graphics { backend } => {
+                            println!("        Fix: vinter bottle graphics {key} {}", backend.id())
+                        }
+                        Fix::RestoreSnapshot => {
+                            println!("        Fix: vinter snapshot list {key}, then restore one")
+                        }
+                        Fix::Manual => {}
+                    }
+                    for line in &f.evidence {
+                        println!("        > {line}");
+                    }
+                    println!();
+                }
+            })
         }
         BottleCommand::Logs { bottle: key, log } => {
             let dir = bottle::dir(paths, &id(&key)?)?;

@@ -116,6 +116,8 @@ export const commands = {
 	runsList: () => __TAURI_INVOKE<RunInfo[]>("runs_list"),
 	logsList: (bottleId: string) => __TAURI_INVOKE<LogEntry[]>("logs_list", { bottleId }),
 	logRead: (bottleId: string, logId: string) => __TAURI_INVOKE<string>("log_read", { bottleId, logId }),
+	/**  Known problems in one of a bottle's logs, with how to fix them. */
+	logDiagnose: (bottleId: string, logId: string) => __TAURI_INVOKE<Finding[]>("log_diagnose", { bottleId, logId }),
 	/**  Graphics backends for a bottle, with availability and download info. */
 	graphicsBackends: (bottleId: string) => __TAURI_INVOKE<BackendInfo[]>("graphics_backends", { bottleId }),
 	/**  Switches a bottle's backend, downloading its component first if needed. */
@@ -469,6 +471,28 @@ export type DiscoveredProgram = {
 	already_added: boolean,
 };
 
+export type Finding = {
+	/**  Stable id of the pattern, e.g. "missing_dll". */
+	id: string,
+	severity: Severity,
+	title: string,
+	detail: string,
+	fix: Fix,
+	/**  Log lines that matched (a few, shortened). */
+	evidence: string[],
+};
+
+/**  What would fix a finding. */
+export type Fix = 
+/**  Install these components (winetricks verbs) into the bottle. */
+{ kind: "components"; verbs: string[] } | 
+/**  Switch the bottle to this graphics backend. */
+{ kind: "graphics"; backend: Graphics } | 
+/**  Roll the bottle back to a snapshot from before it broke. */
+{ kind: "restore_snapshot" } | 
+/**  Nothing Vinter can do for you; the finding's detail says what to try. */
+{ kind: "manual" };
+
 export type Flavor = "stable" | "devel" | "staging" | "gptk";
 
 /**  Graphics translation layer. Only stored in M2; applied in M4. */
@@ -803,6 +827,12 @@ export type Settings_Serialize = {
 	/**  Check for a newer Vinter when it starts. */
 	check_for_updates: boolean,
 };
+
+export type Severity = 
+/**  Likely why the program failed. */
+"error" | 
+/**  May cause problems. */
+"warning";
 
 export type Snapshot = {
 	id: string,

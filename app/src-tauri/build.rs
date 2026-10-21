@@ -42,6 +42,7 @@ fn main() {
             "runs_list",
             "logs_list",
             "log_read",
+            "log_diagnose",
             "graphics_backends",
             "bottle_set_graphics",
             "bottle_test_graphics",
