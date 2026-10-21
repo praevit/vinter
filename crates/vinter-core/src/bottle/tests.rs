@@ -333,9 +333,12 @@ fn options_reg_maps_switches_to_the_mac_driver_and_dpi() {
     let on = options_reg(&BottleOptions {
         retina_mode: true,
         command_as_ctrl: true,
+        option_as_alt: false,
         show_fps: false,
     });
     assert!(on.starts_with("REGEDIT4\r\n"));
+    assert!(on.contains("\"LeftOptionIsAlt\"=\"n\""));
+    assert!(on.contains("\"RightOptionIsAlt\"=\"n\""));
     assert!(on.contains("[HKEY_CURRENT_USER\\Software\\Wine\\Mac Driver]"));
     assert!(on.contains("\"RetinaMode\"=\"y\""));
     assert!(on.contains("\"LeftCommandIsCtrl\"=\"y\""));

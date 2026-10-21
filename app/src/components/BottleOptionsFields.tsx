@@ -11,7 +11,13 @@ const OPTIONS: { key: keyof BottleOptions; label: string; help: string; macOnly:
   {
     key: "command_as_ctrl",
     label: "⌘ works as Ctrl",
-    help: "⌘C, ⌘V and other shortcuts work as on a Mac; ⌥ works as Alt.",
+    help: "⌘C, ⌘V and other shortcuts work as on a Mac.",
+    macOnly: true,
+  },
+  {
+    key: "option_as_alt",
+    label: "⌥ works as Alt",
+    help: "For Alt shortcuts and menus. Turn it off if your keyboard uses ⌥ to type characters such as @.",
     macOnly: true,
   },
   {
