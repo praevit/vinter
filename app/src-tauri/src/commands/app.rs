@@ -86,7 +86,7 @@ pub async fn debug_report(state: State<'_, AppState>, bottle_id: String) -> Comm
     blocking(move || Ok(vinter_core::report::debug_report(&paths, &bottle_id)?)).await
 }
 
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 pub struct UpdateInfo {
     pub version: String,
     pub notes: Option<String>,
@@ -101,6 +101,13 @@ pub async fn update_check(app: AppHandle) -> CommandResult<Option<UpdateInfo>> {
         version: u.version,
         notes: u.body,
     }))
+}
+
+/// What the last automatic update check found (nothing with the setting off).
+#[tauri::command]
+#[specta::specta]
+pub fn update_status(app: AppHandle) -> crate::updates::UpdateStatus {
+    crate::updates::status(&app)
 }
 
 /// Downloads and installs the newer version, then restarts Vinter.

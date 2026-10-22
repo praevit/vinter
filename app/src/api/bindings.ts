@@ -184,6 +184,8 @@ export const commands = {
 	version: string,
 	notes: string | null,
 } | null>("update_check"),
+	/**  What the last automatic update check found (nothing with the setting off). */
+	updateStatus: () => __TAURI_INVOKE<UpdateStatus>("update_status"),
 	/**  Downloads and installs the newer version, then restarts Vinter. */
 	updateInstall: () => __TAURI_INVOKE<string>("update_install"),
 	/**
@@ -237,6 +239,7 @@ export const events = {
 	appNavigate: makeEvent<Navigate>("app://navigate"),
 	appNotice: makeEvent<Notice>("app://notice"),
 	appOpenFiles: makeEvent<OpenFiles>("app://open-files"),
+	appUpdates: makeEvent<UpdatesFound>("app://updates"),
 	jobDone: makeEvent<JobDone>("job://done"),
 	jobProgress: makeEvent<JobProgress>("job://progress"),
 	runExit: makeEvent<RunExit>("run://exit"),
@@ -1005,6 +1008,18 @@ export type UpdateInfo = {
 	version: string,
 	notes: string | null,
 };
+
+/**  What the last automatic check found. */
+export type UpdateStatus = {
+	/**  A newer Vinter, if there is one. */
+	app: UpdateInfo | null,
+};
+
+/**
+ *  An automatic update check finished. The interface fetches the result with
+ *  `update_status` (Vinter) and `runtime_updates` (runtimes).
+ */
+export type UpdatesFound = null;
 
 /**  What Vinter's data folder holds. */
 export type Usage = {

@@ -76,6 +76,12 @@ pub struct OpenFiles;
 #[tauri_specta(event_name = "app://approval")]
 pub struct ApprovalRequested;
 
+/// An automatic update check finished. The interface fetches the result with
+/// `update_status` (Vinter) and `runtime_updates` (runtimes).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://updates")]
+pub struct UpdatesFound;
+
 /// Asks the interface to show a page (from the app menu).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[tauri_specta(event_name = "app://navigate")]

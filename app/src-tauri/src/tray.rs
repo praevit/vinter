@@ -33,6 +33,39 @@ pub struct TrayState {
     /// macOS: the ⌘Q item, whose label follows the setting.
     #[cfg(target_os = "macos")]
     quit_item: Mutex<Option<MenuItem<Wry>>>,
+    /// The newer Vinter an automatic check found, named by the update items.
+    update_version: Mutex<Option<String>>,
+    /// "Check for Updates…" in the icon's menu and (macOS) the app menu.
+    update_items: Mutex<UpdateItems>,
+}
+
+#[derive(Default)]
+struct UpdateItems {
+    tray: Option<MenuItem<Wry>>,
+    #[cfg(target_os = "macos")]
+    app_menu: Option<MenuItem<Wry>>,
+}
+
+fn update_label(version: Option<&str>) -> String {
+    match version {
+        Some(v) => format!("Update to Vinter {v}…"),
+        None => "Check for Updates…".into(),
+    }
+}
+
+/// Names a newer Vinter (or none) in the update items.
+pub fn set_update(app: &AppHandle, version: Option<&str>) {
+    let state = app.state::<TrayState>();
+    *state.update_version.lock().unwrap() = version.map(str::to_string);
+    let label = update_label(version);
+    let items = state.update_items.lock().unwrap();
+    if let Some(item) = &items.tray {
+        let _ = item.set_text(&label);
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(item) = &items.app_menu {
+        let _ = item.set_text(&label);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +111,10 @@ fn entries(app: &AppHandle) -> Vec<Entry> {
 }
 
 fn build_menu(app: &AppHandle, entries: &[Entry]) -> tauri::Result<Menu<Wry>> {
+    let state = app.state::<TrayState>();
+    let label = update_label(state.update_version.lock().unwrap().as_deref());
+    let updates = MenuItem::with_id(app, UPDATES, label, true, None::<&str>)?;
+    state.update_items.lock().unwrap().tray = Some(updates.clone());
     let mut menu = MenuBuilder::new(app)
         .text(OPEN, "Show Vinter")
         .separator()
@@ -96,7 +133,7 @@ fn build_menu(app: &AppHandle, entries: &[Entry]) -> tauri::Result<Menu<Wry>> {
     }
     menu.separator()
         .text(ABOUT, "About Vinter")
-        .text(UPDATES, "Check for Updates…")
+        .item(&updates)
         .separator()
         .text(QUIT, "Quit Vinter")
         .build()
@@ -120,7 +157,11 @@ pub fn create(app: &AppHandle) {
     }
     #[cfg(target_os = "macos")]
     match app_menu::install(app) {
-        Ok(item) => *app.state::<TrayState>().quit_item.lock().unwrap() = Some(item),
+        Ok((quit, updates)) => {
+            let state = app.state::<TrayState>();
+            *state.quit_item.lock().unwrap() = Some(quit);
+            state.update_items.lock().unwrap().app_menu = Some(updates);
+        }
         Err(e) => eprintln!("vinter: could not change the app menu: {e}"),
     }
     let show = vinter_core::settings::load(&app.state::<AppState>().paths).menu_bar_icon;
@@ -158,11 +199,12 @@ mod app_menu {
     const SETTINGS: &str = "app-menu-settings";
     const QUIT: &str = "app-menu-quit";
 
-    /// Returns the ⌘Q item.
-    pub fn install(app: &AppHandle) -> tauri::Result<MenuItem<Wry>> {
+    /// Returns the ⌘Q item and the update item.
+    pub fn install(app: &AppHandle) -> tauri::Result<(MenuItem<Wry>, MenuItem<Wry>)> {
         // Tauri's standard menu, with the app menu's last item (Quit) replaced.
         let menu: Menu<Wry> = Menu::default(app)?;
         let hide = MenuItem::with_id(app, HIDE, "Keep in Menu Bar", true, Some("CmdOrCtrl+Q"))?;
+        let updates = MenuItem::with_id(app, UPDATES, "Check for Updates…", true, None::<&str>)?;
         if let Some(app_submenu) = menu.items()?.first().and_then(|i| i.as_submenu().cloned()) {
             // Vinter's own About window instead of the standard panel.
             app_submenu.remove_at(0)?;
@@ -171,10 +213,7 @@ mod app_menu {
                 0,
             )?;
             // After "About Vinter".
-            app_submenu.insert(
-                &MenuItem::with_id(app, UPDATES, "Check for Updates…", true, None::<&str>)?,
-                1,
-            )?;
+            app_submenu.insert(&updates, 1)?;
             app_submenu.insert(&PredefinedMenuItem::separator(app)?, 2)?;
             app_submenu.insert(
                 &MenuItem::with_id(app, SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?,
@@ -209,7 +248,7 @@ mod app_menu {
             QUIT => app.exit(0),
             _ => {}
         });
-        Ok(hide)
+        Ok((hide, updates))
     }
 }
 

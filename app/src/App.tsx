@@ -5,6 +5,7 @@ import { ApprovalDialog } from "./components/ApprovalDialog";
 import { OpenFileDialog } from "./components/OpenFileDialog";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { BottleView } from "./pages/BottleView";
 import { About } from "./pages/About";
 import { InstallApp } from "./pages/InstallApp";
@@ -48,6 +49,7 @@ export function App() {
     <div className="flex h-screen">
       <Sidebar route={current} onNavigate={setRoute} />
       <main className="min-w-0 flex-1 overflow-y-auto">
+        <UpdateBanner route={current} onNavigate={setRoute} />
         {current.page === "bottle" ? (
           <BottleView key={current.id} id={current.id} onNavigate={setRoute} />
         ) : current.page === "new-bottle" ? (

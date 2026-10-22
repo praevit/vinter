@@ -245,34 +245,3 @@ pub fn launcher_target() -> vinter_core::Result<launcher::Target> {
         .unwrap_or_else(|| "vinter-app".into());
     launcher::Target::for_this_os(vec![exe])
 }
-
-/// With "Check for updates" on, looks for a newer Vinter shortly after start
-/// and says so (a notification while Vinter is in the background).
-pub fn check_for_updates_later(app: &AppHandle) {
-    use tauri_plugin_updater::UpdaterExt;
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(20)).await;
-        let paths = app.state::<crate::state::AppState>().paths.clone();
-        if !vinter_core::settings::load(&paths).check_for_updates {
-            return;
-        }
-        if let Ok(updates) = vinter_core::runtime::updates::find(&paths) {
-            if let Some(u) = updates.first() {
-                crate::notify::send(
-                    &app,
-                    &format!("{} is available", u.newer.name),
-                    "Update it on the Runtimes page; your bottles move along.",
-                );
-            }
-        }
-        let Ok(updater) = app.updater() else { return };
-        if let Ok(Some(update)) = updater.check().await {
-            crate::notify::send(
-                &app,
-                &format!("Vinter {} is available", update.version),
-                "Choose Check for Updates… in Vinter's menu to install it.",
-            );
-        }
-    });
-}

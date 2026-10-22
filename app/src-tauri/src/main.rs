@@ -9,6 +9,7 @@ mod notify;
 mod startup;
 mod state;
 mod tray;
+mod updates;
 mod windows;
 
 use tauri::Manager;
@@ -82,6 +83,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app::app_open_link,
             commands::app::debug_report,
             commands::app::update_check,
+            commands::app::update_status,
             commands::app::update_install,
             commands::app::program_set_pinned,
             commands::app::open_files_take,
@@ -107,7 +109,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::Notice,
             events::OpenFiles,
             events::Navigate,
-            events::ApprovalRequested
+            events::ApprovalRequested,
+            events::UpdatesFound
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.
@@ -148,6 +151,7 @@ fn main() {
         .manage(startup::Startup::default())
         .manage(startup::OpenedFiles::default())
         .manage(tray::TrayState::default())
+        .manage(updates::UpdatesState::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
@@ -163,7 +167,7 @@ fn main() {
                 );
             });
             tray::create(app.handle());
-            startup::check_for_updates_later(app.handle());
+            updates::start(app.handle());
             startup::on_start(app.handle(), std::env::args().collect());
             Ok(())
         })

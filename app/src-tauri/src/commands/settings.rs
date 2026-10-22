@@ -36,8 +36,15 @@ pub async fn settings_set(
 ) -> CommandResult<()> {
     let paths = state.paths.clone();
     let show_icon = settings.menu_bar_icon;
+    let check_updates = settings.check_for_updates;
+    let was_checking = settings::load(&paths).check_for_updates;
     blocking(move || Ok(settings::save(&paths, &settings)?)).await?;
     crate::tray::set_visible(&app, show_icon);
+    if check_updates != was_checking {
+        // Turned on: look now rather than in a few hours. Off: forget the result.
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { crate::updates::check(&app).await });
+    }
     Ok(())
 }
 

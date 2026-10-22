@@ -65,6 +65,7 @@
     "allow-app-open-link",
     "allow-debug-report",
     "allow-update-check",
+    "allow-update-status",
     "allow-update-install",
     "allow-program-set-pinned",
     "allow-open-files-take",

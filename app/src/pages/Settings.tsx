@@ -64,7 +64,7 @@ export function Settings() {
         />
         <Toggle
           title="Check for updates automatically"
-          detail="Vinter looks for a newer version when it starts and tells you. It never installs one by itself."
+          detail="Vinter looks for a newer version of itself and of your runtimes when it starts and every few hours, and tells you. It never installs anything by itself."
           checked={settings.check_for_updates}
           onChange={(check_for_updates) => set({ check_for_updates })}
         />
