@@ -65,6 +65,11 @@ pub fn diagnose_log(paths: &AppPaths, bottle_id: &str, log_id: &str) -> Result<V
 /// Known problems in a log, most serious first.
 pub fn diagnose(text: &str) -> Vec<Finding> {
     let mut found = Findings::default();
+    // Written by the launch header with the wow64-large-address flag on.
+    let wow64 = text
+        .lines()
+        .take(40)
+        .find(|l| l.starts_with("vinter: wow64-large-address: 32-bit program"));
     let mut lines = text.lines().peekable();
     while let Some(line) = lines.next() {
         if let Some(dll) = missing_dll(line) {
@@ -131,6 +136,24 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
                 Fix::Graphics {
                     backend: Graphics::Wined3d,
                 },
+                line,
+            );
+        } else if let Some(marker) = wow64.filter(|_| is_out_of_memory(line)) {
+            let detail = if marker.contains("large-address-aware: no") {
+                "This 32-bit program ran out of address space. It is not large-address-aware, so it \
+                 can only use 2 GB. Lower its settings (textures, mods), or look for a 64-bit \
+                 version or a 4 GB patch from its publisher."
+            } else {
+                "This 32-bit program ran out of address space (4 GB at most for 32-bit programs, \
+                 and on Apple Silicon in an experimental WoW64 window). Lower its settings \
+                 (textures, mods), or look for a 64-bit version."
+            };
+            found.add(
+                "wow64_address_space",
+                Severity::Error,
+                "The 32-bit program ran out of memory",
+                detail,
+                Fix::Manual,
                 line,
             );
         } else if is_missing_emulator(line) {
@@ -216,6 +239,12 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
         }
     }
     found.finish()
+}
+
+/// Wine's ntdll (`dlls/ntdll/unix/virtual.c`): "out of memory for %p-%p" and
+/// "out of memory for allocation, base %p size %08lx".
+fn is_out_of_memory(line: &str) -> bool {
+    line.contains("out of memory for ")
 }
 
 /// Wine on ARM64 failing to load its x86 emulator. Without the registry key
@@ -510,6 +539,18 @@ Error: could not run wine: Bad CPU type in executable (os error 86)
         assert!(f.iter().all(|x| x.severity == Severity::Error));
         // The bottle-damaged rule is for Wine's core DLLs only.
         assert!(!ids(&diagnose(log)).contains(&"broken_prefix"));
+    }
+
+    #[test]
+    fn wow64_out_of_memory_only_with_the_flag_marker() {
+        let oom = "0024:err:virtual:allocate_virtual_memory out of memory for allocation, base 00000000 size 10000000\n";
+        assert!(diagnose(oom).is_empty(), "nothing without the flag");
+        let marked = format!(
+            "vinter: wow64-large-address: 32-bit program, large-address-aware: no (limited to 2 GB of address space)\n{oom}"
+        );
+        let f = diagnose(&marked);
+        assert_eq!(ids(&f), ["wow64_address_space"]);
+        assert!(f[0].detail.contains("2 GB"));
     }
 
     #[test]

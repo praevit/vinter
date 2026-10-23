@@ -6,6 +6,7 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { formatBytes } from "../api/runtimes";
+import { ExperimentalBadge } from "./ExperimentalBadge";
 import { ProgressBar } from "./ProgressBar";
 import { Button, ErrorText, subtle } from "./ui";
 
@@ -132,6 +133,7 @@ function BackendOption({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
             {info.name}
+            {info.experimental && <ExperimentalBadge />}
             {download && info.available && (
               <span className={`flex items-center gap-1 font-normal ${subtle}`}>
                 <Download className="size-3" /> {download}

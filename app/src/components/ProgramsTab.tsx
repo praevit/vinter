@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { AppWindow, LoaderCircle, Pencil, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
+import { AppWindow, FlaskConical, LoaderCircle, Pencil, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { pinLabel, useAppInfo } from "../api/app";
 import { commands, type PeArch, type ProgramView } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
+import { useExperimental } from "../api/experimental";
 import { useEnsureRosetta } from "../api/rosetta";
 import { latestRun, useRuns } from "../api/runs";
 import { CompatNoteDot } from "./CompatNoteSection";
@@ -161,7 +162,7 @@ export function ProgramTile({
       <span className="line-clamp-2 text-sm font-medium" title={program.exe}>
         {program.name}
       </span>
-      {program.arch && <ArchBadge arch={program.arch} />}
+      {program.arch && <ArchBadge arch={program.arch} largeAddressAware={program.large_address_aware} />}
       {bottle && (
         <button type="button" onClick={bottle.open} className={`${subtle} -mt-1.5 hover:underline`}>
           {bottle.name}
@@ -206,15 +207,30 @@ const ARCH_BADGES: Record<PeArch, { label: string; title: string }> = {
   arm64x: { label: "ARM64", title: "ARM64X: holds both ARM64 and ARM64EC code. Runs in Apple Silicon bottles." },
 };
 
-/** Which CPU a program is built for. */
-function ArchBadge({ arch }: { arch: PeArch }) {
+/** Which CPU a program is built for; with `wow64-large-address`, how much memory a 32-bit one can address. */
+function ArchBadge({ arch, largeAddressAware }: { arch: PeArch; largeAddressAware: boolean | null }) {
   const badge = ARCH_BADGES[arch];
+  const showMemory = useExperimental("wow64-large-address") && arch === "i386" && largeAddressAware !== null;
   return (
-    <span
-      title={badge.title}
-      className="-mt-1.5 rounded bg-frost-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300"
-    >
-      {badge.label}
+    <span className="-mt-1.5 flex items-center gap-1">
+      <span
+        title={badge.title}
+        className="rounded bg-frost-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300"
+      >
+        {badge.label}
+        {showMemory && (largeAddressAware ? " · 4 GB" : " · 2 GB")}
+      </span>
+      {showMemory && (
+        <span
+          title={
+            largeAddressAware
+              ? "Large-address-aware: can use up to 4 GB. Experimental: wow64-large-address."
+              : "Not large-address-aware: limited to 2 GB of memory. Experimental: wow64-large-address."
+          }
+        >
+          <FlaskConical className="size-3 text-violet-600 dark:text-violet-300" aria-label="Experimental" />
+        </span>
+      )}
     </span>
   );
 }

@@ -270,11 +270,20 @@ impl Host {
     /// [`Host::for_paths`] for the data folder a runtime is installed in
     /// (`<data>/runtimes/<id>`).
     pub fn for_runtime(rt: &Runtime) -> Self {
-        match rt.path.parent().and_then(Path::parent) {
-            Some(data) => Self::for_paths(&AppPaths::with_data_dir(data)),
-            None => Self::current(),
+        Self {
+            rosetta_removed: flags_for_runtime(rt).is_enabled(ExperimentalFlag::SimulateMacos28),
+            ..Self::current()
         }
     }
+}
+
+/// The experimental flags of the data folder a runtime is installed in.
+pub fn flags_for_runtime(rt: &Runtime) -> Flags {
+    rt.path
+        .parent()
+        .and_then(Path::parent)
+        .map(|data| Flags::load(&AppPaths::with_data_dir(data)))
+        .unwrap_or_default()
 }
 
 /// What `simulate-macos28` says when it hides the Rosetta engine.
@@ -394,21 +403,14 @@ impl Engine for Fex {
 
     fn check(&self, rt: &Runtime) -> Result<()> {
         check_host(self.kind(), rt)?;
-        if self.linux {
-            // Runtimes live in <data>/runtimes/<id>.
-            let data_dir = rt.path.parent().and_then(Path::parent);
-            let flags = data_dir
-                .map(|d| Flags::load(&AppPaths::with_data_dir(d)))
-                .unwrap_or_default();
-            if !flags.is_enabled(ExperimentalFlag::Arm64FexLinux) {
-                return Err(Error::EngineUnavailable {
-                    runtime: rt.name.clone(),
-                    reason: format!(
-                        "the Linux ARM64 engine is experimental; turn on {} in Settings first",
-                        ExperimentalFlag::Arm64FexLinux
-                    ),
-                });
-            }
+        if self.linux && !flags_for_runtime(rt).is_enabled(ExperimentalFlag::Arm64FexLinux) {
+            return Err(Error::EngineUnavailable {
+                runtime: rt.name.clone(),
+                reason: format!(
+                    "the Linux ARM64 engine is experimental; turn on {} in Settings first",
+                    ExperimentalFlag::Arm64FexLinux
+                ),
+            });
         }
         Ok(())
     }

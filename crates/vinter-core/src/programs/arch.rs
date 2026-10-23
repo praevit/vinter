@@ -63,6 +63,30 @@ const LOAD_CONFIG_DIRECTORY: usize = 10;
 /// `CHPEMetadataPointer` in `IMAGE_LOAD_CONFIG_DIRECTORY64`.
 const CHPE_METADATA_OFFSET: u64 = 0xc8;
 
+/// `IMAGE_FILE_LARGE_ADDRESS_AWARE` in the COFF characteristics: a 32-bit
+/// program that can use more than 2 GB (up to 4 GB under WoW64).
+const IMAGE_FILE_LARGE_ADDRESS_AWARE: u16 = 0x0020;
+
+/// Whether a 32-bit PE file is large-address-aware. `None` if it is not a
+/// PE file.
+pub fn large_address_aware(path: &Path) -> Option<bool> {
+    let mut file = File::open(path).ok()?;
+    let mut dos = [0u8; 64];
+    file.read_exact(&mut dos).ok()?;
+    if &dos[..2] != b"MZ" {
+        return None;
+    }
+    let pe_offset = u64::from(u32::from_le_bytes(dos[0x3c..0x40].try_into().ok()?));
+    file.seek(SeekFrom::Start(pe_offset)).ok()?;
+    let mut coff = [0u8; 24];
+    file.read_exact(&mut coff).ok()?;
+    if &coff[..4] != b"PE\0\0" {
+        return None;
+    }
+    let characteristics = u16::from_le_bytes([coff[22], coff[23]]);
+    Some(characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE != 0)
+}
+
 /// The architecture of `path`, or `None` if it is not a PE file or MSI
 /// package Vinter can read.
 pub fn detect(path: &Path) -> Option<PeArch> {
@@ -337,6 +361,21 @@ pub(crate) mod tests {
         assert_eq!(arch_from_msi_platform("x64"), Some(PeArch::Amd64));
         assert_eq!(arch_from_msi_platform("Arm64"), Some(PeArch::Arm64));
         assert_eq!(arch_from_msi_platform("Intel64"), None);
+    }
+
+    #[test]
+    fn large_address_awareness() {
+        let tmp = tempfile::tempdir().unwrap();
+        let exe = tmp.path().join("big.exe");
+        let mut bytes = pe(IMAGE_FILE_MACHINE_I386, false, false);
+        std::fs::write(&exe, &bytes).unwrap();
+        assert_eq!(large_address_aware(&exe), Some(false));
+        // Characteristics are the last two bytes of the COFF header (PE at 0x80).
+        bytes[0x80 + 22] |= 0x20;
+        std::fs::write(&exe, &bytes).unwrap();
+        assert_eq!(large_address_aware(&exe), Some(true));
+        std::fs::write(&exe, b"text").unwrap();
+        assert_eq!(large_address_aware(&exe), None);
     }
 
     #[test]

@@ -71,6 +71,7 @@ pub fn write_launch_header(
     rt: &Runtime,
     bottle: &Bottle,
     cmd: &std::process::Command,
+    extra: &[String],
 ) -> Result<()> {
     let env: Vec<(String, String)> = cmd
         .get_envs()
@@ -81,7 +82,12 @@ pub fn write_launch_header(
             ))
         })
         .collect();
-    let header = launch_header(what, found, rt, bottle, &env);
+    let mut header = launch_header(what, found, rt, bottle, &env);
+    for line in extra {
+        header.push_str("vinter: ");
+        header.push_str(&report::redact_home(line));
+        header.push('\n');
+    }
     std::fs::File::options()
         .create(true)
         .append(true)

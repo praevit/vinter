@@ -190,7 +190,11 @@ impl ExperimentalFlag {
     pub fn available(self) -> bool {
         matches!(
             self,
-            Self::SimulateMacos28 | Self::CompatNotes | Self::RuntimeChannelNightly
+            Self::SimulateMacos28
+                | Self::CompatNotes
+                | Self::RuntimeChannelNightly
+                | Self::Wow64LargeAddress
+                | Self::GraphicsDxvkArm64ec
         )
     }
 }

@@ -320,6 +320,11 @@ export type BackendInfo = {
 	component: ComponentInfo | null,
 	/**  That download is already installed. */
 	component_installed: boolean,
+	/**
+	 *  Offered here only through an experimental flag (DXVK and D3DMetal in
+	 *  Apple Silicon bottles).
+	 */
+	experimental: boolean,
 };
 
 /**  Contents of `bottle.toml`. */
@@ -798,6 +803,8 @@ export type ProgramView = {
 	pinned: boolean,
 	/**  CPU the program is built for, if its file can be read. */
 	arch: PeArch | null,
+	/**  For 32-bit programs: can use up to 4 GB instead of 2 GB. */
+	large_address_aware: boolean | null,
 };
 
 export type Rating = "works" | "partly" | "broken";

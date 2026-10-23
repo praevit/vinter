@@ -793,7 +793,7 @@ pub fn run_tool(paths: &AppPaths, id: &str, tool: Tool) -> Result<u32> {
             .ok()
             .map(|path| (pe, path))
     });
-    crate::diag::write_launch_header(&log, tool.program(), found, &rt, &bottle, &cmd)?;
+    crate::diag::write_launch_header(&log, tool.program(), found, &rt, &bottle, &cmd, &[])?;
     process::spawn_detached(cmd, &log, &format!("Opening {}", tool.program()))
 }
 

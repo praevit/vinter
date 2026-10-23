@@ -33,6 +33,9 @@ pub struct BackendInfo {
     pub component: Option<ComponentInfo>,
     /// That download is already installed.
     pub component_installed: bool,
+    /// Offered here only through an experimental flag (DXVK and D3DMetal in
+    /// Apple Silicon bottles).
+    pub experimental: bool,
 }
 
 impl Backend {
@@ -111,6 +114,7 @@ pub(crate) fn backends_for(
                 description: backend.description().into(),
                 available: reason.is_none(),
                 reason,
+                experimental: fex && matches!(backend, Backend::Dxvk | Backend::D3dmetal),
                 component_installed: component
                     .as_ref()
                     .is_some_and(|c| component::installed(paths, &c.id).is_some()),
@@ -176,10 +180,21 @@ fn fex_unavailable_reason(backend: Backend, runtime: &Runtime) -> Option<String>
             "{} does not include DXMT for Apple Silicon yet, so bottles on it use Wine's own Direct3D.",
             runtime.name
         )),
-        Backend::Dxvk => Some(
-            "DXVK in Apple Silicon bottles is experimental (graphics-dxvk-arm64ec in Settings → Experimental), and only works with a runtime that includes it."
-                .into(),
-        ),
+        Backend::Dxvk
+            if !crate::engine::flags_for_runtime(runtime)
+                .is_enabled(crate::experimental::ExperimentalFlag::GraphicsDxvkArm64ec) =>
+        {
+            Some(
+                "DXVK in Apple Silicon bottles is experimental (graphics-dxvk-arm64ec in Settings → Experimental), and only works with a runtime that includes it."
+                    .into(),
+            )
+        }
+        // The runtime's manifest says it ships an ARM64EC DXVK (and MoltenVK).
+        Backend::Dxvk if runtime.graphics.contains(&Backend::Dxvk) => None,
+        Backend::Dxvk => Some(format!(
+            "{} does not include DXVK for Apple Silicon.",
+            runtime.name
+        )),
         Backend::D3dmetal => Some(
             "D3DMetal in Apple Silicon bottles is experimental (graphics-user-gptk in Settings → Experimental)."
                 .into(),
@@ -309,6 +324,33 @@ mod tests {
             default_for(&runtime(vec![Backend::Wined3d, Backend::Dxmt])),
             Backend::Wined3d
         );
+    }
+
+    #[test]
+    fn dxvk_in_apple_silicon_bottles_needs_the_flag_and_the_runtime() {
+        use crate::experimental::{self, ExperimentalFlag};
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = crate::AppPaths::with_data_dir(tmp.path());
+        let root = paths.runtimes_dir().join("arm");
+        let mut rt = runtime(vec![Backend::Wined3d, Backend::Dxvk]);
+        rt.engine = crate::engine::EngineKind::Arm64Fex;
+        rt.path = root.clone();
+        rt.wine_bin = root.join("bin/wine");
+        let dxvk = |rt: &Runtime| {
+            backends_for(&paths, rt, "macos")
+                .into_iter()
+                .find(|b| b.backend == Backend::Dxvk)
+                .unwrap()
+        };
+        assert!(dxvk(&rt).reason.unwrap().contains("graphics-dxvk-arm64ec"));
+
+        experimental::set(&paths, ExperimentalFlag::GraphicsDxvkArm64ec, true).unwrap();
+        let on = dxvk(&rt);
+        assert!(on.available, "{:?}", on.reason);
+        assert!(on.component.is_none(), "never the x86 download");
+
+        rt.graphics = vec![Backend::Wined3d];
+        assert!(dxvk(&rt).reason.unwrap().contains("does not include DXVK"));
     }
 
     fn runtime(graphics: Vec<Backend>) -> Runtime {

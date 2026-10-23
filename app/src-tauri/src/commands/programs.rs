@@ -42,6 +42,8 @@ pub struct ProgramView {
     pub pinned: bool,
     /// CPU the program is built for, if its file can be read.
     pub arch: Option<programs::arch::PeArch>,
+    /// For 32-bit programs: can use up to 4 GB instead of 2 GB.
+    pub large_address_aware: Option<bool>,
 }
 
 /// Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
@@ -252,6 +254,7 @@ pub async fn programs_list(
                 args: p.args.clone(),
                 pinned: p.pinned,
                 arch: programs::arch_of(&paths, &bottle_id, p),
+                large_address_aware: programs::large_address_aware_of(&paths, &bottle_id, p),
                 icon_data_url: p
                     .icon
                     .as_deref()

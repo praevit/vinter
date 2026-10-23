@@ -287,7 +287,8 @@ pub fn launch(
     let (log, _) = logs::create(&dir, &program.name)?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
-    crate::diag::write_launch_header(&log, &program.name, found, &rt, &bottle, &cmd)?;
+    let notes = wow64_notes(&rt, &exe, found);
+    crate::diag::write_launch_header(&log, &program.name, found, &rt, &bottle, &cmd, &notes)?;
     // Skip empty or NUL-containing arguments; programs added before the
     // shortcut fix may have a stray "\0" argument saved.
     let args = program
@@ -311,6 +312,51 @@ pub fn launch(
         name: program.name,
         log_id: log_id(&log),
     })
+}
+
+/// With the `wow64-large-address` flag: what a 32-bit program's address
+/// space is, and a warning on Apple Silicon, where WoW64 is new. The log
+/// doctor uses the marker to explain out-of-memory errors.
+pub(crate) fn wow64_notes(
+    rt: &runtime::Runtime,
+    exe: &Path,
+    found: Option<(arch::PeArch, arch::RunPath)>,
+) -> Vec<String> {
+    let flag = crate::experimental::ExperimentalFlag::Wow64LargeAddress;
+    if !crate::engine::flags_for_runtime(rt).is_enabled(flag)
+        || !matches!(found, Some((arch::PeArch::I386, _)))
+    {
+        return Vec::new();
+    }
+    let aware = arch::large_address_aware(exe).unwrap_or(false);
+    let mut notes = vec![format!(
+        "{flag}: 32-bit program, large-address-aware: {}",
+        if aware {
+            "yes (up to 4 GB of address space under WoW64)"
+        } else {
+            "no (limited to 2 GB of address space)"
+        }
+    )];
+    if crate::engine::is_fex(rt.engine) {
+        notes.push(format!(
+            "{flag}: warning: 32-bit programs on Apple Silicon run in an experimental 4 GB WoW64 window; memory-hungry ones may run out of address space"
+        ));
+    }
+    notes
+}
+
+/// For a bottle's 32-bit program: whether it is large-address-aware.
+pub fn large_address_aware_of(
+    paths: &AppPaths,
+    bottle_id: &str,
+    program: &ProgramDef,
+) -> Option<bool> {
+    let prefix = bottle::dir(paths, bottle_id).ok()?.join(PREFIX_DIR);
+    let exe = winpath::to_unix(&prefix, &program.exe)?;
+    if arch::detect(&exe)? != arch::PeArch::I386 {
+        return None;
+    }
+    arch::large_address_aware(&exe)
 }
 
 /// What CPU a bottle's program is built for, if its file can be read.
@@ -393,7 +439,8 @@ pub fn run_installer(
     let (log, _) = logs::create(&dir, "installer")?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
-    crate::diag::write_launch_header(&log, &file, found, &rt, &bottle, &cmd)?;
+    let notes = wow64_notes(&rt, installer, found);
+    crate::diag::write_launch_header(&log, &file, found, &rt, &bottle, &cmd, &notes)?;
     // Wine's msiexec crashes on long host paths (seen with a 153-character
     // path: msi.dll read part of the file name as a pointer). MSI packages are
     // self-contained, so run them from a short path inside the bottle.
