@@ -76,7 +76,7 @@ fn new_bottle(name: &str, runtime: &str) -> NewBottle {
         name: name.into(),
         runtime: runtime.into(),
         windows_version: WindowsVersion::Win10,
-        graphics: Graphics::Wined3d,
+        graphics: None,
     }
 }
 

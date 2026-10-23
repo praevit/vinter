@@ -99,7 +99,8 @@ pub struct NewBottle {
     pub name: String,
     pub runtime: String,
     pub windows_version: WindowsVersion,
-    pub graphics: Graphics,
+    /// `None` starts with the engine's default ([`crate::graphics::default_for`]).
+    pub graphics: Option<Graphics>,
 }
 
 /// Folder of a bottle (validates the id; does not check it exists).
@@ -246,7 +247,9 @@ pub fn prepare_create(paths: &AppPaths, new: NewBottle) -> Result<Bottle> {
         engine: rt.engine,
         created_at: now(),
         windows_version: new.windows_version,
-        graphics: new.graphics,
+        graphics: new
+            .graphics
+            .unwrap_or_else(|| crate::graphics::default_for(&rt)),
         recipe: None,
         env: Default::default(),
         dll_overrides: Default::default(),
@@ -285,6 +288,12 @@ pub fn finish_create(
         if needs_registry(&BottleOptions::default(), &bottle.options) {
             on_step("Applying display and keyboard settings");
             apply_options(&rt, &dir, bottle)?;
+        }
+        if bottle.graphics != Graphics::Wined3d {
+            // Only backends the runtime ships get here (see `NewBottle::graphics`
+            // and `graphics::default_for`); downloads are set up by their caller.
+            on_step("Setting up graphics");
+            crate::graphics::apply(paths, &bottle.id, bottle.graphics)?;
         }
         std::fs::remove_file(dir.join(SETUP_MARKER)).at(&dir)
     })();

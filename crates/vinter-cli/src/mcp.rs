@@ -337,7 +337,7 @@ impl Vinter {
                     name: a.name,
                     runtime: a.runtime,
                     windows_version: windows,
-                    graphics: Graphics::default(),
+                    graphics: None,
                 };
                 Ok(bottle::create(&paths, new, |_| {})?)
             })

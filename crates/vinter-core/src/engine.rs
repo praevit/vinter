@@ -146,10 +146,17 @@ impl Translates {
 
 /// Folder of a runtime's ARM64 PE modules, where the emulator DLLs live.
 pub fn arm64_pe_dir(rt: &Runtime) -> PathBuf {
-    rt.bin_dir()
-        .parent()
-        .unwrap_or(&rt.path)
-        .join("lib/wine/aarch64-windows")
+    wine_lib_dir(rt).join("aarch64-windows")
+}
+
+/// A runtime's `lib/wine` folder.
+pub fn wine_lib_dir(rt: &Runtime) -> PathBuf {
+    rt.bin_dir().parent().unwrap_or(&rt.path).join("lib/wine")
+}
+
+/// True for engines that run ARM64 Wine with FEX.
+pub fn is_fex(kind: EngineKind) -> bool {
+    matches!(kind, EngineKind::Arm64Fex | EngineKind::Arm64FexLinux)
 }
 
 /// The emulator DLLs of `engine` that `rt` actually ships.
@@ -199,6 +206,12 @@ pub trait Engine: Sync {
     /// The `wineserver` binary.
     fn wineserver(&self, rt: &Runtime) -> PathBuf {
         rt.bin_dir().join("wineserver")
+    }
+
+    /// Folder under the runtime's `lib/wine` holding its 64-bit PE modules
+    /// (what a prefix's `system32` is made from).
+    fn pe_dir(&self) -> &'static str {
+        "x86_64-windows"
     }
 
     /// The full environment for a Wine process in `bottle` on `rt`.
@@ -328,6 +341,10 @@ impl Engine for Fex {
 
     fn emulator_dlls(&self) -> &'static [EmulatorDll] {
         FEX_DLLS
+    }
+
+    fn pe_dir(&self) -> &'static str {
+        "aarch64-windows"
     }
 
     /// Adds the switches that let Wine hand x86 code to FEX, for each

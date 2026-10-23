@@ -37,10 +37,11 @@ pub fn apply(paths: &AppPaths, bottle_id: &str, backend: Backend) -> Result<Bott
         .join("drive_c/windows");
     let system32 = windows.join("system32");
     let syswow64 = windows.join("syswow64");
-    let wine_lib = rt.bin_dir().parent().unwrap_or(&rt.path).join("lib/wine");
+    let wine_lib = crate::engine::wine_lib_dir(&rt);
+    let pe_dir = rt.engine().pe_dir();
 
     for dll in MANAGED_DLLS {
-        copy_if_present(&wine_lib.join("x86_64-windows"), &system32, dll)?;
+        copy_if_present(&wine_lib.join(pe_dir), &system32, dll)?;
         if syswow64.is_dir() {
             copy_if_present(&wine_lib.join("i386-windows"), &syswow64, dll)?;
         }
@@ -255,5 +256,56 @@ mod native_tests {
         );
         assert_eq!(std::fs::read(to.join("dxgi.dll")).unwrap(), b"MZ plain");
         assert!(!to.join("missing.dll").exists());
+    }
+}
+
+#[cfg(test)]
+mod fex_tests {
+    use super::*;
+    use crate::engine::EngineKind;
+
+    /// Apple Silicon bottles get Wine's own DLLs back from the runtime's
+    /// ARM64 folder, not the x86-64 one.
+    #[test]
+    fn restores_from_the_engines_pe_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = AppPaths::with_data_dir(tmp.path().join("data"));
+        let rt = paths.runtimes_dir().join("arm");
+        for dir in ["aarch64-windows", "x86_64-windows"] {
+            let lib = rt.join("lib/wine").join(dir);
+            std::fs::create_dir_all(&lib).unwrap();
+            std::fs::write(lib.join("d3d11.dll"), format!("builtin {dir}")).unwrap();
+        }
+        std::fs::create_dir_all(rt.join("bin")).unwrap();
+        std::fs::write(rt.join("bin/wine"), "").unwrap();
+        std::fs::write(
+            rt.join("runtime.toml"),
+            "id = \"arm\"\nname = \"Arm\"\nversion = \"11.10\"\nflavor = \"devel\"\nurl = \"\"\n\
+             sha256 = \"\"\ninstalled_at = \"2026-10-23T00:00:00Z\"\nwine_bin = \"bin/wine\"\n\
+             license = \"\"\nsource_url = \"\"\narch = \"aarch64\"\ngraphics = [\"wined3d\"]\n\
+             engine = \"arm64-fex\"\n",
+        )
+        .unwrap();
+        let dir = bottle::dir(&paths, "b").unwrap();
+        let system32 = dir.join("prefix/drive_c/windows/system32");
+        std::fs::create_dir_all(&system32).unwrap();
+        std::fs::write(system32.join("d3d11.dll"), "left over from another backend").unwrap();
+        let mut b: Bottle = toml::from_str(
+            "id = \"b\"\nname = \"B\"\nruntime = \"arm\"\nengine = \"arm64-fex\"\n\
+             created_at = \"2026-10-23T00:00:00Z\"\n",
+        )
+        .unwrap();
+        b.graphics = Backend::Dxvk;
+        b.save(&dir).unwrap();
+
+        let saved = apply(&paths, "b", Backend::Wined3d).unwrap();
+        assert_eq!(saved.engine, EngineKind::Arm64Fex);
+        assert_eq!(saved.graphics, Backend::Wined3d);
+        assert_eq!(
+            std::fs::read_to_string(system32.join("d3d11.dll")).unwrap(),
+            "builtin aarch64-windows"
+        );
+        // x86 downloads are not offered here.
+        assert!(apply(&paths, "b", Backend::Dxvk).is_err());
     }
 }

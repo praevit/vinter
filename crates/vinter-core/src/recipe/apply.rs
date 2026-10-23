@@ -121,7 +121,7 @@ where
         name: opts.bottle_name,
         runtime: rt.id.clone(),
         windows_version: r.windows_version,
-        graphics: Graphics::Wined3d,
+        graphics: Some(Graphics::Wined3d),
     };
     let bottle = bottle::prepare_create(paths, new)?;
     let mut state = StateFile {

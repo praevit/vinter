@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use vinter_core::bottle::{
-    self, Bottle, BottleOptions, BottleSummary, DomainAccount, Graphics, NewBottle, Tool,
-    WindowsVersion,
+    self, Bottle, BottleOptions, BottleSummary, DomainAccount, NewBottle, Tool, WindowsVersion,
 };
 
 use super::{CommandResult, blocking};
@@ -89,7 +88,7 @@ pub fn bottle_create(
         name,
         runtime: runtime_id,
         windows_version,
-        graphics: Graphics::default(),
+        graphics: None,
     };
     let bottle = bottle::prepare_create(&state.paths, new)?;
     state.mark_busy(&bottle.id);

@@ -92,10 +92,17 @@ pub(crate) fn backends_for(
     runtime: &Runtime,
     os: &str,
 ) -> Vec<BackendInfo> {
+    let fex = crate::engine::is_fex(runtime.engine);
     Backend::ALL
         .into_iter()
         .map(|backend| {
-            let component = component::for_backend(backend, os);
+            // The downloads are x86 builds; Apple Silicon bottles only use
+            // what their runtime ships.
+            let component = if fex {
+                None
+            } else {
+                component::for_backend(backend, os)
+            };
             let imported = backend == Backend::D3dmetal && d3dmetal::installed(paths).is_some();
             let reason = unavailable_reason(backend, runtime, os, component.is_some() || imported);
             BackendInfo {
@@ -121,6 +128,9 @@ fn unavailable_reason(
 ) -> Option<String> {
     if !backend.supports_os(os) {
         return Some(format!("{} is only available on macOS.", backend.name()));
+    }
+    if crate::engine::is_fex(runtime.engine) {
+        return fex_unavailable_reason(backend, runtime);
     }
     match backend {
         Backend::Wined3d => None,
@@ -153,6 +163,47 @@ fn unavailable_reason(
             backend.name()
         )),
         _ => None,
+    }
+}
+
+/// Apple Silicon bottles: WineD3D always works; DXMT only when the runtime
+/// itself ships an ARM64EC build; the rest are experimental.
+fn fex_unavailable_reason(backend: Backend, runtime: &Runtime) -> Option<String> {
+    match backend {
+        Backend::Wined3d => None,
+        Backend::Dxmt if runtime_ships_dxmt(runtime) => None,
+        Backend::Dxmt => Some(format!(
+            "{} does not include DXMT for Apple Silicon yet, so bottles on it use Wine's own Direct3D.",
+            runtime.name
+        )),
+        Backend::Dxvk => Some(
+            "DXVK in Apple Silicon bottles is experimental (graphics-dxvk-arm64ec in Settings → Experimental), and only works with a runtime that includes it."
+                .into(),
+        ),
+        Backend::D3dmetal => Some(
+            "D3DMetal in Apple Silicon bottles is experimental (graphics-user-gptk in Settings → Experimental)."
+                .into(),
+        ),
+    }
+}
+
+/// The runtime lists DXMT and ships its ARM64 Metal bridge (`winemetal`).
+fn runtime_ships_dxmt(runtime: &Runtime) -> bool {
+    runtime.graphics.contains(&Backend::Dxmt)
+        && crate::engine::arm64_pe_dir(runtime)
+            .join("winemetal.dll")
+            .is_file()
+}
+
+/// The backend a new bottle on `runtime` starts with: DXMT on the Apple
+/// Silicon engine when the runtime ships it, otherwise WineD3D, which
+/// always renders. (Other backends need downloads, chosen by the user or a
+/// recipe.)
+pub fn default_for(runtime: &Runtime) -> Backend {
+    if crate::engine::is_fex(runtime.engine) && runtime_ships_dxmt(runtime) {
+        Backend::Dxmt
+    } else {
+        Backend::Wined3d
     }
 }
 
@@ -208,6 +259,57 @@ mod tests {
 
     use super::*;
     use crate::runtime::Flavor;
+
+    #[test]
+    fn apple_silicon_bottles_only_offer_what_the_runtime_ships() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = crate::AppPaths::with_data_dir(tmp.path().join("data"));
+        let root = tmp.path().join("rt");
+        let mut rt = runtime(vec![Backend::Wined3d, Backend::Dxmt]);
+        rt.engine = crate::engine::EngineKind::Arm64Fex;
+        rt.path = root.clone();
+        rt.wine_bin = root.join("bin/wine");
+
+        let offered = |rt: &Runtime| {
+            backends_for(&paths, rt, "macos")
+                .into_iter()
+                .map(|b| (b.backend, b.available, b.component.is_some()))
+                .collect::<Vec<_>>()
+        };
+        // No ARM64 winemetal in the runtime: only WineD3D, and no x86 downloads.
+        assert_eq!(
+            offered(&rt),
+            [
+                (Backend::Wined3d, true, false),
+                (Backend::Dxvk, false, false),
+                (Backend::Dxmt, false, false),
+                (Backend::D3dmetal, false, false),
+            ]
+        );
+        assert_eq!(default_for(&rt), Backend::Wined3d);
+        let dxvk = backends_for(&paths, &rt, "macos")
+            .into_iter()
+            .find(|b| b.backend == Backend::Dxvk)
+            .unwrap();
+        assert!(dxvk.reason.unwrap().contains("graphics-dxvk-arm64ec"));
+
+        // The runtime ships DXMT for ARM64: offered, and the default.
+        let pe = root.join("lib/wine/aarch64-windows");
+        std::fs::create_dir_all(&pe).unwrap();
+        std::fs::write(pe.join("winemetal.dll"), "").unwrap();
+        assert!(offered(&rt).contains(&(Backend::Dxmt, true, false)));
+        assert_eq!(default_for(&rt), Backend::Dxmt);
+
+        // Not listed in the manifest: still not offered.
+        rt.graphics = vec![Backend::Wined3d];
+        assert_eq!(default_for(&rt), Backend::Wined3d);
+
+        // Intel runtimes keep their defaults.
+        assert_eq!(
+            default_for(&runtime(vec![Backend::Wined3d, Backend::Dxmt])),
+            Backend::Wined3d
+        );
+    }
 
     fn runtime(graphics: Vec<Backend>) -> Runtime {
         Runtime {

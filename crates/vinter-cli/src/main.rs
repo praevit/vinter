@@ -10,7 +10,7 @@ use clap::{Parser, Subcommand};
 use serde::Serialize;
 use serde_json::json;
 use vinter_core::AppPaths;
-use vinter_core::bottle::{self, Graphics, NewBottle, Tool, WindowsVersion};
+use vinter_core::bottle::{self, NewBottle, Tool, WindowsVersion};
 use vinter_core::doctor::{Fix, Severity};
 use vinter_core::experimental::{self, ExperimentalFlag};
 use vinter_core::graphics::{self, Backend};
@@ -699,7 +699,7 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                 name,
                 runtime,
                 windows_version: windows,
-                graphics: Graphics::default(),
+                graphics: None,
             };
             let b = bottle::create(paths, new, |step| out.note(format_args!("{step}…")))?;
             out.print(&b, || println!("Created {} ({})", b.name, b.id))
