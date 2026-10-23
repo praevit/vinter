@@ -40,6 +40,8 @@ pub struct ProgramView {
     pub icon_data_url: Option<String>,
     /// Has a launcher (Spotlight/Launchpad on macOS, app menu on Linux).
     pub pinned: bool,
+    /// CPU the program is built for, if its file can be read.
+    pub arch: Option<programs::arch::PeArch>,
 }
 
 /// Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
@@ -249,6 +251,7 @@ pub async fn programs_list(
                 exe: p.exe.clone(),
                 args: p.args.clone(),
                 pinned: p.pinned,
+                arch: programs::arch_of(&paths, &bottle_id, p),
                 icon_data_url: p
                     .icon
                     .as_deref()

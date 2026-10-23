@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AppWindow, LoaderCircle, Pencil, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { pinLabel, useAppInfo } from "../api/app";
-import { commands, type ProgramView } from "../api/bindings";
+import { commands, type PeArch, type ProgramView } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
@@ -159,6 +159,7 @@ export function ProgramTile({
       <span className="line-clamp-2 text-sm font-medium" title={program.exe}>
         {program.name}
       </span>
+      {program.arch && <ArchBadge arch={program.arch} />}
       {bottle && (
         <button type="button" onClick={bottle.open} className={`${subtle} -mt-1.5 hover:underline`}>
           {bottle.name}
@@ -192,5 +193,26 @@ export function ProgramTile({
       {(error || remove.error) && <ErrorText>{error ?? errorMessage(remove.error)}</ErrorText>}
       {editing && <EditProgramDialog bottleId={bottleId} program={program} onClose={() => setEditing(false)} />}
     </li>
+  );
+}
+
+const ARCH_BADGES: Record<PeArch, { label: string; title: string }> = {
+  i386: { label: "32-bit", title: "A 32-bit Windows program. Runs in this 64-bit bottle through WoW64." },
+  amd64: { label: "64-bit", title: "A 64-bit Intel (x86-64) Windows program." },
+  arm64: { label: "ARM64", title: "Built for ARM. Runs natively in Apple Silicon bottles, without translation." },
+  arm64ec: { label: "ARM64", title: "ARM64EC: ARM code that works with Intel code. Runs in Apple Silicon bottles." },
+  arm64x: { label: "ARM64", title: "ARM64X: holds both ARM64 and ARM64EC code. Runs in Apple Silicon bottles." },
+};
+
+/** Which CPU a program is built for. */
+function ArchBadge({ arch }: { arch: PeArch }) {
+  const badge = ARCH_BADGES[arch];
+  return (
+    <span
+      title={badge.title}
+      className="-mt-1.5 rounded bg-frost-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300"
+    >
+      {badge.label}
+    </span>
   );
 }

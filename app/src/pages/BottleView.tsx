@@ -88,7 +88,11 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
       ) : (
         <>
           {readiness && (readiness.level === "yellow" || readiness.level === "red") && (
-            <ReadinessNotice readiness={readiness} onNewBottle={() => onNavigate({ page: "new-bottle" })} />
+            <ReadinessNotice
+              readiness={readiness}
+              legacy32={listed?.legacy_32bit ?? false}
+              onNewBottle={() => onNavigate({ page: "new-bottle" })}
+            />
           )}
           {!runtime && runtimes && (
             <Notice>
@@ -146,7 +150,15 @@ function Page({ children }: { children: React.ReactNode }) {
 }
 
 /** Why a bottle depends on Rosetta, and what to do about it. */
-function ReadinessNotice({ readiness, onNewBottle }: { readiness: Readiness; onNewBottle: () => void }) {
+function ReadinessNotice({
+  readiness,
+  legacy32,
+  onNewBottle,
+}: {
+  readiness: Readiness;
+  legacy32: boolean;
+  onNewBottle: () => void;
+}) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-frost-200 p-4 text-sm dark:border-slate-deep-700">
       <span className="mt-1.5 flex">
@@ -154,9 +166,10 @@ function ReadinessNotice({ readiness, onNewBottle }: { readiness: Readiness; onN
       </span>
       <div className="flex flex-1 flex-col items-start gap-2">
         <p>
-          <span className="font-medium">{READINESS_LABELS[readiness.level]}.</span> {readiness.summary}
+          <span className="font-medium">{legacy32 ? "Legacy 32-bit bottle" : READINESS_LABELS[readiness.level]}.</span>{" "}
+          {readiness.summary}
         </p>
-        {readiness.level === "yellow" && <Button onClick={onNewBottle}>New Apple Silicon bottle…</Button>}
+        {(readiness.level === "yellow" || legacy32) && <Button onClick={onNewBottle}>New Apple Silicon bottle…</Button>}
       </div>
     </div>
   );

@@ -30,6 +30,8 @@ liblzma = { version = "0.4", features = ["static"] }
 flate2 = "1"
 zip = { version = "9", default-features = false, features = ["deflate"] }
 roxmltree = "0.21"
+# Reads an .msi installer's platform (summary information) for architecture badges.
+msi = "0.10"
 percent-encoding = "2"
 walkdir = "2"
 uuid = { version = "1", features = ["v4"] }

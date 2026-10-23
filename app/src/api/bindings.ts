@@ -430,6 +430,8 @@ export type BottleSummary = {
 	engine: EngineKind,
 	/**  Whether it keeps working once Rosetta is gone. */
 	readiness: Readiness,
+	/**  A 32-bit prefix made by older Wine (Vinter only makes 64-bit ones). */
+	legacy_32bit: boolean,
 	/**  False while setup runs, or if it was interrupted. */
 	setup_complete: boolean,
 	program_count: number,
@@ -731,6 +733,18 @@ export type Notice = {
  */
 export type OpenFiles = null;
 
+export type PeArch = 
+/**  32-bit x86. */
+"i386" | 
+/**  64-bit x86. */
+"amd64" | 
+/**  Native 64-bit ARM. */
+"arm64" | 
+/**  ARM64EC: ARM code that interoperates with x86-64 code in one process. */
+"arm64ec" | 
+/**  ARM64X: one file holding both ARM64 and ARM64EC code. */
+"arm64x";
+
 /**  A program shown in a bottle. */
 export type ProgramDef = {
 	name: string,
@@ -751,6 +765,8 @@ export type ProgramView = {
 	icon_data_url: string | null,
 	/**  Has a launcher (Spotlight/Launchpad on macOS, app menu on Linux). */
 	pinned: boolean,
+	/**  CPU the program is built for, if its file can be read. */
+	arch: PeArch | null,
 };
 
 export type Readiness = {

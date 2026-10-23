@@ -77,6 +77,27 @@ pub fn for_engine(engine: EngineKind, host: &Host) -> Readiness {
     Readiness { level, summary }
 }
 
+/// Readiness of a 32-bit prefix made by older Wine. These cannot move to
+/// Apple Silicon: ARM64 Wine runs 32-bit programs only inside 64-bit prefixes.
+pub fn for_32bit_prefix(host: &Host) -> Readiness {
+    let mac = host.os == "macos" && matches!(host.arch.as_str(), "aarch64" | "arm64");
+    Readiness {
+        level: if mac {
+            ReadinessLevel::Red
+        } else {
+            ReadinessLevel::NotApplicable
+        },
+        summary: if mac {
+            format!(
+                "A 32-bit bottle from older Wine. It cannot move to Apple Silicon, which runs 32-bit programs inside 64-bit bottles. {GOING_AWAY} Make a new bottle and install its apps there."
+            )
+        } else {
+            "A 32-bit bottle from older Wine. New bottles are 64-bit and run 32-bit programs too."
+                .into()
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,5 +134,9 @@ mod tests {
                 .contains("macOS 28")
         );
         assert!(arm64_available(&new_mac) && !arm64_available(&old_mac));
+
+        assert_eq!(for_32bit_prefix(&new_mac).level, Red);
+        assert!(for_32bit_prefix(&new_mac).summary.contains("32-bit"));
+        assert_eq!(for_32bit_prefix(&linux).level, NotApplicable);
     }
 }

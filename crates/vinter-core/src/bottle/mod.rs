@@ -45,6 +45,8 @@ pub struct BottleSummary {
     pub engine: crate::engine::EngineKind,
     /// Whether it keeps working once Rosetta is gone.
     pub readiness: crate::system::readiness::Readiness,
+    /// A 32-bit prefix made by older Wine (Vinter only makes 64-bit ones).
+    pub legacy_32bit: bool,
     /// False while setup runs, or if it was interrupted.
     pub setup_complete: bool,
     pub program_count: u32,
@@ -142,14 +144,21 @@ pub fn list(paths: &AppPaths) -> Result<Vec<BottleSummary>> {
             continue;
         }
         if let Ok(b) = Bottle::load(&path) {
+            let legacy_32bit = is_32bit_prefix(&path.join(PREFIX_DIR));
+            let readiness = if legacy_32bit {
+                crate::system::readiness::for_32bit_prefix(&host)
+            } else {
+                crate::system::readiness::for_engine(b.engine, &host)
+            };
             bottles.push(BottleSummary {
+                legacy_32bit,
                 setup_complete: !path.join(SETUP_MARKER).exists(),
                 program_count: b.programs.len() as u32,
                 id: b.id,
                 name: b.name,
                 runtime: b.runtime,
                 windows_version: b.windows_version,
-                readiness: crate::system::readiness::for_engine(b.engine, &host),
+                readiness,
                 engine: b.engine,
             });
         }
@@ -164,6 +173,20 @@ pub fn get(paths: &AppPaths, id: &str) -> Result<Bottle> {
         return Err(Error::BottleNotFound(id.to_string()));
     }
     Bottle::load(&dir)
+}
+
+/// True if `prefix` is a 32-bit (`WINEARCH=win32`) prefix: Wine writes the
+/// prefix's architecture at the top of `system.reg`.
+pub fn is_32bit_prefix(prefix: &Path) -> bool {
+    use std::io::{BufRead, BufReader};
+    let Ok(file) = std::fs::File::open(prefix.join("system.reg")) else {
+        return false;
+    };
+    BufReader::new(file)
+        .lines()
+        .take(10)
+        .map_while(|l| l.ok())
+        .any(|l| l.trim() == "#arch=win32")
 }
 
 /// Finds a bottle by id, unique id prefix, or exact name (for the CLI).
@@ -501,6 +524,11 @@ pub fn validate_env_var(key: &str, value: &str) -> Result<()> {
     if key == "WINEPREFIX" {
         return Err(Error::InvalidSetting(
             "WINEPREFIX is managed by Vinter".into(),
+        ));
+    }
+    if key == "WINEARCH" {
+        return Err(Error::InvalidSetting(
+            "bottles are always 64-bit; 32-bit programs run in them through WoW64".into(),
         ));
     }
     if value.contains('\0') {

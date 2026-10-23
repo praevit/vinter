@@ -68,6 +68,14 @@ enum Command {
     /// Experimental features: off by default, and may be rough.
     #[command(subcommand)]
     Experimental(ExperimentalCommand),
+    /// Show which CPU a Windows program (.exe, .dll) or installer (.msi) is
+    /// built for, and how it would run in a bottle.
+    Arch {
+        file: PathBuf,
+        /// Say how it runs in this bottle.
+        #[arg(long)]
+        bottle: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -416,6 +424,42 @@ fn experimental_command(paths: &AppPaths, out: Out, cmd: ExperimentalCommand) ->
     }
 }
 
+fn arch_command(
+    paths: &AppPaths,
+    out: Out,
+    file: &std::path::Path,
+    key: Option<&str>,
+) -> Result<()> {
+    use vinter_core::programs::arch;
+    let pe = arch::detect(file).with_context(|| {
+        format!(
+            "{} is not a Windows program or installer Vinter can read",
+            file.display()
+        )
+    })?;
+    let run = match key {
+        Some(key) => {
+            let b = bottle::resolve(paths, key)?;
+            Some(arch::run_path(pe, b.engine).map(|p| p.describe()))
+        }
+        None => None,
+    };
+    let value = json!({
+        "arch": pe,
+        "label": pe.label(),
+        "runs_as": run.as_ref().map(|r| r.as_ref().ok()),
+        "error": run.as_ref().and_then(|r| r.as_ref().err()),
+    });
+    out.print(&value, || {
+        println!("{pe:?} ({})", pe.label());
+        match &run {
+            Some(Ok(how)) => println!("Runs as {how}."),
+            Some(Err(why)) => println!("Cannot run in that bottle: {why}."),
+            None => {}
+        }
+    })
+}
+
 fn parse_flag(s: &str) -> Result<ExperimentalFlag, String> {
     ExperimentalFlag::parse(s).ok_or_else(|| {
         let all: Vec<_> = experimental::all().iter().map(|f| f.id()).collect();
@@ -480,6 +524,7 @@ async fn run(out: Out, command: Command) -> Result<()> {
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
         Command::Experimental(cmd) => experimental_command(&paths, out, cmd),
+        Command::Arch { file, bottle } => arch_command(&paths, out, &file, bottle.as_deref()),
         Command::Mcp => mcp::serve(paths).await,
         Command::InstallRosetta => {
             out.note("Installing Rosetta 2. macOS may ask for an administrator password.");
@@ -606,10 +651,10 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                     );
                 }
                 for b in &bottles {
-                    let state = if b.setup_complete {
-                        ""
-                    } else {
-                        "  (setup incomplete)"
+                    let state = match (b.setup_complete, b.legacy_32bit) {
+                        (false, _) => "  (setup incomplete)",
+                        (true, true) => "  (legacy 32-bit bottle)",
+                        (true, false) => "",
                     };
                     let readiness = match b.readiness.level {
                         ReadinessLevel::Green => "ready",
@@ -792,8 +837,9 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                 "log_id": launched.log_id,
                 "exit_code": code,
             });
-            out.print(&value, || {
-                println!("{} exited with {:?}.", launched.name, code)
+            out.print(&value, || match code {
+                Some(code) => println!("{} exited with code {code}.", launched.name),
+                None => println!("{} was stopped.", launched.name),
             })
         }
         BottleCommand::Graphics {

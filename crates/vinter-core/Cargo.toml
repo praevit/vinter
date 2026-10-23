@@ -37,6 +37,7 @@ humantime.workspace = true
 trash.workspace = true
 lnk.workspace = true
 pelite.workspace = true
+msi.workspace = true
 image.workspace = true
 base64.workspace = true
 specta = { workspace = true, features = ["derive"], optional = true }

@@ -2636,6 +2636,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "msi"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0325f8473ef1f5c38ee42345e2cd1678299cbbfa169d1776654a2a682867420"
+dependencies = [
+ "byteorder",
+ "cfb",
+ "encoding_rs",
+ "uuid",
+]
+
+[[package]]
 name = "muda"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5585,6 +5597,7 @@ dependencies = [
  "libc",
  "liblzma",
  "lnk",
+ "msi",
  "pelite",
  "percent-encoding",
  "reqwest",

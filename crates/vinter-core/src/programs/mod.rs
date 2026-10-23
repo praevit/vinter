@@ -1,5 +1,6 @@
 //! Finding programs installed in a bottle.
 
+pub mod arch;
 pub mod icons;
 pub mod msix;
 pub mod winpath;
@@ -282,7 +283,9 @@ pub fn launch(
         exe: program.exe.clone(),
     })?;
 
+    let found = check_architecture(&program.name, &exe, &bottle, rt.engine)?;
     let (log, _) = logs::create(&dir, &program.name)?;
+    log_run_path(&log, &program.name, found, rt.engine)?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
     // Skip empty or NUL-containing arguments; programs added before the
@@ -310,6 +313,58 @@ pub fn launch(
     })
 }
 
+/// The architecture of `exe` and how it runs on `engine`, or an error if it
+/// cannot run there at all (an ARM64 program on an Intel runtime). `None`
+/// for files whose architecture is unknown: Wine says what is wrong with them.
+fn check_architecture(
+    name: &str,
+    exe: &Path,
+    bottle: &Bottle,
+    engine: crate::engine::EngineKind,
+) -> Result<Option<(arch::PeArch, arch::RunPath)>> {
+    let Some(pe) = arch::detect(exe) else {
+        return Ok(None);
+    };
+    let path = arch::run_path(pe, engine).map_err(|reason| Error::WrongArchitecture {
+        name: name.to_string(),
+        bottle: bottle.name.clone(),
+        reason,
+    })?;
+    Ok(Some((pe, path)))
+}
+
+/// What CPU a bottle's program is built for, if its file can be read.
+pub fn arch_of(paths: &AppPaths, bottle_id: &str, program: &ProgramDef) -> Option<arch::PeArch> {
+    let prefix = bottle::dir(paths, bottle_id).ok()?.join(PREFIX_DIR);
+    arch::detect(&winpath::to_unix(&prefix, &program.exe)?)
+}
+
+/// Writes which way a program runs (natively, through FEX, under Rosetta...)
+/// as the first line of its log.
+fn log_run_path(
+    log: &Path,
+    name: &str,
+    found: Option<(arch::PeArch, arch::RunPath)>,
+    engine: crate::engine::EngineKind,
+) -> Result<()> {
+    let Some((pe, path)) = found else {
+        return Ok(());
+    };
+    let line = format!(
+        "vinter: {name} is {pe:?} ({}); runs as {} on the {} engine\n",
+        pe.label(),
+        path.describe(),
+        engine.id()
+    );
+    use std::io::Write;
+    std::fs::File::options()
+        .create(true)
+        .append(true)
+        .open(log)
+        .and_then(|mut f| f.write_all(line.as_bytes()))
+        .at(log)
+}
+
 /// Runs an installer (`.exe` or `.msi`) in a bottle and waits for it to exit.
 /// Returns its exit code: many installers return non-zero when cancelled,
 /// so callers should still look for new programs afterwards.
@@ -328,6 +383,7 @@ pub fn run_installer(
     let rt = runtime::get(paths, &bottle.runtime)?;
     rt.check_can_run()?;
     let file = installer.file_name().unwrap_or_default().to_string_lossy();
+    let found = check_architecture(&file, installer, &bottle, rt.engine)?;
     bottle::snapshot::auto(paths, bottle_id, &format!("Before installing {file}"))?;
     let dir = bottle::dir(paths, bottle_id)?;
     let prefix = dir.join(PREFIX_DIR);
@@ -340,6 +396,7 @@ pub fn run_installer(
     }
 
     let (log, _) = logs::create(&dir, "installer")?;
+    log_run_path(&log, &file, found, rt.engine)?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
     // Wine's msiexec crashes on long host paths (seen with a 153-character

@@ -91,6 +91,13 @@ pub enum Error {
     #[error("{name} is no longer installed at {exe}")]
     ProgramMissing { name: String, exe: String },
 
+    #[error("{name} cannot run in bottle {bottle:?}: {reason}")]
+    WrongArchitecture {
+        name: String,
+        bottle: String,
+        reason: String,
+    },
+
     #[error("{0:?} is not a valid program for this bottle")]
     InvalidProgram(String),
 

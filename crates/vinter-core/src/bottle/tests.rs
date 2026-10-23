@@ -571,3 +571,24 @@ fn fex_bottles_register_their_emulators() {
     let files = std::fs::read_to_string(x86_prefix.join("regedit-files.txt")).unwrap_or_default();
     assert!(!files.contains("Wow64"), "{files}");
 }
+
+#[test]
+fn legacy_32bit_prefixes_are_flagged() {
+    let (_tmp, paths) = setup();
+    let b = create(&paths, new_bottle("Old", "fake"), |_| {}).unwrap();
+    let prefix = dir(&paths, &b.id).unwrap().join(PREFIX_DIR);
+    let header = |arch: &str| {
+        format!("WINE REGISTRY Version 2\n;; All keys relative to \\\\Machine\n\n#arch={arch}\n")
+    };
+    std::fs::write(prefix.join("system.reg"), header("win64")).unwrap();
+    assert!(!list(&paths).unwrap()[0].legacy_32bit);
+
+    std::fs::write(prefix.join("system.reg"), header("win32")).unwrap();
+    let listed = &list(&paths).unwrap()[0];
+    assert!(listed.legacy_32bit);
+    assert!(listed.readiness.summary.contains("32-bit"));
+
+    // Vinter never makes one: WINEARCH cannot be set on a bottle.
+    let err = validate_env_var("WINEARCH", "win32").unwrap_err();
+    assert!(err.to_string().contains("64-bit"), "{err}");
+}
