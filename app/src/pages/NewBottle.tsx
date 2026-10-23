@@ -4,8 +4,7 @@ import { WINDOWS_VERSIONS, bottleJobKey } from "../api/bottles";
 import { errorMessage } from "../api/errors";
 import { useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
-import { useInstalledRuntimes } from "../api/runtimes";
-import { useSettings } from "../api/settings";
+import { ENGINE_LABELS, runtimeLabel, useDefaultRuntime, useInstalledRuntimes } from "../api/runtimes";
 import type { Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -23,9 +22,8 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
-  const { data: settings } = useSettings();
-  const runtime =
-    runtimes?.find((r) => r.id === (runtimeId ?? settings?.default_runtime)) ?? runtimes?.[0];
+  const { data: defaultId } = useDefaultRuntime();
+  const runtime = runtimes?.find((r) => r.id === (runtimeId ?? defaultId)) ?? runtimes?.[0];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -89,9 +87,16 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
       <Label title="Runtime">
         <Select
           value={runtime?.id ?? ""}
-          options={runtimes?.map((r) => ({ value: r.id, label: r.name })) ?? []}
+          options={runtimes?.map((r) => ({ value: r.id, label: runtimeLabel(r) })) ?? []}
           onChange={setRuntimeId}
         />
+        {runtime && (
+          <span className="text-xs text-slate-deep-700/60 dark:text-frost-300/60">
+            {runtime.engine === "arm64-fex"
+              ? "Apple Silicon engine: runs Windows apps without Rosetta. A bottle keeps its engine."
+              : `${ENGINE_LABELS[runtime.engine]} engine. A bottle keeps its engine.`}
+          </span>
+        )}
       </Label>
 
       <Label title="Windows version">

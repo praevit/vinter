@@ -55,6 +55,9 @@ pub struct RuntimeInfo {
     /// Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it).
     #[serde(default)]
     pub min_os_version: Option<String>,
+    /// FEX release it ships, for engines that translate x86 code with FEX.
+    #[serde(default)]
+    pub fex_version: Option<String>,
     /// Filled in for this machine: x86_64 build on Apple Silicon.
     #[serde(default, skip_deserializing)]
     pub needs_rosetta: bool,
@@ -163,6 +166,7 @@ mod tests {
     #[test]
     fn minimum_os_versions() {
         let mut info = all()[0].clone();
+        info.min_os_version = None;
         assert!(supports_version(&info, Some("13.0")));
         info.min_os_version = Some("15.0".into());
         assert!(!supports_version(&info, Some("14.7")));
@@ -180,12 +184,26 @@ mod tests {
 
     #[test]
     fn rosetta_compatibility() {
-        let mac = all().iter().find(|r| r.os == "macos").unwrap();
+        let mac = all()
+            .iter()
+            .find(|r| r.os == "macos" && r.arch == "x86_64")
+            .unwrap();
         assert!(mac.runs_on("macos", "aarch64"));
         assert!(mac.runs_on("macos", "x86_64"));
         assert!(!mac.runs_on("linux", "x86_64"));
         let linux = all().iter().find(|r| r.os == "linux").unwrap();
         assert!(linux.runs_on("linux", "x86_64"));
         assert!(!linux.runs_on("linux", "aarch64"));
+
+        // Apple Silicon Wine only runs on Apple Silicon, and never needs Rosetta.
+        let arm = all()
+            .iter()
+            .find(|r| r.engine == crate::engine::EngineKind::Arm64Fex)
+            .unwrap();
+        assert!(arm.runs_on("macos", "aarch64"));
+        assert!(!arm.runs_on("macos", "x86_64"));
+        assert!(arm.min_os_version.as_deref() == Some(crate::engine::ARM64_MIN_MACOS));
+        let listed = available_for("macos", "aarch64");
+        assert!(!listed.iter().find(|r| r.id == arm.id).unwrap().needs_rosetta);
     }
 }

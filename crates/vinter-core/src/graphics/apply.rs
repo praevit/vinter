@@ -152,6 +152,7 @@ mod tests {
             arch: std::env::consts::ARCH.into(),
             graphics: vec![Graphics::Wined3d, Graphics::Dxvk],
             engine: Some(crate::engine::EngineKind::legacy()),
+            fex_version: None,
         };
         std::fs::write(rt.join("runtime.toml"), toml::to_string(&record).unwrap()).unwrap();
 

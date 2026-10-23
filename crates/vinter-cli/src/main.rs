@@ -126,9 +126,11 @@ enum BottleCommand {
     /// Create a bottle and set up its Wine prefix.
     Create {
         name: String,
-        /// Runtime id (see `vinter runtime list`).
+        /// Runtime id (see `vinter runtime list`). Default: the one chosen in
+        /// Settings, else the newest Apple Silicon runtime this Mac can run,
+        /// else the newest one.
         #[arg(long)]
-        runtime: String,
+        runtime: Option<String>,
         /// win11, win10, win81, win8, win7 or winxp64.
         #[arg(long, default_value = "win10", value_parser = parse_windows_version)]
         windows: WindowsVersion,
@@ -523,7 +525,7 @@ fn runtime_list(paths: &AppPaths, out: Out) -> Result<()> {
             println!("  (none)");
         }
         for r in &installed {
-            println!("  {:<28} {:<20} {}", r.id, r.name, mb(r.size));
+            println!("  {:<30} {:<26} {}", r.id, r.name, mb(r.size));
         }
         println!("\nAvailable:");
         for r in &available {
@@ -532,7 +534,7 @@ fn runtime_list(paths: &AppPaths, out: Out) -> Result<()> {
             } else {
                 ""
             };
-            println!("  {:<28} {:<20} {}{mark}", r.id, r.name, mb(r.size));
+            println!("  {:<30} {:<26} {}{mark}", r.id, r.name, mb(r.size));
         }
     })
 }
@@ -639,6 +641,14 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
             runtime,
             windows,
         } => {
+            let runtime = match runtime {
+                Some(id) => id,
+                None => runtime::default_for_new_bottles(paths)?
+                    .context(
+                        "no runtime is installed; install one with `vinter runtime install <id>`",
+                    )?
+                    .id,
+            };
             let new = NewBottle {
                 id: None,
                 name,

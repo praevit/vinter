@@ -247,6 +247,7 @@ fn fake_runtime(paths: &AppPaths) {
         arch: std::env::consts::ARCH.into(),
         graphics: vec![crate::bottle::Graphics::Wined3d],
         engine: Some(crate::engine::EngineKind::legacy()),
+        fex_version: None,
     };
     std::fs::write(dir.join("runtime.toml"), toml::to_string(&record).unwrap()).unwrap();
 }

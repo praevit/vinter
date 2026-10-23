@@ -21,7 +21,7 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useRecipeState } from "../api/recipes";
-import { ENGINE_LABELS, formatBytes, useInstalledRuntimes } from "../api/runtimes";
+import { ENGINE_LABELS, formatBytes, runtimeLabel, useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
 import { BackupButton } from "../components/BackupControls";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
@@ -62,7 +62,7 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">{bottle.name}</h1>
         <p className={subtle}>
-          {runtime?.name ?? bottle.runtime} · {windowsLabel(bottle.windows_version)}
+          {runtime ? runtimeLabel(runtime) : bottle.runtime} · {windowsLabel(bottle.windows_version)}
         </p>
       </header>
 
@@ -309,7 +309,7 @@ function Settings({
               : [{ value: bottle.runtime, label: `${bottle.runtime} (not installed)` }]),
             ...(runtimes
               ?.filter((r) => r.engine === bottle.engine)
-              .map((r) => ({ value: r.id, label: r.name })) ?? []),
+              .map((r) => ({ value: r.id, label: runtimeLabel(r) })) ?? []),
           ]}
         />
         <span className={subtle}>

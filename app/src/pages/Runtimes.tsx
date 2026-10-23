@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
 import {
   commands,
+  type EngineKind,
   type Flavor,
   type Runtime,
   type RuntimeInfo_Serialize as RuntimeInfo,
@@ -11,7 +12,9 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import {
+  ENGINE_LABELS,
   formatBytes,
+  isPreviewEngine,
   runtimeJobKey,
   useAvailableRuntimes,
   useInstalledRuntimes,
@@ -127,14 +130,39 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <li className="px-4 py-6 text-center text-sm text-frost-400">{children}</li>;
 }
 
-function Title({ name, flavor }: { name: string; flavor: Flavor }) {
+function Title({ name, flavor, engine }: { name: string; flavor: Flavor; engine: EngineKind }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <span className="font-medium">{name}</span>
       <span className="rounded bg-frost-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300">
         {FLAVORS[flavor]}
       </span>
+      <span
+        className="rounded bg-frost-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300"
+        title={
+          engine === "x86_64-rosetta"
+            ? "Intel Wine. Needs Rosetta on Apple Silicon, which macOS 28 mostly removes."
+            : engine === "arm64-fex"
+              ? "Native Apple Silicon Wine. Translates Intel code itself, without Rosetta."
+              : undefined
+        }
+      >
+        {ENGINE_LABELS[engine]}
+      </span>
+      {isPreviewEngine(engine) && <PreviewBadge />}
     </div>
+  );
+}
+
+/** Marks the Apple Silicon engine while it is new. */
+function PreviewBadge() {
+  return (
+    <span
+      className="rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-500/15 dark:text-sky-300"
+      title="Runs without Rosetta. New and not yet as well tested as the Intel runtimes."
+    >
+      Preview
+    </span>
   );
 }
 
@@ -149,7 +177,7 @@ function InstalledRow({ runtime: r }: { runtime: Runtime }) {
   return (
     <li className="flex items-center gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <Title name={r.name} flavor={r.flavor} />
+        <Title name={r.name} flavor={r.flavor} engine={r.engine} />
         <div className={subtle}>
           {formatBytes(r.size)} on disk · installed {new Date(r.installed_at).toLocaleDateString()}
         </div>
@@ -207,7 +235,7 @@ function AvailableRow({ runtime: r }: { runtime: RuntimeInfo }) {
     <li className="flex flex-col gap-2 px-4 py-3">
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
-          <Title name={r.name} flavor={r.flavor} />
+          <Title name={r.name} flavor={r.flavor} engine={r.engine} />
           <div className={subtle}>
             {formatBytes(r.size)} download · {r.license} ·{" "}
             <button

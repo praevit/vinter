@@ -10,7 +10,7 @@ import {
 } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { useExperimentalFlags, useSetExperimental } from "../api/experimental";
-import { formatBytes, useAvailableRuntimes, useInstalledRuntimes } from "../api/runtimes";
+import { formatBytes, runtimeLabel, useAvailableRuntimes, useInstalledRuntimes } from "../api/runtimes";
 import { useSaveSettings, useSettings } from "../api/settings";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { Dialog } from "../components/Dialog";
@@ -85,11 +85,14 @@ export function Settings() {
             value={settings.default_runtime ?? ""}
             onChange={(id) => set({ default_runtime: id || null })}
             options={[
-              { value: "", label: "The newest installed one" },
-              ...(runtimes?.map((r) => ({ value: r.id, label: r.name })) ?? []),
+              { value: "", label: "Automatic" },
+              ...(runtimes?.map((r) => ({ value: r.id, label: runtimeLabel(r) })) ?? []),
             ]}
           />
-          <span className={subtle}>Apps set up with one click pick the runtime their recipe needs.</span>
+          <span className={subtle}>
+            Automatic picks the newest Apple Silicon runtime when this Mac can run it (no Rosetta needed), otherwise
+            the newest one. Apps set up with one click pick the runtime their recipe needs.
+          </span>
         </div>
         <div className="px-5 py-3.5">
           <BottleOptionsFields

@@ -251,6 +251,11 @@ pub fn finish_create(
         rt.check_can_run()?;
         on_step("Creating Wine prefix");
         boot_prefix(&rt, &dir, bottle)?;
+        let emulators = crate::engine::installed_emulators(rt.engine(), &rt);
+        if !emulators.is_empty() {
+            on_step("Setting up x86 emulation");
+            register_emulators(&rt, &dir, bottle, &emulators)?;
+        }
         keep_desktop_in_bottle(&dir.join(PREFIX_DIR))?;
         on_step("Setting Windows version");
         apply_windows_version(&rt, &dir, bottle)?;
@@ -311,6 +316,28 @@ fn needs_registry(old: &BottleOptions, new: &BottleOptions) -> bool {
         && (old.retina_mode != new.retina_mode
             || old.command_as_ctrl != new.command_as_ctrl
             || old.option_as_alt != new.option_as_alt)
+}
+
+/// Tells Wine which DLLs translate x86 code (FEX on the Apple Silicon engine).
+fn register_emulators(
+    rt: &Runtime,
+    dir: &Path,
+    bottle: &Bottle,
+    emulators: &[crate::engine::EmulatorDll],
+) -> Result<()> {
+    let prefix = dir.join(PREFIX_DIR);
+    let reg = dir.join(".emulators.reg");
+    std::fs::write(&reg, crate::engine::emulators_reg(emulators)).at(&reg)?;
+    let (log, _) = logs::create(dir, "emulators")?;
+    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine")?;
+    cmd.args(["regedit", "/S"]).arg(format!(
+        "Z:{}",
+        reg.display().to_string().replace('/', "\\")
+    ));
+    let result = process::run_and_wait(cmd, &log, "Setting up x86 emulation", WINECFG_TIMEOUT)
+        .and_then(|()| wait_for_wineserver(rt, &prefix, bottle, &log));
+    let _ = std::fs::remove_file(&reg);
+    result
 }
 
 fn apply_options(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {

@@ -118,7 +118,7 @@ pub fn command(
         other => other.into(),
     };
     let mut cmd = runtime.command(&program.to_string_lossy());
-    cmd.envs(engine.env(prefix, bottle, base_overrides));
+    cmd.envs(engine.env(runtime, prefix, bottle, base_overrides));
     cmd.stdin(Stdio::null());
     Ok(cmd)
 }

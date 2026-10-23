@@ -110,7 +110,8 @@ export function About() {
             Wine
           </button>
           , licensed under the LGPL. Each runtime folder includes Wine's license and a link to its exact
-          source. Graphics: DXVK (zlib license), MoltenVK (Apache 2.0). Winetricks (LGPL) for some recipes.
+          source. Apple Silicon runtimes translate Intel code with FEX-Emu (MIT license). Graphics: DXVK (zlib
+          license), MoltenVK (Apache 2.0). Winetricks (LGPL) for some recipes.
         </p>
         <p>
           "Vinter" and its logo are trademarks of Prævit ehf. Vinter is not affiliated with Wine, Apple or

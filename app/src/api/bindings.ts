@@ -16,6 +16,8 @@ export const commands = {
 	runtimesAvailable: () => __TAURI_INVOKE<RuntimeInfo_Serialize[]>("runtimes_available"),
 	/**  Installed runtimes, with their disk usage. */
 	runtimesInstalled: () => __TAURI_INVOKE<Runtime[]>("runtimes_installed"),
+	/**  Id of the runtime new bottles use unless the user picks another. */
+	runtimeDefault: () => __TAURI_INVOKE<string | null>("runtime_default"),
 	/**  Starts downloading and installing a runtime. Progress comes as job events. */
 	runtimeInstall: (id: string) => __TAURI_INVOKE<string>("runtime_install", { id }),
 	/**  Deletes an installed runtime. */
@@ -851,6 +853,8 @@ export type Runtime = {
 	source_url: string,
 	arch: string,
 	engine: EngineKind,
+	/**  FEX release it ships, if any. */
+	fex_version: string | null,
 	/**  x86_64 build on Apple Silicon: runs only with Rosetta 2. */
 	needs_rosetta: boolean,
 	/**  Graphics backends it supports. */
@@ -896,6 +900,8 @@ export type RuntimeInfo_Deserialize = {
 	engine: EngineKind,
 	/**  Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it). */
 	min_os_version?: string | null,
+	/**  FEX release it ships, for engines that translate x86 code with FEX. */
+	fex_version?: string | null,
 };
 
 /**  One downloadable Wine build. */
@@ -927,6 +933,8 @@ export type RuntimeInfo_Serialize = {
 	engine: EngineKind,
 	/**  Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it). */
 	min_os_version: string | null,
+	/**  FEX release it ships, for engines that translate x86 code with FEX. */
+	fex_version: string | null,
 	/**  Filled in for this machine: x86_64 build on Apple Silicon. */
 	needs_rosetta: boolean,
 };

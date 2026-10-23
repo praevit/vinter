@@ -50,6 +50,9 @@ pub struct RuntimeRecord {
     /// engine follows from `arch`.
     #[serde(default)]
     pub engine: Option<EngineKind>,
+    /// FEX release it ships, if any.
+    #[serde(default)]
+    pub fex_version: Option<String>,
 }
 
 fn default_graphics() -> Vec<Graphics> {
@@ -83,6 +86,8 @@ pub struct Runtime {
     pub source_url: String,
     pub arch: String,
     pub engine: EngineKind,
+    /// FEX release it ships, if any.
+    pub fex_version: Option<String>,
     /// x86_64 build on Apple Silicon: runs only with Rosetta 2.
     pub needs_rosetta: bool,
     /// Graphics backends it supports.
@@ -120,6 +125,7 @@ impl Runtime {
                     .unwrap_or_else(EngineKind::legacy)
             }),
             arch: record.arch,
+            fex_version: record.fex_version,
             graphics: record.graphics,
             path,
         }
@@ -165,9 +171,13 @@ impl Runtime {
 /// Wine builds its Kerberos module only when it finds libkrb5.
 fn has_kerberos(root: &Path) -> bool {
     ["lib", "lib64"].iter().any(|lib| {
-        root.join(lib)
-            .join("wine/x86_64-unix/kerberos.so")
-            .is_file()
+        ["x86_64-unix", "aarch64-unix"].iter().any(|unix| {
+            root.join(lib)
+                .join("wine")
+                .join(unix)
+                .join("kerberos.so")
+                .is_file()
+        })
     })
 }
 
@@ -252,4 +262,81 @@ pub fn remove(paths: &AppPaths, id: &str) -> Result<()> {
         .join(format!(".removing-{id}-{}", uuid::Uuid::new_v4()));
     std::fs::rename(&dir, &trash).at(&dir)?;
     std::fs::remove_dir_all(&trash).at(&trash)
+}
+
+/// The runtime new bottles use: the one chosen in Settings if it is still
+/// installed, else the newest runtime on the Apple Silicon engine when this
+/// Mac can run it, else the newest one that can run here at all.
+pub fn default_for_new_bottles(paths: &AppPaths) -> Result<Option<Runtime>> {
+    let installed = installed(paths)?;
+    if let Some(chosen) = crate::settings::load(paths).default_runtime
+        && let Some(rt) = installed.iter().find(|r| r.id == chosen)
+    {
+        return Ok(Some(rt.clone()));
+    }
+    Ok(pick_default(installed, &crate::engine::Host::current()))
+}
+
+fn pick_default(installed: Vec<Runtime>, host: &crate::engine::Host) -> Option<Runtime> {
+    let runs = |r: &Runtime| crate::engine::unmet_requirement(r.engine, host).is_none();
+    let newest = |rs: Vec<Runtime>| {
+        rs.into_iter()
+            .max_by(|a, b| updates::compare_versions(&a.version, &b.version).then(b.id.cmp(&a.id)))
+    };
+    let (arm64, rest): (Vec<_>, Vec<_>) = installed
+        .into_iter()
+        .filter(runs)
+        .partition(|r| r.engine == EngineKind::Arm64Fex);
+    newest(arm64).or_else(|| newest(rest))
+}
+
+#[cfg(test)]
+mod default_tests {
+    use super::*;
+    use crate::engine::Host;
+
+    fn rt(id: &str, version: &str, engine: EngineKind) -> Runtime {
+        Runtime {
+            id: id.into(),
+            name: id.into(),
+            version: version.into(),
+            flavor: Flavor::Stable,
+            path: PathBuf::new(),
+            wine_bin: PathBuf::new(),
+            installed_at: String::new(),
+            size: 0,
+            source_url: String::new(),
+            arch: String::new(),
+            engine,
+            fex_version: None,
+            needs_rosetta: false,
+            graphics: vec![],
+            kerberos: false,
+            domain_identity: false,
+        }
+    }
+
+    #[test]
+    fn prefers_the_apple_silicon_engine_where_it_runs() {
+        let new_mac = Host {
+            os: "macos".into(),
+            arch: "aarch64".into(),
+            macos_version: Some("27.0".into()),
+        };
+        let old_mac = Host {
+            macos_version: Some("26.4".into()),
+            ..new_mac.clone()
+        };
+        let all = || {
+            vec![
+                rt("a-rosetta-11.19", "11.19", EngineKind::X86_64Rosetta),
+                rt("b-arm-11.10", "11.10", EngineKind::Arm64Fex),
+                rt("c-rosetta-11.0", "11.0", EngineKind::X86_64Rosetta),
+            ]
+        };
+        assert_eq!(pick_default(all(), &new_mac).unwrap().id, "b-arm-11.10");
+        // Too old for ARM64 Wine: the newest Rosetta runtime.
+        assert_eq!(pick_default(all(), &old_mac).unwrap().id, "a-rosetta-11.19");
+        assert!(pick_default(vec![], &new_mac).is_none());
+    }
 }

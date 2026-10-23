@@ -124,6 +124,58 @@ pub enum Translates {
     X86,
 }
 
+impl Translates {
+    /// Registry key whose default value names the emulator DLL, as Wine reads
+    /// it (`dlls/ntdll/loader.c` for ARM64EC, `dlls/wow64/syscall.c` for WoW64).
+    pub fn registry_key(self) -> &'static str {
+        match self {
+            Self::X86_64 => r"HKEY_LOCAL_MACHINE\Software\Microsoft\Wow64\amd64",
+            Self::X86 => r"HKEY_LOCAL_MACHINE\Software\Microsoft\Wow64\x86",
+        }
+    }
+
+    /// Environment variable that makes the patched wineserver accept images
+    /// of this machine type (wine-macos-native's loader patch).
+    pub fn env_switch(self) -> &'static str {
+        match self {
+            Self::X86_64 => "WINEARM64ECEMU",
+            Self::X86 => "WINEWOW64EMU",
+        }
+    }
+}
+
+/// Folder of a runtime's ARM64 PE modules, where the emulator DLLs live.
+pub fn arm64_pe_dir(rt: &Runtime) -> PathBuf {
+    rt.bin_dir()
+        .parent()
+        .unwrap_or(&rt.path)
+        .join("lib/wine/aarch64-windows")
+}
+
+/// The emulator DLLs of `engine` that `rt` actually ships.
+pub fn installed_emulators(engine: &dyn Engine, rt: &Runtime) -> Vec<EmulatorDll> {
+    let dir = arm64_pe_dir(rt);
+    engine
+        .emulator_dlls()
+        .iter()
+        .copied()
+        .filter(|d| dir.join(d.file).is_file())
+        .collect()
+}
+
+/// A `.reg` file that registers `emulators` in a prefix.
+pub fn emulators_reg(emulators: &[EmulatorDll]) -> String {
+    let mut reg = String::from("REGEDIT4\r\n");
+    for d in emulators {
+        reg.push_str(&format!(
+            "\r\n[{}]\r\n@=\"{}\"\r\n",
+            d.translates.registry_key(),
+            d.file
+        ));
+    }
+    reg
+}
+
 const FEX_DLLS: &[EmulatorDll] = &[
     EmulatorDll {
         file: "libarm64ecfex.dll",
@@ -149,13 +201,15 @@ pub trait Engine: Sync {
         rt.bin_dir().join("wineserver")
     }
 
-    /// The full environment for a Wine process in `bottle`.
+    /// The full environment for a Wine process in `bottle` on `rt`.
     fn env(
         &self,
+        rt: &Runtime,
         prefix: &Path,
         bottle: &Bottle,
         base_overrides: &[(&str, &str)],
     ) -> Vec<(String, String)> {
+        let _ = rt;
         crate::process::wine_env(prefix, bottle, base_overrides)
     }
 
@@ -276,6 +330,25 @@ impl Engine for Fex {
         FEX_DLLS
     }
 
+    /// Adds the switches that let Wine hand x86 code to FEX, for each
+    /// emulator the runtime ships. The bottle's own variables still win.
+    fn env(
+        &self,
+        rt: &Runtime,
+        prefix: &Path,
+        bottle: &Bottle,
+        base_overrides: &[(&str, &str)],
+    ) -> Vec<(String, String)> {
+        let mut env = crate::process::wine_env(prefix, bottle, base_overrides);
+        for d in installed_emulators(self, rt) {
+            let key = d.translates.env_switch();
+            if !bottle.env.contains_key(key) {
+                env.push((key.into(), "1".into()));
+            }
+        }
+        env
+    }
+
     fn check(&self, rt: &Runtime) -> Result<()> {
         check_host(self.kind(), rt)?;
         if self.linux {
@@ -387,6 +460,19 @@ mod tests {
 
         assert_eq!(unmet_requirement(Arm64FexLinux, &linux_arm), None);
         assert!(unmet_requirement(Arm64FexLinux, &linux).is_some());
+    }
+
+    #[test]
+    fn emulator_registry_file() {
+        let reg = emulators_reg(FEX_DLLS);
+        assert!(reg.starts_with("REGEDIT4\r\n"));
+        assert!(reg.contains(
+            "[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Wow64\\amd64]\r\n@=\"libarm64ecfex.dll\"\r\n"
+        ));
+        assert!(reg.contains(
+            "[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Wow64\\x86]\r\n@=\"libwow64fex.dll\"\r\n"
+        ));
+        assert_eq!(emulators_reg(&[]), "REGEDIT4\r\n");
     }
 
     #[test]

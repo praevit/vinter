@@ -30,6 +30,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::system::rosetta_install,
             commands::runtimes::runtimes_available,
             commands::runtimes::runtimes_installed,
+            commands::runtimes::runtime_default,
             commands::runtimes::runtime_install,
             commands::runtimes::runtime_remove,
             commands::runtimes::runtime_updates,

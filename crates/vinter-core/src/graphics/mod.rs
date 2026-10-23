@@ -224,6 +224,7 @@ mod tests {
             needs_rosetta: false,
             graphics,
             engine: crate::engine::EngineKind::legacy(),
+            fex_version: None,
             kerberos: false,
             domain_identity: false,
         }

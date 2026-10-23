@@ -15,6 +15,14 @@ pub fn runtimes_available() -> Vec<RuntimeInfo> {
     runtime::manifest::available()
 }
 
+/// Id of the runtime new bottles use unless the user picks another.
+#[tauri::command]
+#[specta::specta]
+pub async fn runtime_default(state: State<'_, AppState>) -> CommandResult<Option<String>> {
+    let paths = state.paths.clone();
+    blocking(move || Ok(runtime::default_for_new_bottles(&paths)?.map(|r| r.id))).await
+}
+
 /// Installed runtimes, with their disk usage.
 #[tauri::command]
 #[specta::specta]

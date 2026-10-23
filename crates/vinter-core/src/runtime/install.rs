@@ -94,15 +94,63 @@ where
         arch: info.arch.clone(),
         graphics: info.graphics.clone(),
         engine: Some(info.engine),
+        fex_version: info.fex_version.clone(),
     };
     let toml = toml::to_string_pretty(&record).expect("runtime record serializes");
     write(staging.join(RECORD_FILE), toml).await?;
     write(staging.join(LICENSE_FILE), super::WINE_LICENSE).await?;
+    smoke_test(info, staging).await?;
 
     let dest = paths.runtimes_dir().join(&info.id);
     ensure_not_installed(paths, &info.id)?;
     tokio::fs::rename(staging, &dest).await.at(&dest)?;
     super::get(paths, &info.id)
+}
+
+/// How long `wine --version` may take (the first x86_64 start under Rosetta is slow).
+const SMOKE_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Runs `wine --version` from the unpacked build, so a build that cannot
+/// start on this machine is not installed. Skipped when the engine cannot
+/// run here at all (e.g. Rosetta not installed yet): there is nothing to
+/// learn, and the user is told why when they use it.
+async fn smoke_test(info: &RuntimeInfo, staging: &Path) -> Result<()> {
+    let host = crate::engine::Host::current();
+    if crate::engine::unmet_requirement(info.engine, &host).is_some()
+        || (info.needs_rosetta && !crate::system::rosetta::is_installed())
+    {
+        return Ok(());
+    }
+    let output = tokio::time::timeout(
+        SMOKE_TEST_TIMEOUT,
+        tokio::process::Command::new(staging.join(&info.wine_bin))
+            .arg("--version")
+            .env("WINEDEBUG", "-all")
+            .stdin(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await;
+    let reason = match output {
+        Err(_) => format!("timed out after {}s", SMOKE_TEST_TIMEOUT.as_secs()),
+        Ok(Err(e)) => e.to_string(),
+        Ok(Ok(out)) => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if out.status.success() && text.trim_start().starts_with("wine-") {
+                return Ok(());
+            }
+            format!(
+                "{}, {}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr).trim()
+            )
+        }
+    };
+    Err(Error::BadArchive(format!(
+        "{} does not start on this machine (`wine --version`: {})",
+        info.name,
+        reason.trim_end_matches([',', ' '])
+    )))
 }
 
 fn ensure_not_installed(paths: &AppPaths, id: &str) -> Result<()> {
@@ -129,6 +177,11 @@ mod tests {
 
     /// Builds a `.tar.xz` holding `top/bin/wine` plus any extra entries.
     fn make_archive(dir: &Path, top: &str, with_wine: bool) -> PathBuf {
+        make_archive_with(dir, top, with_wine.then_some(WINE_SCRIPT))
+    }
+
+    /// Like [`make_archive`], with `wine` being `script` (or missing).
+    fn make_archive_with(dir: &Path, top: &str, wine: Option<&[u8]>) -> PathBuf {
         let path = dir.join(format!("{top}.tar.xz"));
         let file = std::fs::File::create(&path).unwrap();
         let mut tar = tar::Builder::new(liblzma::write::XzEncoder::new(file, 1));
@@ -140,8 +193,8 @@ mod tests {
             tar.append_data(&mut header, name, data).unwrap();
         };
         add(&format!("{top}/share/readme.txt"), b"hello", 0o644);
-        if with_wine {
-            add(&format!("{top}/bin/wine"), WINE_SCRIPT, 0o755);
+        if let Some(script) = wine {
+            add(&format!("{top}/bin/wine"), script, 0o755);
         }
         tar.into_inner().unwrap().finish().unwrap();
         path
@@ -170,6 +223,7 @@ mod tests {
             needs_rosetta: false,
             graphics: vec![crate::bottle::Graphics::Wined3d],
             engine: crate::engine::EngineKind::legacy(),
+            fex_version: None,
             min_os_version: None,
         }
     }
@@ -246,6 +300,28 @@ mod tests {
         }
         assert!(!archive.exists(), "a bad download must be deleted");
         assert!(visible_entries(&paths.runtimes_dir()).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rejects_a_build_that_does_not_start() {
+        for script in [
+            &b"#!/bin/sh\necho 'dyld: missing library' >&2\nexit 1\n"[..],
+            &b"#!/bin/sh\necho hello\n"[..],
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let paths = AppPaths::with_data_dir(tmp.path().join("data"));
+            let archive = make_archive_with(tmp.path(), "wine-test", Some(script));
+            let info = info("wine-test-1", sha256_of(&archive));
+
+            let err = install_from_archive(&paths, &info, &archive, &mut |_| {})
+                .await
+                .unwrap_err();
+            let msg = err.to_string();
+            assert!(matches!(err, Error::BadArchive(_)), "{msg}");
+            assert!(msg.contains("does not start"), "{msg}");
+            assert!(visible_entries(&paths.runtimes_dir()).is_empty());
+        }
     }
 
     #[tokio::test]

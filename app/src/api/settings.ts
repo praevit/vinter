@@ -9,6 +9,10 @@ export function useSaveSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (settings: Settings) => commands.settingsSet(settings),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+      // The default runtime for new bottles follows the Settings choice.
+      await queryClient.invalidateQueries({ queryKey: ["runtimes", "default"] });
+    },
   });
 }

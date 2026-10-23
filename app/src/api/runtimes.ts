@@ -17,6 +17,19 @@ export function useAvailableRuntimes() {
   });
 }
 
+/** The ARM64 engine is shown as "Preview" until the owner removes that label. */
+export const isPreviewEngine = (engine: EngineKind) => engine === "arm64-fex";
+
+/** A runtime's name for pickers, e.g. "Apple Silicon Wine 11.10 (Preview)". */
+export function runtimeLabel(r: { name: string; engine: EngineKind }): string {
+  return isPreviewEngine(r.engine) ? `${r.name} (Preview)` : r.name;
+}
+
+/** Id of the runtime new bottles use unless the user picks another. */
+export function useDefaultRuntime() {
+  return useQuery({ queryKey: ["runtimes", "default"], queryFn: () => commands.runtimeDefault() });
+}
+
 export function useInstalledRuntimes() {
   return useQuery({
     queryKey: ["runtimes", "installed"],

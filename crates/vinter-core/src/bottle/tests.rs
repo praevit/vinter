@@ -17,7 +17,11 @@ case "$1" in
     echo "booted"
     ;;
   winecfg) echo "$3" > "$WINEPREFIX/windows-version.txt" ;;
-  regedit) echo "$2" >> "$WINEPREFIX/regedit.txt" ;;
+  regedit)
+    echo "$2" >> "$WINEPREFIX/regedit.txt"
+    reg=$(printf '%s' "$3" | sed -e 's/^Z://' -e 's#\\#/#g')
+    if [ -f "$reg" ]; then cat "$reg" >> "$WINEPREFIX/regedit-files.txt"; fi
+    ;;
   *) echo "$1" >> "$WINEPREFIX/launched.txt" ;;
 esac
 "#;
@@ -50,6 +54,7 @@ fn install_fake_runtime(paths: &AppPaths, id: &str, wine: &str) {
         arch: std::env::consts::ARCH.into(),
         graphics: vec![crate::bottle::Graphics::Wined3d],
         engine: Some(crate::engine::EngineKind::legacy()),
+        fex_version: None,
     };
     std::fs::write(
         dir.join(runtime::RECORD_FILE),
@@ -529,4 +534,40 @@ fn engine_is_fixed_after_creation() {
     let prefix = dir(&paths, &b.id).unwrap().join(PREFIX_DIR);
     let err = process::command(&rt, &prefix, &b, &[], "wine").unwrap_err();
     assert!(matches!(err, Error::EngineMismatch { .. }), "{err}");
+}
+
+#[test]
+fn fex_bottles_register_their_emulators() {
+    let host = crate::engine::Host::current();
+    if crate::engine::unmet_requirement(crate::engine::EngineKind::Arm64Fex, &host).is_some() {
+        return; // Needs a Mac that can run the Apple Silicon engine.
+    }
+    let (_tmp, paths) = setup();
+    install_fake_runtime(&paths, "arm", FAKE_WINE);
+    set_fake_engine(&paths, "arm", crate::engine::EngineKind::Arm64Fex);
+    let pe = paths.runtimes_dir().join("arm/lib/wine/aarch64-windows");
+    std::fs::create_dir_all(&pe).unwrap();
+    // Only the x86-64 emulator: the x86 one must then not be registered.
+    std::fs::write(pe.join("libarm64ecfex.dll"), "").unwrap();
+
+    let b = create(&paths, new_bottle("Arm", "arm"), |_| {}).unwrap();
+    assert_eq!(b.engine, crate::engine::EngineKind::Arm64Fex);
+    let prefix = dir(&paths, &b.id).unwrap().join(PREFIX_DIR);
+    let reg = std::fs::read_to_string(prefix.join("regedit-files.txt")).unwrap();
+    assert!(
+        reg.contains(
+            "[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Wow64\\amd64]\r\n@=\"libarm64ecfex.dll\""
+        ),
+        "{reg}"
+    );
+    assert!(!reg.contains("Wow64\\x86"), "{reg}");
+    let boot_env = std::fs::read_to_string(prefix.join("boot-env.txt")).unwrap();
+    assert!(boot_env.contains("WINEARM64ECEMU=1"), "{boot_env}");
+    assert!(!boot_env.contains("WINEWOW64EMU"), "{boot_env}");
+
+    // A Rosetta bottle registers nothing.
+    let x86 = create(&paths, new_bottle("Intel", "fake"), |_| {}).unwrap();
+    let x86_prefix = dir(&paths, &x86.id).unwrap().join(PREFIX_DIR);
+    let files = std::fs::read_to_string(x86_prefix.join("regedit-files.txt")).unwrap_or_default();
+    assert!(!files.contains("Wow64"), "{files}");
 }

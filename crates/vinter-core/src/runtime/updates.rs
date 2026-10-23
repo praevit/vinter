@@ -180,6 +180,7 @@ mod find_tests {
             needs_rosetta: false,
             graphics: vec![],
             engine: crate::engine::EngineKind::legacy(),
+            fex_version: None,
             kerberos: false,
             domain_identity: false,
         }
@@ -191,7 +192,18 @@ mod find_tests {
         i.version = version.into();
         i.flavor = flavor;
         i.arch = "x86_64".into();
+        i.engine = crate::engine::EngineKind::legacy();
         i
+    }
+
+    #[test]
+    fn never_offers_a_runtime_of_another_engine() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = AppPaths::with_data_dir(tmp.path());
+        let have = [installed("s11", "11.0", Flavor::Stable)];
+        let mut arm = info("arm-12", "12.0", Flavor::Stable);
+        arm.engine = crate::engine::EngineKind::Arm64Fex;
+        assert!(find_in(&paths, &have, &[arm]).unwrap().is_empty());
     }
 
     #[test]
