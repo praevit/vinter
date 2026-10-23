@@ -199,10 +199,17 @@ export const commands = {
 	approvalsPending: () => __TAURI_INVOKE<ApprovalRequest[]>("approvals_pending"),
 	approvalDecide: (id: string, decision: Decision) => __TAURI_INVOKE<null>("approval_decide", { id, decision }),
 	settingsGet: () => __TAURI_INVOKE<SettingsView_Serialize>("settings_get"),
-	/**  Saves the settings and applies the ones that act right away. */
+	/**
+	 *  Saves the settings and applies the ones that act right away. Experimental
+	 *  flags are kept as saved: only `experimental_set` changes them.
+	 */
 	settingsSet: (settings: Settings_Deserialize) => __TAURI_INVOKE<null>("settings_set", { settings }),
 	/**  Starts Vinter at login (in the menu bar, without its window), or stops that. */
 	settingsSetLaunchAtLogin: (enabled: boolean) => __TAURI_INVOKE<null>("settings_set_launch_at_login", { enabled }),
+	/**  Every experimental flag and whether it is on. */
+	experimentalList: () => __TAURI_INVOKE<FlagState[]>("experimental_list"),
+	/**  Turns an experimental flag on or off. */
+	experimentalSet: (flag: ExperimentalFlag, enabled: boolean) => __TAURI_INVOKE<null>("experimental_set", { flag, enabled }),
 	/**  Disk usage of bottles, runtimes, graphics components and downloads. */
 	storageUsage: () => __TAURI_INVOKE<Usage>("storage_usage"),
 	/**  Removes leftover downloads. Returns the bytes freed. */
@@ -574,6 +581,18 @@ export type DomainStatus = {
 	has_password: boolean,
 };
 
+/**  One experimental feature. */
+export type ExperimentalFlag = "per-app-engine" | "engine-ab-compare" | "simulate-macos28" | "bottle-migrate-arm64" | "fex-config-editor" | "wow64-large-address" | "graphics-dxvk-arm64ec" | "graphics-user-gptk" | "runtime-channel-nightly" | "runtime-build-from-source" | "arm64-fex-linux" | "compat-notes" | "launcher-shims";
+
+/**
+ *  The `[experimental]` section of `settings.toml`: flag id → on.
+ * 
+ *  Ids this version does not know are kept as they are (a newer Vinter may
+ *  have written them) but never count as enabled. Entries that are not
+ *  `true`/`false` are dropped rather than making the whole file unreadable.
+ */
+export type ExperimentalSettings = { [key in string]: boolean };
+
 export type Finding = {
 	/**  Stable id of the pattern, e.g. "missing_dll". */
 	id: string,
@@ -595,6 +614,20 @@ export type Fix =
 { kind: "restore_snapshot" } | 
 /**  Nothing Vinter can do for you; the finding's detail says what to try. */
 { kind: "manual" };
+
+/**  A flag with everything Settings and `vinter experimental list` show. */
+export type FlagState = {
+	flag: ExperimentalFlag,
+	title: string,
+	description: string,
+	risk: Risk,
+	/**  False while the feature behind it is not built yet. */
+	available: boolean,
+	/**  In effect now (saved, or turned on for this command). */
+	enabled: boolean,
+	/**  Saved in `settings.toml`. */
+	saved: boolean,
+};
 
 export type Flavor = "stable" | "devel" | "staging" | "gptk";
 
@@ -733,6 +766,9 @@ export type RecipeSummary = {
 	graphics: Graphics,
 	step_count: number,
 };
+
+/**  How much can go wrong with a flag on. High-risk flags ask before turning on. */
+export type Risk = "low" | "medium" | "high";
 
 export type RunExit = {
 	run_id: string,
@@ -917,6 +953,7 @@ export type SettingsFile_Deserialize = {
 	menu_bar_icon?: boolean,
 	notifications?: boolean,
 	check_for_updates?: boolean,
+	experimental?: ExperimentalSettings,
 };
 
 /**
@@ -929,6 +966,7 @@ export type SettingsFile_Serialize = {
 	menu_bar_icon: boolean,
 	notifications: boolean,
 	check_for_updates: boolean,
+	experimental: ExperimentalSettings,
 };
 
 export type SettingsView = SettingsView_Serialize | SettingsView_Deserialize;
@@ -956,6 +994,8 @@ export type Settings_Serialize = {
 	notifications: boolean,
 	/**  Check for a newer Vinter when it starts. */
 	check_for_updates: boolean,
+	/**  Experimental features turned on (see [`crate::experimental`]). */
+	experimental: ExperimentalSettings,
 };
 
 export type Severity = 

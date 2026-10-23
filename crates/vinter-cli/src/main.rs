@@ -12,6 +12,7 @@ use serde_json::json;
 use vinter_core::AppPaths;
 use vinter_core::bottle::{self, Graphics, NewBottle, Tool, WindowsVersion};
 use vinter_core::doctor::{Fix, Severity};
+use vinter_core::experimental::{self, ExperimentalFlag};
 use vinter_core::graphics::{self, Backend};
 use vinter_core::process::logs;
 use vinter_core::programs;
@@ -29,6 +30,9 @@ struct Cli {
     /// Print one JSON value on stdout instead of text (errors as `{"error": ...}`).
     #[arg(long, global = true)]
     json: bool,
+    /// Turn an experimental feature on for this command only (repeatable).
+    #[arg(long, global = true, value_name = "ID", value_parser = parse_flag)]
+    experimental: Vec<ExperimentalFlag>,
     #[command(subcommand)]
     command: Command,
 }
@@ -60,6 +64,25 @@ enum Command {
     /// Apple's D3DMetal, from your own copy of the Game Porting Toolkit.
     #[command(subcommand)]
     D3dmetal(D3dmetalCommand),
+    /// Experimental features: off by default, and may be rough.
+    #[command(subcommand)]
+    Experimental(ExperimentalCommand),
+}
+
+#[derive(Subcommand)]
+enum ExperimentalCommand {
+    /// List every experimental feature with its id, state, risk and description.
+    List,
+    /// Turn a feature on (saved, like the switch in Settings).
+    Enable {
+        #[arg(value_parser = parse_flag)]
+        id: ExperimentalFlag,
+    },
+    /// Turn a feature off.
+    Disable {
+        #[arg(value_parser = parse_flag)]
+        id: ExperimentalFlag,
+    },
 }
 
 #[derive(Subcommand)]
@@ -343,6 +366,60 @@ fn d3dmetal_command(paths: &AppPaths, out: Out, cmd: D3dmetalCommand) -> Result<
     }
 }
 
+fn experimental_command(paths: &AppPaths, out: Out, cmd: ExperimentalCommand) -> Result<()> {
+    match cmd {
+        ExperimentalCommand::List => {
+            let flags = experimental::list(paths);
+            out.print(&flags, || {
+                for f in &flags {
+                    let state = match (f.enabled, f.saved) {
+                        (true, true) => "on",
+                        (true, false) => "on (this command)",
+                        _ => "off",
+                    };
+                    let later = if f.available { "" } else { " (not built yet)" };
+                    println!(
+                        "{:<26} {:<18} {:<6} {}{later}",
+                        f.flag.id(),
+                        state,
+                        f.risk.label(),
+                        f.description
+                    );
+                }
+            })
+        }
+        ExperimentalCommand::Enable { id } => {
+            experimental::set(paths, id, true)?;
+            if id.risk() == experimental::Risk::High {
+                out.note(format_args!(
+                    "Warning: {id} is high risk. Back up bottles you care about before using it."
+                ));
+            }
+            if !id.available() {
+                out.note(format_args!(
+                    "{id} is not built yet, so this changes nothing for now."
+                ));
+            }
+            out.print(&json!({ "flag": id, "enabled": true }), || {
+                println!("Turned on {id}.")
+            })
+        }
+        ExperimentalCommand::Disable { id } => {
+            experimental::set(paths, id, false)?;
+            out.print(&json!({ "flag": id, "enabled": false }), || {
+                println!("Turned off {id}.")
+            })
+        }
+    }
+}
+
+fn parse_flag(s: &str) -> Result<ExperimentalFlag, String> {
+    ExperimentalFlag::parse(s).ok_or_else(|| {
+        let all: Vec<_> = experimental::all().iter().map(|f| f.id()).collect();
+        format!("expected one of {}", all.join(", "))
+    })
+}
+
 fn parse_backend(s: &str) -> Result<Backend, String> {
     Backend::parse(s).ok_or_else(|| "expected wined3d, dxvk, dxmt or d3dmetal".into())
 }
@@ -368,6 +445,9 @@ fn parse_tool(s: &str) -> Result<Tool, String> {
 async fn main() {
     let cli = Cli::parse();
     let out = Out { json: cli.json };
+    for flag in cli.experimental {
+        experimental::enable_for_session(flag);
+    }
     if let Err(e) = run(out, cli.command).await {
         if out.json {
             println!("{}", json!({ "error": format!("{e:#}") }));
@@ -396,6 +476,7 @@ async fn run(out: Out, command: Command) -> Result<()> {
         Command::Snapshot(cmd) => snapshot_command(&paths, out, cmd),
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
+        Command::Experimental(cmd) => experimental_command(&paths, out, cmd),
         Command::Mcp => mcp::serve(paths).await,
         Command::InstallRosetta => {
             out.note("Installing Rosetta 2. macOS may ask for an administrator password.");

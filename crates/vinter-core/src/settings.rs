@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::bottle::BottleOptions;
 use crate::error::IoResultExt;
+use crate::experimental::ExperimentalSettings;
 use crate::{AppPaths, Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,6 +21,8 @@ pub struct Settings {
     pub notifications: bool,
     /// Check for a newer Vinter when it starts.
     pub check_for_updates: bool,
+    /// Experimental features turned on (see [`crate::experimental`]).
+    pub experimental: ExperimentalSettings,
 }
 
 impl Default for Settings {
@@ -30,6 +33,7 @@ impl Default for Settings {
             menu_bar_icon: true,
             notifications: true,
             check_for_updates: true,
+            experimental: ExperimentalSettings::default(),
         }
     }
 }
@@ -45,6 +49,7 @@ struct SettingsFile {
     menu_bar_icon: bool,
     notifications: bool,
     check_for_updates: bool,
+    experimental: ExperimentalSettings,
 }
 
 impl Default for SettingsFile {
@@ -56,6 +61,7 @@ impl Default for SettingsFile {
             menu_bar_icon: d.menu_bar_icon,
             notifications: d.notifications,
             check_for_updates: d.check_for_updates,
+            experimental: d.experimental,
         }
     }
 }
@@ -68,6 +74,7 @@ impl From<SettingsFile> for Settings {
             menu_bar_icon: f.menu_bar_icon,
             notifications: f.notifications,
             check_for_updates: f.check_for_updates,
+            experimental: f.experimental,
         }
     }
 }
@@ -107,8 +114,11 @@ mod tests {
         let paths = AppPaths::with_data_dir(tmp.path());
         assert_eq!(load(&paths), Settings::default());
 
+        let mut experimental = crate::experimental::ExperimentalSettings::default();
+        experimental.set(crate::experimental::ExperimentalFlag::CompatNotes, true);
         let s = Settings {
             menu_bar_icon: false,
+            experimental,
             new_bottle_options: BottleOptions {
                 show_fps: true,
                 ..BottleOptions::recommended()

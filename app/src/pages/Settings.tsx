@@ -1,13 +1,20 @@
 import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { TriangleAlert, Trash2 } from "lucide-react";
 import { useAppInfo } from "../api/app";
-import { commands, type D3dMetalSource, type Settings_Serialize as SettingsData } from "../api/bindings";
+import {
+  commands,
+  type D3dMetalSource,
+  type FlagState,
+  type Settings_Serialize as SettingsData,
+} from "../api/bindings";
 import { errorMessage } from "../api/errors";
+import { useExperimentalFlags, useSetExperimental } from "../api/experimental";
 import { formatBytes, useAvailableRuntimes, useInstalledRuntimes } from "../api/runtimes";
 import { useSaveSettings, useSettings } from "../api/settings";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { Dialog } from "../components/Dialog";
+import { ExperimentalBadge, RiskBadge } from "../components/ExperimentalBadge";
 import { Select } from "../components/Select";
 import { Button, ErrorText, subtle } from "../components/ui";
 
@@ -98,6 +105,8 @@ export function Settings() {
       {mac && d3dmetalRuntime && <D3dMetalGroup />}
 
       <StorageGroup />
+
+      <ExperimentalGroup />
     </div>
   );
 }
@@ -216,6 +225,74 @@ function D3dMetalGroup() {
   );
 }
 
+/** Experimental features, each off until the user turns it on. */
+function ExperimentalGroup() {
+  const { data: flags } = useExperimentalFlags();
+  const setFlag = useSetExperimental();
+  const [confirming, setConfirming] = useState<FlagState>();
+
+  const toggle = (f: FlagState, enabled: boolean) => {
+    if (enabled && f.risk === "high") setConfirming(f);
+    else setFlag.mutate({ flag: f.flag, enabled });
+  };
+
+  return (
+    <section id="experimental" className="flex flex-col gap-2">
+      <h2 className="flex items-center gap-2 px-1 text-sm font-medium">
+        Experimental <ExperimentalBadge />
+      </h2>
+      <div className="flex items-start gap-2.5 rounded-xl border border-amber-300/60 bg-amber-50 p-3.5 text-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+        <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+        <p>
+          These features are unfinished. They may not work, and can change or go away in any update. Back up bottles
+          you care about before trying them. Features marked "Not built yet" do nothing for now.
+        </p>
+      </div>
+      <div className="divide-y divide-frost-200 rounded-2xl border border-frost-200 bg-white dark:divide-slate-deep-700 dark:border-slate-deep-700 dark:bg-slate-deep-900">
+        {flags?.map((f) => (
+          <label key={f.flag} className="flex cursor-pointer items-center gap-4 px-5 py-3.5">
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className="flex flex-wrap items-center gap-1.5">
+                <span className="text-sm font-medium">{f.title}</span>
+                <RiskBadge risk={f.risk} />
+                {!f.available && <span className={subtle}>Not built yet</span>}
+              </span>
+              <span className={subtle}>{f.description}</span>
+              <code className={`${subtle} font-mono`}>{f.flag}</code>
+            </span>
+            <Switch checked={f.enabled} onChange={(on) => toggle(f, on)} />
+          </label>
+        ))}
+      </div>
+      {setFlag.error && <ErrorText>{errorMessage(setFlag.error)}</ErrorText>}
+      {confirming && (
+        <Dialog onClose={() => setConfirming(undefined)}>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-lg font-semibold">Turn on “{confirming.title}”?</h2>
+            <p className="text-sm">{confirming.description}</p>
+            <p className="text-sm">
+              This is a high-risk experimental feature. It could leave a bottle or an app in a broken state. Back up
+              bottles you care about first.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setConfirming(undefined)}>Cancel</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setFlag.mutate({ flag: confirming.flag, enabled: true });
+                  setConfirming(undefined);
+                }}
+              >
+                Turn On
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+    </section>
+  );
+}
+
 /** Disk usage, with a way to remove leftover downloads. */
 function StorageGroup() {
   const queryClient = useQueryClient();
@@ -321,6 +398,15 @@ function Toggle({
         <span className="text-sm font-medium">{title}</span>
         <span className={subtle}>{detail}</span>
       </span>
+      <Switch checked={checked} onChange={onChange} />
+    </label>
+  );
+}
+
+/** The on/off control inside a row's `<label>`. */
+function Switch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <>
       <input
         type="checkbox"
         role="switch"
@@ -332,6 +418,6 @@ function Toggle({
         aria-hidden
         className="relative h-5 w-9 shrink-0 rounded-full bg-frost-300 transition-colors peer-checked:bg-wine-500 peer-focus-visible:ring-2 peer-focus-visible:ring-wine-500/50 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4 dark:bg-slate-deep-700"
       />
-    </label>
+    </>
   );
 }

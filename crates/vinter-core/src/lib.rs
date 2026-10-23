@@ -10,6 +10,7 @@ pub mod components;
 pub mod doctor;
 pub mod download;
 pub mod error;
+pub mod experimental;
 pub mod graphics;
 pub mod launcher;
 pub mod paths;

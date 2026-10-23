@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt;
+use vinter_core::experimental::{self, ExperimentalFlag, FlagState};
 use vinter_core::graphics::d3dmetal::{self, D3dMetal};
 use vinter_core::settings::{self, Settings};
 use vinter_core::storage::{self, Usage};
@@ -26,18 +27,21 @@ pub fn settings_get(app: AppHandle, state: State<'_, AppState>) -> SettingsView 
     }
 }
 
-/// Saves the settings and applies the ones that act right away.
+/// Saves the settings and applies the ones that act right away. Experimental
+/// flags are kept as saved: only `experimental_set` changes them.
 #[tauri::command]
 #[specta::specta]
 pub async fn settings_set(
     app: AppHandle,
     state: State<'_, AppState>,
-    settings: Settings,
+    mut settings: Settings,
 ) -> CommandResult<()> {
     let paths = state.paths.clone();
     let show_icon = settings.menu_bar_icon;
     let check_updates = settings.check_for_updates;
-    let was_checking = settings::load(&paths).check_for_updates;
+    let saved = settings::load(&paths);
+    let was_checking = saved.check_for_updates;
+    settings.experimental = saved.experimental;
     blocking(move || Ok(settings::save(&paths, &settings)?)).await?;
     crate::tray::set_visible(&app, show_icon);
     if check_updates != was_checking {
@@ -46,6 +50,25 @@ pub async fn settings_set(
         tauri::async_runtime::spawn(async move { crate::updates::check(&app).await });
     }
     Ok(())
+}
+
+/// Every experimental flag and whether it is on.
+#[tauri::command]
+#[specta::specta]
+pub fn experimental_list(state: State<'_, AppState>) -> Vec<FlagState> {
+    experimental::list(&state.paths)
+}
+
+/// Turns an experimental flag on or off.
+#[tauri::command]
+#[specta::specta]
+pub async fn experimental_set(
+    state: State<'_, AppState>,
+    flag: ExperimentalFlag,
+    enabled: bool,
+) -> CommandResult<()> {
+    let paths = state.paths.clone();
+    blocking(move || Ok(experimental::set(&paths, flag, enabled)?)).await
 }
 
 /// Starts Vinter at login (in the menu bar, without its window), or stops that.
