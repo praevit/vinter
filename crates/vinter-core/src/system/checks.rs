@@ -105,7 +105,12 @@ pub fn system_checks(paths: &AppPaths) -> SystemStatus {
         macos_version: host.macos_version.clone(),
         arm64_engine: super::readiness::arm64_available(&host),
         checks: vec![
-            platform_check(os, arch),
+            platform_check(
+                os,
+                arch,
+                crate::experimental::Flags::load(paths)
+                    .is_enabled(crate::experimental::ExperimentalFlag::Arm64FexLinux),
+            ),
             cpu_check(arch, cpu_name().as_deref()),
             macos_check(&host),
             rosetta,
@@ -116,8 +121,12 @@ pub fn system_checks(paths: &AppPaths) -> SystemStatus {
     }
 }
 
-fn platform_check(os: &str, arch: &str) -> Check {
+fn platform_check(os: &str, arch: &str, linux_arm64: bool) -> Check {
     let (status, detail) = match (os, arch) {
+        ("linux", "aarch64") if linux_arm64 => (
+            CheckStatus::Warning,
+            "Linux on ARM64 is experimental (arm64-fex-linux): it needs an ARM64 Wine runtime with FEX.",
+        ),
         ("macos", "aarch64") => (
             CheckStatus::Ok,
             "macOS on Apple Silicon is fully supported.",
@@ -314,19 +323,30 @@ mod tests {
 
     #[test]
     fn platform_support() {
-        assert_eq!(platform_check("macos", "aarch64").status, CheckStatus::Ok);
-        assert_eq!(platform_check("linux", "x86_64").status, CheckStatus::Ok);
         assert_eq!(
-            platform_check("macos", "x86_64").status,
+            platform_check("macos", "aarch64", false).status,
+            CheckStatus::Ok
+        );
+        assert_eq!(
+            platform_check("linux", "x86_64", false).status,
+            CheckStatus::Ok
+        );
+        assert_eq!(
+            platform_check("macos", "x86_64", false).status,
             CheckStatus::Warning
         );
         assert_eq!(
-            platform_check("windows", "x86_64").status,
+            platform_check("windows", "x86_64", true).status,
             CheckStatus::Error
         );
         assert_eq!(
-            platform_check("linux", "aarch64").status,
+            platform_check("linux", "aarch64", false).status,
             CheckStatus::Error
+        );
+        // Only with the experimental flag.
+        assert_eq!(
+            platform_check("linux", "aarch64", true).status,
+            CheckStatus::Warning
         );
     }
 

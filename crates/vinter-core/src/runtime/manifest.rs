@@ -108,9 +108,13 @@ pub fn all() -> &'static [RuntimeInfo] {
 /// present it: `simulate-macos28` hides the Rosetta ones).
 pub fn available(paths: &crate::AppPaths) -> Vec<RuntimeInfo> {
     let host = crate::engine::Host::for_paths(paths);
-    let nightly = crate::experimental::Flags::load(paths)
-        .is_enabled(crate::experimental::ExperimentalFlag::RuntimeChannelNightly);
+    let flags = crate::experimental::Flags::load(paths);
+    let nightly = flags.is_enabled(crate::experimental::ExperimentalFlag::RuntimeChannelNightly);
+    let linux_arm64 = flags.is_enabled(crate::experimental::ExperimentalFlag::Arm64FexLinux);
     offered(available_for(&host.os, &host.arch), &host, nightly)
+        .into_iter()
+        .filter(|r| linux_arm64 || r.engine != crate::engine::EngineKind::Arm64FexLinux)
+        .collect()
 }
 
 /// The builds of `runs_here` to offer on `host`: new enough for its macOS,

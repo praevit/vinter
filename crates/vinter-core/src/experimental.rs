@@ -200,6 +200,7 @@ impl ExperimentalFlag {
                 | Self::GraphicsUserGptk
                 | Self::PerAppEngine
                 | Self::FexConfigEditor
+                | Self::Arm64FexLinux
         )
     }
 }
