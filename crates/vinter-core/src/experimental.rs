@@ -199,6 +199,7 @@ impl ExperimentalFlag {
                 | Self::BottleMigrateArm64
                 | Self::GraphicsUserGptk
                 | Self::PerAppEngine
+                | Self::FexConfigEditor
         )
     }
 }

@@ -297,6 +297,8 @@ pub fn launch_with(
         exe: program.exe.clone(),
     })?;
 
+    // fex-config-editor: the program's own FEX settings, by its own path.
+    let fex_env = crate::fex_config::launch_env(paths, &bottle, &rt, &program.exe);
     // per-app-engine: the app's own ARM64 build instead, natively.
     let (program, exe) = match native_build(paths, &rt, &prefix, &program) {
         Some((win, unix)) => (
@@ -312,6 +314,7 @@ pub fn launch_with(
     let (log, _) = logs::create(&dir, &program.name)?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
+    cmd.envs(fex_env);
     cmd.envs(extra_env.iter().copied());
     let notes = wow64_notes(&rt, &exe, found);
     crate::diag::write_launch_header(&log, &program.name, found, &rt, &bottle, &cmd, &notes)?;

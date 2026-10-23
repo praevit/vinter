@@ -223,6 +223,15 @@ export const commands = {
 	 *  as installed again).
 	 */
 	programSetArm64Build: (bottleId: string, index: number, build: string | null) => __TAURI_INVOKE<null>("program_set_arm64_build", { bottleId, index, build }),
+	/**
+	 *  FEX's settings for a bottle's runtime, from FEX's own schema
+	 *  (experimental `fex-config-editor`).
+	 */
+	fexOptions: (bottleId: string) => __TAURI_INVOKE<FexOption[]>("fex_options", { bottleId }),
+	/**  A program's own FEX settings. */
+	fexProgramSettings: (bottleId: string, index: number) => __TAURI_INVOKE<{ [key in string]: string }>("fex_program_settings", { bottleId, index }),
+	/**  Sets (or with `None`, clears) one of a program's FEX settings. */
+	fexSettingSet: (bottleId: string, index: number, name: string, value: string | null) => __TAURI_INVOKE<{ [key in string]: string }>("fex_setting_set", { bottleId, index, name, value }),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -687,6 +696,26 @@ export type ExperimentalFlag = "per-app-engine" | "engine-ab-compare" | "simulat
  *  `true`/`false` are dropped rather than making the whole file unreadable.
  */
 export type ExperimentalSettings = { [key in string]: boolean };
+
+/**  One option from FEX's schema. */
+export type FexOption = {
+	group: string,
+	name: string,
+	/**  The schema's own type name, e.g. "uint32". */
+	schema_type: string,
+	kind: FexOptionKind,
+	default: string,
+	description: string,
+	/**  Environment variable FEX reads it from. */
+	env: string,
+};
+
+export type FexOptionKind = "bool" | "integer" | "text" | 
+/**
+ *  A named-value list or string list; FEX converts these itself, so
+ *  Vinter only shows them.
+ */
+"read_only";
 
 export type Finding = {
 	/**  Stable id of the pattern, e.g. "missing_dll". */

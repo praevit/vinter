@@ -136,3 +136,62 @@ pub async fn program_set_arm64_build(
     })
     .await
 }
+
+/// FEX's settings for a bottle's runtime, from FEX's own schema
+/// (experimental `fex-config-editor`).
+#[tauri::command]
+#[specta::specta]
+pub async fn fex_options(
+    state: State<'_, AppState>,
+    bottle_id: String,
+) -> CommandResult<Vec<vinter_core::fex_config::FexOption>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        let b = vinter_core::bottle::get(&paths, &bottle_id)?;
+        let rt = vinter_core::runtime::get(&paths, &b.runtime)?;
+        Ok(vinter_core::fex_config::options_for(&rt)?)
+    })
+    .await
+}
+
+/// A program's own FEX settings.
+#[tauri::command]
+#[specta::specta]
+pub async fn fex_program_settings(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+) -> CommandResult<std::collections::BTreeMap<String, String>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        Ok(vinter_core::fex_config::program_settings(
+            &paths,
+            &bottle_id,
+            index as usize,
+        )?)
+    })
+    .await
+}
+
+/// Sets (or with `None`, clears) one of a program's FEX settings.
+#[tauri::command]
+#[specta::specta]
+pub async fn fex_setting_set(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+    name: String,
+    value: Option<String>,
+) -> CommandResult<std::collections::BTreeMap<String, String>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        Ok(vinter_core::fex_config::set(
+            &paths,
+            &bottle_id,
+            index as usize,
+            &name,
+            value.as_deref(),
+        )?)
+    })
+    .await
+}

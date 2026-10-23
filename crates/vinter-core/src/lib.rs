@@ -15,6 +15,7 @@ pub mod download;
 pub mod engine;
 pub mod error;
 pub mod experimental;
+pub mod fex_config;
 pub mod graphics;
 pub mod launcher;
 pub mod migrate;

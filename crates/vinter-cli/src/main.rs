@@ -310,6 +310,21 @@ enum BottleCommand {
         #[arg(long, conflicts_with = "use_build")]
         off: bool,
     },
+    /// A program's own FEX settings, in an Apple Silicon bottle
+    /// (experimental: fex-config-editor). Options come from FEX's own schema.
+    Fex {
+        bottle: String,
+        program: usize,
+        /// NAME=VALUE (repeatable).
+        #[arg(long)]
+        set: Vec<String>,
+        /// NAME to go back to FEX's default (repeatable).
+        #[arg(long)]
+        unset: Vec<String>,
+        /// List every option FEX has, not just this program's.
+        #[arg(long)]
+        all: bool,
+    },
     /// Recreate a bottle on the Apple Silicon engine (experimental:
     /// bottle-migrate-arm64): a new bottle, its recipe re-run, your files
     /// copied. The old bottle is not changed.
@@ -1152,6 +1167,50 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                 }
                 for (i, build) in builds.iter().enumerate() {
                     println!("{i}  {build}");
+                }
+            })
+        }
+        BottleCommand::Fex {
+            bottle: key,
+            program,
+            set,
+            unset,
+            all,
+        } => {
+            use vinter_core::fex_config;
+            let b = bottle::resolve(paths, &key)?;
+            for pair in &set {
+                let (name, value) = pair.split_once('=').context("use NAME=VALUE")?;
+                fex_config::set(paths, &b.id, program, name, Some(value))?;
+            }
+            for name in &unset {
+                fex_config::set(paths, &b.id, program, name, None)?;
+            }
+            let settings = fex_config::program_settings(paths, &b.id, program)?;
+            if all {
+                let rt = runtime::get(paths, &b.runtime)?;
+                let options = fex_config::options_for(&rt)?;
+                return out.print(&options, || {
+                    for o in &options {
+                        let mine = settings
+                            .get(&o.name)
+                            .map(|v| format!(" = {v}"))
+                            .unwrap_or_default();
+                        println!(
+                            "{:<10} {:<36} {:<8} default {}{mine}",
+                            o.group, o.name, o.schema_type, o.default
+                        );
+                    }
+                });
+            }
+            out.print(&settings, || {
+                if settings.is_empty() {
+                    println!(
+                        "No FEX settings of its own (FEX's defaults). `--all` lists the options."
+                    );
+                }
+                for (name, value) in &settings {
+                    println!("{name} = {value}");
                 }
             })
         }
