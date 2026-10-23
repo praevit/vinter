@@ -9,6 +9,7 @@ import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs"
 import { useExperimental } from "../api/experimental";
 import { useEnsureRosetta } from "../api/rosetta";
 import { latestRun, useRuns } from "../api/runs";
+import { CompareDialog } from "./CompareDialog";
 import { CompatNoteDot } from "./CompatNoteSection";
 import { EditProgramDialog } from "./EditProgramDialog";
 import { InstallDialog, ProgramIcon } from "./InstallDialog";
@@ -96,6 +97,8 @@ export function ProgramTile({
   const [starting, setStarting] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [comparing, setComparing] = useState(false);
+  const canCompare = useExperimental("engine-ab-compare");
   const { data: app } = useAppInfo();
   const queryClient = useQueryClient();
 
@@ -128,6 +131,17 @@ export function ProgramTile({
 
   return (
     <li className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center dark:border-slate-deep-700 dark:bg-slate-deep-900">
+      {canCompare && (
+        <button
+          type="button"
+          title="Compare engines (experimental): run this app here and in another bottle"
+          aria-label="Compare engines"
+          onClick={() => setComparing(true)}
+          className="absolute top-1.5 right-12 rounded p-0.5 text-violet-500 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:text-violet-300 dark:hover:bg-slate-deep-800"
+        >
+          <FlaskConical className="size-3.5" />
+        </button>
+      )}
       <button
         type="button"
         title="Edit name, arguments and icon"
@@ -195,6 +209,7 @@ export function ProgramTile({
       )}
       {(error || remove.error) && <ErrorText>{error ?? errorMessage(remove.error)}</ErrorText>}
       {editing && <EditProgramDialog bottleId={bottleId} program={program} onClose={() => setEditing(false)} />}
+      {comparing && <CompareDialog bottleId={bottleId} program={program} onClose={() => setComparing(false)} />}
     </li>
   );
 }

@@ -1,4 +1,4 @@
-//! Compatibility notes (experimental `compat-notes` flag).
+//! Compatibility notes and engine comparisons (experimental flags).
 
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
@@ -72,6 +72,30 @@ pub async fn compat_notes_export(
         };
         compat::export(&paths, &dest)?;
         Ok(Some(dest.display().to_string()))
+    })
+    .await
+}
+
+/// Runs a program in two bottles and compares them (experimental
+/// `engine-ab-compare`). Takes up to twice `seconds`.
+#[tauri::command]
+#[specta::specta]
+pub async fn compare_run(
+    state: State<'_, AppState>,
+    bottle_a: String,
+    program_a: u32,
+    bottle_b: String,
+    program_b: u32,
+    seconds: u32,
+) -> CommandResult<vinter_core::compare::Comparison> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        Ok(vinter_core::compare::compare(
+            &paths,
+            (&bottle_a, program_a as usize),
+            (&bottle_b, program_b as usize),
+            std::time::Duration::from_secs(u64::from(seconds.clamp(5, 120))),
+        )?)
     })
     .await
 }

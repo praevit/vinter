@@ -71,6 +71,18 @@ enum Command {
     /// Diagnostics for bug reports.
     #[command(subcommand)]
     Diag(DiagCommand),
+    /// Run an app in two bottles (e.g. Rosetta and Apple Silicon) and compare
+    /// startup and crashes (experimental: engine-ab-compare). Stops each
+    /// bottle's programs after its run.
+    Compare {
+        bottle_a: String,
+        program_a: usize,
+        bottle_b: String,
+        program_b: usize,
+        /// How long to watch each run.
+        #[arg(long, default_value_t = 20)]
+        seconds: u64,
+    },
     /// Your own compatibility notes per app (experimental: compat-notes).
     #[command(subcommand)]
     Notes(NotesCommand),
@@ -623,6 +635,48 @@ async fn run(out: Out, command: Command) -> Result<()> {
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
         Command::Experimental(cmd) => experimental_command(&paths, out, cmd),
         Command::Notes(cmd) => notes_command(&paths, out, cmd),
+        Command::Compare {
+            bottle_a,
+            program_a,
+            bottle_b,
+            program_b,
+            seconds,
+        } => {
+            let a = bottle::resolve(&paths, &bottle_a)?;
+            let b = bottle::resolve(&paths, &bottle_b)?;
+            out.note(format_args!(
+                "Running each for up to {seconds} s. Their bottles' other programs will be closed."
+            ));
+            let c = vinter_core::compare::compare(
+                &paths,
+                (&a.id, program_a),
+                (&b.id, program_b),
+                std::time::Duration::from_secs(seconds),
+            )?;
+            out.print(&c, || {
+                let row = |label: &str, f: &dyn Fn(&vinter_core::compare::Trial) -> String| {
+                    println!("{label:<18} {:<28} {}", f(&c.a), f(&c.b));
+                };
+                row("Bottle", &|t| t.bottle.clone());
+                row("Engine", &|t| t.engine.id().to_string());
+                row("Runtime", &|t| t.runtime.clone());
+                row("First window", &|t| match t.seconds_to_window {
+                    Some(s) => format!("{s:.1} s"),
+                    None => "none seen".into(),
+                });
+                row("Crashed", &|t| if t.crashed { "yes" } else { "no" }.into());
+                row("Exited by itself", &|t| match (t.exited, t.exit_code) {
+                    (true, Some(code)) => format!("yes (code {code})"),
+                    (true, None) => "yes".into(),
+                    (false, _) => "no".into(),
+                });
+                row("Watched", &|t| format!("{:.1} s", t.watched_seconds));
+                row("FPS", &|t| match t.fps {
+                    Some(f) => format!("{f:.0}"),
+                    None => "not reported".into(),
+                });
+            })
+        }
         Command::Diag(DiagCommand::Export {
             bottle: key,
             output,

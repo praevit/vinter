@@ -195,6 +195,7 @@ impl ExperimentalFlag {
                 | Self::RuntimeChannelNightly
                 | Self::Wow64LargeAddress
                 | Self::GraphicsDxvkArm64ec
+                | Self::EngineAbCompare
         )
     }
 }

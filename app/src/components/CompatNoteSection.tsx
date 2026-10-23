@@ -100,7 +100,7 @@ export function CompatNoteDot({ bottleId, program }: { bottleId: string; program
   return (
     <span
       title={`${r?.label}${note.note ? `: ${note.note}` : ""} (your note, experimental)`}
-      className={`absolute top-2 right-8 size-2 rounded-full ${r?.color}`}
+      className={`absolute right-2 bottom-2 size-2 rounded-full ${r?.color}`}
     />
   );
 }

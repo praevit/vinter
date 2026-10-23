@@ -268,6 +268,19 @@ pub fn launch(
     on_line: impl Fn(Stream, &str) + Send + Sync + 'static,
     on_exit: impl FnOnce(Option<i32>) + Send + 'static,
 ) -> Result<Launched> {
+    launch_with(paths, bottle_id, index, &[], on_line, on_exit)
+}
+
+/// [`launch`] with extra environment variables for this run only (they win
+/// over the bottle's own).
+pub fn launch_with(
+    paths: &AppPaths,
+    bottle_id: &str,
+    index: usize,
+    extra_env: &[(&str, &str)],
+    on_line: impl Fn(Stream, &str) + Send + Sync + 'static,
+    on_exit: impl FnOnce(Option<i32>) + Send + 'static,
+) -> Result<Launched> {
     let bottle = ready_bottle(paths, bottle_id)?;
     let program = bottle
         .programs
@@ -287,6 +300,7 @@ pub fn launch(
     let (log, _) = logs::create(&dir, &program.name)?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
+    cmd.envs(extra_env.iter().copied());
     let notes = wow64_notes(&rt, &exe, found);
     crate::diag::write_launch_header(&log, &program.name, found, &rt, &bottle, &cmd, &notes)?;
     // Skip empty or NUL-containing arguments; programs added before the

@@ -196,6 +196,11 @@ export const commands = {
 	compatNoteRemove: (bottleId: string, index: number) => __TAURI_INVOKE<null>("compat_note_remove", { bottleId, index }),
 	/**  Asks where to save, then writes every note as JSON. `None` if cancelled. */
 	compatNotesExport: () => __TAURI_INVOKE<string | null>("compat_notes_export"),
+	/**
+	 *  Runs a program in two bottles and compares them (experimental
+	 *  `engine-ab-compare`). Takes up to twice `seconds`.
+	 */
+	compareRun: (bottleA: string, programA: number, bottleB: string, programB: number, seconds: number) => __TAURI_INVOKE<Comparison>("compare_run", { bottleA, programA, bottleB, programB, seconds }),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -515,6 +520,13 @@ export type CheckStatus = "ok" | "warning" | "error" |
 /**  Error returned to the frontend. Commands reject with this value. */
 export type CommandError = {
 	message: string,
+};
+
+export type Comparison = {
+	/**  RFC 3339. */
+	at: string,
+	a: Trial,
+	b: Trial,
 };
 
 /**  One app's note. An app is a program in a bottle, found by its Windows path. */
@@ -1173,6 +1185,31 @@ export type SystemStatus = {
 
 /**  Built-in Wine programs that can be opened in a bottle. */
 export type Tool = "winecfg" | "regedit" | "taskmgr" | "control" | "notepad" | "explorer";
+
+/**  What one run of the app did. */
+export type Trial = {
+	bottle_id: string,
+	bottle: string,
+	program: string,
+	engine: EngineKind,
+	runtime: string,
+	/**  Seconds from start until it first showed a window, if it did. */
+	seconds_to_window: number | null,
+	/**  It exited with an error code or Wine reported an unhandled exception. */
+	crashed: boolean,
+	/**  It exited by itself before the trial ended. */
+	exited: boolean,
+	exit_code: number | null,
+	/**  How long the trial watched it, in seconds. */
+	watched_seconds: number | null,
+	/**
+	 *  Frames per second, when the graphics backend reports them in the log.
+	 *  None of the current backends do, so this stays empty for now.
+	 */
+	fps: number | null,
+	/**  Log of the run, for the Logs tab. */
+	log_id: string,
+};
 
 export type UpdateInfo = {
 	version: string,
