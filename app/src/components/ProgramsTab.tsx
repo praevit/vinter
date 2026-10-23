@@ -8,6 +8,7 @@ import { isRunning, useJobs } from "../api/jobs";
 import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { latestRun, useRuns } from "../api/runs";
+import { CompatNoteDot } from "./CompatNoteSection";
 import { EditProgramDialog } from "./EditProgramDialog";
 import { InstallDialog, ProgramIcon } from "./InstallDialog";
 import { Button, ErrorText, subtle } from "./ui";
@@ -155,6 +156,7 @@ export function ProgramTile({
       >
         {program.pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
       </button>
+      <CompatNoteDot bottleId={bottleId} program={program} />
       <ProgramIcon src={program.icon_data_url} size="size-12" />
       <span className="line-clamp-2 text-sm font-medium" title={program.exe}>
         {program.name}

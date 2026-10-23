@@ -23,6 +23,18 @@ pub enum Flavor {
 
 pub use crate::download::ArchiveFormat;
 
+/// Release channel of a runtime build.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum RuntimeChannel {
+    #[default]
+    Stable,
+    /// Untested builds, offered only with the `runtime-channel-nightly`
+    /// experimental flag.
+    Nightly,
+}
+
 /// One downloadable Wine build.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -58,6 +70,9 @@ pub struct RuntimeInfo {
     /// FEX release it ships, for engines that translate x86 code with FEX.
     #[serde(default)]
     pub fex_version: Option<String>,
+    /// Release channel; missing means stable.
+    #[serde(default)]
+    pub channel: RuntimeChannel,
     /// Filled in for this machine: x86_64 build on Apple Silicon.
     #[serde(default, skip_deserializing)]
     pub needs_rosetta: bool,
@@ -93,10 +108,23 @@ pub fn all() -> &'static [RuntimeInfo] {
 /// present it: `simulate-macos28` hides the Rosetta ones).
 pub fn available(paths: &crate::AppPaths) -> Vec<RuntimeInfo> {
     let host = crate::engine::Host::for_paths(paths);
-    available_for(&host.os, &host.arch)
+    let nightly = crate::experimental::Flags::load(paths)
+        .is_enabled(crate::experimental::ExperimentalFlag::RuntimeChannelNightly);
+    offered(available_for(&host.os, &host.arch), &host, nightly)
+}
+
+/// The builds of `runs_here` to offer on `host`: new enough for its macOS,
+/// not on a hidden engine, and nightly builds only when asked for.
+fn offered(
+    runs_here: Vec<RuntimeInfo>,
+    host: &crate::engine::Host,
+    nightly: bool,
+) -> Vec<RuntimeInfo> {
+    runs_here
         .into_iter()
         .filter(|r| supports_version(r, host.macos_version.as_deref()))
         .filter(|r| !(host.rosetta_removed && r.engine == crate::engine::EngineKind::X86_64Rosetta))
+        .filter(|r| nightly || r.channel != RuntimeChannel::Nightly)
         .collect()
 }
 
@@ -163,6 +191,28 @@ mod tests {
                 r.id
             );
         }
+    }
+
+    #[test]
+    fn nightly_builds_only_with_the_flag() {
+        let host = crate::engine::Host {
+            os: "macos".into(),
+            arch: "aarch64".into(),
+            macos_version: Some("27.0".into()),
+            rosetta_removed: false,
+        };
+        let mut nightly = all()[0].clone();
+        nightly.id = "nightly".into();
+        nightly.channel = RuntimeChannel::Nightly;
+        let list = vec![all()[0].clone(), nightly];
+        let ids = |v: Vec<RuntimeInfo>| v.into_iter().map(|r| r.id).collect::<Vec<_>>();
+        assert_eq!(
+            ids(offered(list.clone(), &host, false)),
+            [all()[0].id.clone()]
+        );
+        assert_eq!(ids(offered(list, &host, true)).len(), 2);
+        // Everything in the shipped manifest is stable for now.
+        assert!(all().iter().all(|r| r.channel == RuntimeChannel::Stable));
     }
 
     #[test]

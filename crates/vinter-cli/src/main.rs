@@ -71,6 +71,9 @@ enum Command {
     /// Diagnostics for bug reports.
     #[command(subcommand)]
     Diag(DiagCommand),
+    /// Your own compatibility notes per app (experimental: compat-notes).
+    #[command(subcommand)]
+    Notes(NotesCommand),
     /// Show which CPU a Windows program (.exe, .dll) or installer (.msi) is
     /// built for, and how it would run in a bottle.
     Arch {
@@ -79,6 +82,27 @@ enum Command {
         #[arg(long)]
         bottle: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum NotesCommand {
+    /// List every note.
+    List,
+    /// Rate a bottle's program (by number from `bottle programs`).
+    Set {
+        bottle: String,
+        program: usize,
+        /// works, partly or broken.
+        #[arg(value_parser = parse_rating)]
+        rating: vinter_core::compat::Rating,
+        /// What works or doesn't.
+        #[arg(long, default_value = "")]
+        note: String,
+    },
+    /// Remove a program's note.
+    Remove { bottle: String, program: usize },
+    /// Write every note as JSON.
+    Export { file: PathBuf },
 }
 
 #[derive(Subcommand)]
@@ -485,6 +509,58 @@ fn parse_flag(s: &str) -> Result<ExperimentalFlag, String> {
     })
 }
 
+fn notes_command(paths: &AppPaths, out: Out, cmd: NotesCommand) -> Result<()> {
+    use vinter_core::compat;
+    match cmd {
+        NotesCommand::List => {
+            let notes = compat::list(paths)?;
+            out.print(&notes, || {
+                if notes.is_empty() {
+                    println!("No notes yet.");
+                }
+                for n in &notes {
+                    println!(
+                        "{:<7} {:<24} {:<16} {:<9} {}",
+                        n.rating.id(),
+                        n.app,
+                        n.engine.id(),
+                        n.backend.id(),
+                        n.note
+                    );
+                }
+            })
+        }
+        NotesCommand::Set {
+            bottle: key,
+            program,
+            rating,
+            note,
+        } => {
+            let b = bottle::resolve(paths, &key)?;
+            let n = compat::set(paths, &b.id, program, rating, &note)?;
+            out.print(&n, || println!("Noted {} as {}.", n.app, n.rating.id()))
+        }
+        NotesCommand::Remove {
+            bottle: key,
+            program,
+        } => {
+            let b = bottle::resolve(paths, &key)?;
+            compat::remove(paths, &b.id, program)?;
+            out.print(&json!({ "removed": true }), || println!("Removed."))
+        }
+        NotesCommand::Export { file } => {
+            compat::export(paths, &file)?;
+            out.print(&json!({ "path": file }), || {
+                println!("Wrote {}", file.display())
+            })
+        }
+    }
+}
+
+fn parse_rating(s: &str) -> Result<vinter_core::compat::Rating, String> {
+    vinter_core::compat::Rating::parse(s).ok_or_else(|| "expected works, partly or broken".into())
+}
+
 fn parse_wine_debug(s: &str) -> Result<bottle::WineDebug, String> {
     bottle::WineDebug::parse(s).ok_or_else(|| "expected off, errors or verbose".into())
 }
@@ -546,6 +622,7 @@ async fn run(out: Out, command: Command) -> Result<()> {
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
         Command::Experimental(cmd) => experimental_command(&paths, out, cmd),
+        Command::Notes(cmd) => notes_command(&paths, out, cmd),
         Command::Diag(DiagCommand::Export {
             bottle: key,
             output,

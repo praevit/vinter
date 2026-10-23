@@ -20,6 +20,7 @@ import {
   useInstalledRuntimes,
   useRemoveRuntime,
 } from "../api/runtimes";
+import { ExperimentalBadge } from "../components/ExperimentalBadge";
 import { ProgressBar } from "../components/ProgressBar";
 import { SimulatedMacos28Notice } from "../components/SimulatedMacos28";
 import { Button, ErrorText } from "../components/ui";
@@ -240,6 +241,12 @@ function AvailableRow({ runtime: r }: { runtime: RuntimeInfo }) {
       <div className="flex items-center gap-4">
         <div className="min-w-0 flex-1">
           <Title name={r.name} flavor={r.flavor} engine={r.engine} />
+          {r.channel === "nightly" && (
+            <div className="mt-1 flex items-center gap-2">
+              <ExperimentalBadge />
+              <span className={subtle}>Nightly build: untested, may not start.</span>
+            </div>
+          )}
           <div className={subtle}>
             {formatBytes(r.size)} download · {r.license} ·{" "}
             <button

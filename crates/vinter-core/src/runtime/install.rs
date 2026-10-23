@@ -224,6 +224,7 @@ mod tests {
             graphics: vec![crate::bottle::Graphics::Wined3d],
             engine: crate::engine::EngineKind::legacy(),
             fex_version: None,
+            channel: Default::default(),
             min_os_version: None,
         }
     }

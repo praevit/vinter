@@ -188,6 +188,14 @@ export const commands = {
 	 *  Returns its path, or `None` if the dialog was cancelled.
 	 */
 	diagExport: (bottleId: string) => __TAURI_INVOKE<string | null>("diag_export", { bottleId }),
+	/**  Every note. Fails while the flag is off. */
+	compatNotesList: () => __TAURI_INVOKE<CompatNote[]>("compat_notes_list"),
+	/**  Rates a bottle's program, with the bottle's engine and backend. */
+	compatNoteSet: (bottleId: string, index: number, rating: Rating, note: string) => __TAURI_INVOKE<CompatNote>("compat_note_set", { bottleId, index, rating, note }),
+	/**  Removes a program's note. */
+	compatNoteRemove: (bottleId: string, index: number) => __TAURI_INVOKE<null>("compat_note_remove", { bottleId, index }),
+	/**  Asks where to save, then writes every note as JSON. `None` if cancelled. */
+	compatNotesExport: () => __TAURI_INVOKE<string | null>("compat_notes_export"),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -504,6 +512,21 @@ export type CommandError = {
 	message: string,
 };
 
+/**  One app's note. An app is a program in a bottle, found by its Windows path. */
+export type CompatNote = {
+	bottle_id: string,
+	app: string,
+	/**  Windows path of the program. */
+	exe: string,
+	rating: Rating,
+	/**  Engine and backend it was rated on (the bottle's, when saved). */
+	engine: EngineKind,
+	backend: Graphics,
+	note: string,
+	/**  RFC 3339. */
+	updated_at: string,
+};
+
 /**  One downloadable component, from the embedded `components.json`. */
 export type ComponentInfo = {
 	id: string,
@@ -777,6 +800,8 @@ export type ProgramView = {
 	arch: PeArch | null,
 };
 
+export type Rating = "works" | "partly" | "broken";
+
 export type Readiness = {
 	level: ReadinessLevel,
 	/**  One or two sentences for a tooltip or notice. */
@@ -897,6 +922,14 @@ export type Runtime = {
 	domain_identity: boolean,
 };
 
+/**  Release channel of a runtime build. */
+export type RuntimeChannel = "stable" | 
+/**
+ *  Untested builds, offered only with the `runtime-channel-nightly`
+ *  experimental flag.
+ */
+"nightly";
+
 /**  One downloadable Wine build. */
 export type RuntimeInfo = RuntimeInfo_Serialize | RuntimeInfo_Deserialize;
 
@@ -931,6 +964,8 @@ export type RuntimeInfo_Deserialize = {
 	min_os_version?: string | null,
 	/**  FEX release it ships, for engines that translate x86 code with FEX. */
 	fex_version?: string | null,
+	/**  Release channel; missing means stable. */
+	channel?: RuntimeChannel,
 };
 
 /**  One downloadable Wine build. */
@@ -964,6 +999,8 @@ export type RuntimeInfo_Serialize = {
 	min_os_version: string | null,
 	/**  FEX release it ships, for engines that translate x86 code with FEX. */
 	fex_version: string | null,
+	/**  Release channel; missing means stable. */
+	channel: RuntimeChannel,
 	/**  Filled in for this machine: x86_64 build on Apple Silicon. */
 	needs_rosetta: boolean,
 };

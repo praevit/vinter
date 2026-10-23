@@ -188,7 +188,10 @@ impl ExperimentalFlag {
     /// Whether turning it on does anything yet. Flags are registered before
     /// their feature is built, so their ids (and saved choices) stay stable.
     pub fn available(self) -> bool {
-        matches!(self, Self::SimulateMacos28)
+        matches!(
+            self,
+            Self::SimulateMacos28 | Self::CompatNotes | Self::RuntimeChannelNightly
+        )
     }
 }
 

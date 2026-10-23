@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ImageUp } from "lucide-react";
 import { commands, type ProgramView } from "../api/bindings";
 import { errorMessage } from "../api/errors";
+import { CompatNoteSection } from "./CompatNoteSection";
 import { Dialog } from "./Dialog";
 import { ProgramIcon } from "./InstallDialog";
 import { Button, ErrorText, Label, field, subtle } from "./ui";
@@ -92,6 +93,7 @@ export function EditProgramDialog({
           />
         </Label>
         <p className={`${subtle} -mt-2 select-text break-all`}>{program.exe}</p>
+        <CompatNoteSection bottleId={bottleId} program={program} />
         {error && <ErrorText>{error}</ErrorText>}
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>

@@ -6,6 +6,7 @@
 
 pub mod approval;
 pub mod bottle;
+pub mod compat;
 pub mod components;
 pub mod diag;
 pub mod doctor;
