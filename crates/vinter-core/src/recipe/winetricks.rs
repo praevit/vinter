@@ -85,6 +85,7 @@ fn missing_tool(log: &str) -> Option<&'static str> {
         .find(|tool| {
             log.contains(&format!("{tool} not found"))
                 || log.contains(&format!("Please install {tool}"))
+                || log.contains(&format!("Cannot find {tool}"))
         })
 }
 
@@ -96,6 +97,13 @@ mod tests {
     fn spots_missing_tools() {
         assert_eq!(
             missing_tool("------\nwarning: cabextract not found. Please install it."),
+            Some("cabextract")
+        );
+        // As winetricks 20260125 says it.
+        assert_eq!(
+            missing_tool(
+                "warning: Cannot find cabextract.  Please install it (e.g. 'sudo apt install cabextract' or 'sudo yum install cabextract')."
+            ),
             Some("cabextract")
         );
         assert_eq!(missing_tool("Executing w_do_call corefonts"), None);
