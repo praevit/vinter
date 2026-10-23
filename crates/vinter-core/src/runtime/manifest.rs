@@ -204,6 +204,12 @@ mod tests {
         assert!(!arm.runs_on("macos", "x86_64"));
         assert!(arm.min_os_version.as_deref() == Some(crate::engine::ARM64_MIN_MACOS));
         let listed = available_for("macos", "aarch64");
-        assert!(!listed.iter().find(|r| r.id == arm.id).unwrap().needs_rosetta);
+        assert!(
+            !listed
+                .iter()
+                .find(|r| r.id == arm.id)
+                .unwrap()
+                .needs_rosetta
+        );
     }
 }
