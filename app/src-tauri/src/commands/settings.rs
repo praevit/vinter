@@ -137,6 +137,14 @@ pub fn d3dmetal_status(state: State<'_, AppState>) -> Option<D3dMetal> {
     d3dmetal::installed(&state.paths)
 }
 
+/// A toolkit the user installed themselves, used in place (experimental
+/// `graphics-user-gptk`), when nothing is imported.
+#[tauri::command]
+#[specta::specta]
+pub fn d3dmetal_user_install(state: State<'_, AppState>) -> Option<String> {
+    d3dmetal::user_install(&state.paths).map(|p| p.display().to_string())
+}
+
 /// A Game Porting Toolkit download the user picked, with Apple's license.
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct D3dMetalSource {

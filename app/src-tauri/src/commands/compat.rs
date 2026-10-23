@@ -99,3 +99,40 @@ pub async fn compare_run(
     })
     .await
 }
+
+/// ARM64 builds of a program found next to it (experimental `per-app-engine`).
+#[tauri::command]
+#[specta::specta]
+pub async fn program_arm64_builds(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+) -> CommandResult<Vec<String>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        Ok(vinter_core::programs::arm64_builds(
+            &paths,
+            &bottle_id,
+            index as usize,
+        )?)
+    })
+    .await
+}
+
+/// Launches a program's ARM64 build instead (or, with `None`, the program
+/// as installed again).
+#[tauri::command]
+#[specta::specta]
+pub async fn program_set_arm64_build(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+    build: Option<String>,
+) -> CommandResult<()> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        vinter_core::programs::set_arm64_build(&paths, &bottle_id, index as usize, build)?;
+        Ok(())
+    })
+    .await
+}

@@ -444,6 +444,7 @@ fn install_package(
             args: vec![],
             icon,
             pinned: true,
+            arm64_build: None,
         });
     }
     if programs.is_empty() {

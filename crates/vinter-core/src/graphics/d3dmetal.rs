@@ -66,6 +66,58 @@ pub fn installed(paths: &AppPaths) -> Option<D3dMetal> {
         .then_some(record)
 }
 
+/// Where a toolkit the user installed themselves keeps D3DMetal: the
+/// Homebrew `game-porting-toolkit` formula (Intel and Apple Silicon
+/// prefixes), and Apple's evaluation environment disk image while mounted.
+/// Nothing else is searched.
+fn standard_locations() -> Vec<PathBuf> {
+    let mut found = vec![
+        PathBuf::from("/usr/local/opt/game-porting-toolkit/lib"),
+        PathBuf::from("/opt/homebrew/opt/game-porting-toolkit/lib"),
+    ];
+    if let Ok(volumes) = std::fs::read_dir("/Volumes") {
+        let mut mounted: Vec<PathBuf> = volumes
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("Evaluation environment for Windows games")
+            })
+            .map(|e| e.path().join("redist/lib"))
+            .collect();
+        mounted.sort();
+        found.extend(mounted.into_iter().rev());
+    }
+    found
+}
+
+/// D3DMetal from a toolkit the user installed themselves, used where it is
+/// (the `graphics-user-gptk` experimental flag). `None` while the flag is
+/// off or nothing complete is found.
+pub fn user_install(paths: &AppPaths) -> Option<PathBuf> {
+    let flag = crate::experimental::ExperimentalFlag::GraphicsUserGptk;
+    if !crate::experimental::Flags::load(paths).is_enabled(flag) {
+        return None;
+    }
+    find_complete(&standard_locations())
+}
+
+fn find_complete(candidates: &[PathBuf]) -> Option<PathBuf> {
+    candidates
+        .iter()
+        .find(|lib| REQUIRED.iter().all(|f| lib.join(f).exists()))
+        .cloned()
+}
+
+/// The D3DMetal to use: the imported copy, else (with the experimental
+/// flag) a toolkit the user installed.
+pub fn active_lib_dir(paths: &AppPaths) -> Option<PathBuf> {
+    if installed(paths).is_some() {
+        return Some(lib_dir(paths));
+    }
+    user_install(paths)
+}
+
 /// Reads the version and license of a toolkit download (a `.dmg` or an
 /// opened folder) without importing anything.
 pub fn inspect(source: &Path) -> Result<Inspection> {
@@ -233,6 +285,25 @@ impl Drop for Mount {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn user_installs_need_every_required_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let partial = tmp.path().join("partial");
+        let complete = tmp.path().join("complete");
+        for f in REQUIRED {
+            let p = complete.join(f);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(&p, "").unwrap();
+        }
+        std::fs::create_dir_all(partial.join("external")).unwrap();
+        assert_eq!(find_complete(std::slice::from_ref(&partial)), None);
+        assert_eq!(find_complete(&[partial, complete.clone()]), Some(complete));
+
+        // Off unless the flag is on.
+        let paths = AppPaths::with_data_dir(tmp.path().join("data"));
+        assert_eq!(user_install(&paths), None);
+    }
     use super::*;
 
     fn fake_toolkit(root: &Path) {

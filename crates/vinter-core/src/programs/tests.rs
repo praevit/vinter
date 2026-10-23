@@ -269,6 +269,7 @@ fn launches_programs_in_their_folder_and_logs_output() {
             args: vec!["--fast".into(), "\0".into()],
             icon: None,
             pinned: false,
+            arm64_build: None,
         }],
     )
     .unwrap();
@@ -352,6 +353,7 @@ fn update_renames_changes_args_and_icon() {
             args: vec![],
             icon: None,
             pinned: false,
+            arm64_build: None,
         }],
     )
     .unwrap();
@@ -426,4 +428,84 @@ fn intel_programs_need_the_runtimes_fex_emulator() {
         Some((PeArch::Amd64, RunPath::Fex64))
     );
     assert_eq!(rt.engine, EngineKind::Arm64Fex);
+}
+
+#[test]
+fn per_app_engine_finds_and_launches_the_arm64_build() {
+    use crate::experimental::{self, ExperimentalFlag};
+    use crate::programs::arch::tests::pe;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = AppPaths::with_data_dir(tmp.path());
+    let dir = bottle::dir(&paths, "b").unwrap();
+    let app = dir.join("prefix/drive_c/Program Files/App");
+    std::fs::create_dir_all(app.join("arm64")).unwrap();
+    std::fs::write(app.join("app.exe"), pe(0x8664, true, false)).unwrap();
+    std::fs::write(app.join("arm64/app.exe"), pe(0xaa64, true, false)).unwrap();
+    std::fs::write(app.join("app-arm64.exe"), pe(0xaa64, true, true)).unwrap();
+    // Not builds of this app, or not ARM:
+    std::fs::write(app.join("other-arm64.exe"), pe(0xaa64, true, false)).unwrap();
+    std::fs::write(app.join("app-arm.exe"), pe(0x8664, true, false)).unwrap();
+    let mut b: Bottle = toml::from_str(
+        "id = \"b\"\nname = \"B\"\nruntime = \"arm\"\nengine = \"arm64-fex\"\ncreated_at = \"2026-10-23T00:00:00Z\"\n",
+    )
+    .unwrap();
+    b.programs.push(ProgramDef {
+        name: "App".into(),
+        exe: r"C:\Program Files\App\app.exe".into(),
+        args: vec![],
+        icon: None,
+        pinned: false,
+        arm64_build: None,
+    });
+    b.save(&dir).unwrap();
+
+    let builds = arm64_builds(&paths, "b", 0).unwrap();
+    assert_eq!(
+        builds,
+        [
+            r"C:\Program Files\App\app-arm64.exe",
+            r"C:\Program Files\App\arm64\app.exe"
+        ]
+    );
+    // Refused while the flag is off, and for anything not found above.
+    assert!(set_arm64_build(&paths, "b", 0, Some(builds[1].clone())).is_err());
+    experimental::set(&paths, ExperimentalFlag::PerAppEngine, true).unwrap();
+    assert!(
+        set_arm64_build(
+            &paths,
+            "b",
+            0,
+            Some(r"C:\Program Files\App\other-arm64.exe".into())
+        )
+        .is_err()
+    );
+    let saved = set_arm64_build(&paths, "b", 0, Some(builds[1].clone())).unwrap();
+    assert_eq!(
+        saved.programs[0].arm64_build.as_deref(),
+        Some(builds[1].as_str())
+    );
+
+    // The launch swaps in the ARM64 build only on the Apple Silicon engine.
+    let rt_dir = paths.runtimes_dir().join("arm");
+    std::fs::create_dir_all(rt_dir.join("bin")).unwrap();
+    std::fs::write(
+        rt_dir.join("runtime.toml"),
+        "id = \"arm\"\nname = \"Arm\"\nversion = \"11.10\"\nflavor = \"devel\"\nurl = \"\"\n\
+         sha256 = \"\"\ninstalled_at = \"2026-10-23T00:00:00Z\"\nwine_bin = \"bin/wine\"\n\
+         license = \"\"\nsource_url = \"\"\narch = \"aarch64\"\ngraphics = [\"wined3d\"]\nengine = \"arm64-fex\"\n",
+    )
+    .unwrap();
+    let mut rt = crate::runtime::get(&paths, "arm").unwrap();
+    let prefix = dir.join("prefix");
+    let (win, unix) = native_build(&paths, &rt, &prefix, &saved.programs[0]).unwrap();
+    assert_eq!(win, builds[1]);
+    assert!(unix.ends_with("arm64/app.exe"));
+    rt.engine = crate::engine::EngineKind::X86_64Rosetta;
+    assert!(native_build(&paths, &rt, &prefix, &saved.programs[0]).is_none());
+
+    // Off again: back to the program as installed.
+    experimental::set(&paths, ExperimentalFlag::PerAppEngine, false).unwrap();
+    rt.engine = crate::engine::EngineKind::Arm64Fex;
+    assert!(native_build(&paths, &rt, &prefix, &saved.programs[0]).is_none());
 }

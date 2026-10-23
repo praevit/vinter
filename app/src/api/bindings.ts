@@ -111,7 +111,7 @@ export const commands = {
 	installerRun: (bottleId: string, path: string, args: string[]) => __TAURI_INVOKE<string>("installer_run", { bottleId, path, args }),
 	/**  Looks for installed programs in a bottle (and extracts their icons). */
 	programsDiscover: (bottleId: string) => __TAURI_INVOKE<DiscoveredProgram[]>("programs_discover", { bottleId }),
-	programsAdd: (bottleId: string, programs: ProgramDef[]) => __TAURI_INVOKE<Bottle_Serialize>("programs_add", { bottleId, programs }),
+	programsAdd: (bottleId: string, programs: ProgramDef_Deserialize[]) => __TAURI_INVOKE<Bottle_Serialize>("programs_add", { bottleId, programs }),
 	/**  Removes a program's tile. The program stays installed in the bottle. */
 	programRemove: (bottleId: string, index: number) => __TAURI_INVOKE<Bottle_Serialize>("program_remove", { bottleId, index }),
 	/**  Renames a program or changes its launch arguments. */
@@ -137,7 +137,7 @@ export const commands = {
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
 	options: BottleOptions_Serialize,
-	programs: ProgramDef[],
+	programs: ProgramDef_Serialize[],
 	/**  Domain account the programs run as, if any. */
 	domain: DomainAccount | null,
 } | null>("program_choose_icon", { bottleId, index }),
@@ -211,6 +211,18 @@ export const commands = {
 	 *  is not changed.
 	 */
 	bottleMigrateStart: (bottleId: string, name: string, installerPath: string | null, acceptDownloads: boolean) => __TAURI_INVOKE<StartedBottle>("bottle_migrate_start", { bottleId, name, installerPath, acceptDownloads }),
+	/**
+	 *  A toolkit the user installed themselves, used in place (experimental
+	 *  `graphics-user-gptk`), when nothing is imported.
+	 */
+	d3dmetalUserInstall: () => __TAURI_INVOKE<string | null>("d3dmetal_user_install"),
+	/**  ARM64 builds of a program found next to it (experimental `per-app-engine`). */
+	programArm64Builds: (bottleId: string, index: number) => __TAURI_INVOKE<string[]>("program_arm64_builds", { bottleId, index }),
+	/**
+	 *  Launches a program's ARM64 build instead (or, with `None`, the program
+	 *  as installed again).
+	 */
+	programSetArm64Build: (bottleId: string, index: number, build: string | null) => __TAURI_INVOKE<null>("program_set_arm64_build", { bottleId, index, build }),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -368,7 +380,7 @@ export type BottleFile_Deserialize = {
 	env?: { [key in string]: string },
 	dll_overrides?: { [key in string]: string },
 	options?: BottleOptions_Deserialize,
-	programs?: ProgramDef[],
+	programs?: ProgramDef_Deserialize[],
 	domain?: DomainAccount | null,
 };
 
@@ -389,7 +401,7 @@ export type BottleFile_Serialize = {
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
 	options: BottleOptions_Serialize,
-	programs: ProgramDef[],
+	programs: ProgramDef_Serialize[],
 	domain: DomainAccount | null,
 };
 
@@ -500,7 +512,7 @@ export type Bottle_Serialize = {
 	env: { [key in string]: string },
 	dll_overrides: { [key in string]: string },
 	options: BottleOptions_Serialize,
-	programs: ProgramDef[],
+	programs: ProgramDef_Serialize[],
 	/**  Domain account the programs run as, if any. */
 	domain: DomainAccount | null,
 };
@@ -820,7 +832,10 @@ export type PeArch =
 "arm64x";
 
 /**  A program shown in a bottle. */
-export type ProgramDef = {
+export type ProgramDef = ProgramDef_Serialize | ProgramDef_Deserialize;
+
+/**  A program shown in a bottle. */
+export type ProgramDef_Deserialize = {
 	name: string,
 	/**  Windows path, e.g. `C:\Program Files\App\app.exe`. */
 	exe: string,
@@ -828,6 +843,27 @@ export type ProgramDef = {
 	/**  PNG path relative to the bottle folder. */
 	icon?: string | null,
 	pinned?: boolean,
+	/**
+	 *  Windows path of the app's own ARM64 build, launched instead of `exe`
+	 *  in Apple Silicon bottles (the `per-app-engine` experimental flag).
+	 */
+	arm64_build?: string | null,
+};
+
+/**  A program shown in a bottle. */
+export type ProgramDef_Serialize = {
+	name: string,
+	/**  Windows path, e.g. `C:\Program Files\App\app.exe`. */
+	exe: string,
+	args: string[],
+	/**  PNG path relative to the bottle folder. */
+	icon: string | null,
+	pinned: boolean,
+	/**
+	 *  Windows path of the app's own ARM64 build, launched instead of `exe`
+	 *  in Apple Silicon bottles (the `per-app-engine` experimental flag).
+	 */
+	arm64_build?: string | null,
 };
 
 /**  A bottle's program as shown on its tile. */
@@ -843,6 +879,8 @@ export type ProgramView = {
 	arch: PeArch | null,
 	/**  For 32-bit programs: can use up to 4 GB instead of 2 GB. */
 	large_address_aware: boolean | null,
+	/**  The ARM64 build launched instead (experimental `per-app-engine`). */
+	arm64_build: string | null,
 };
 
 export type Rating = "works" | "partly" | "broken";

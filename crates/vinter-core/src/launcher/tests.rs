@@ -24,6 +24,7 @@ fn bottle_with_programs(paths: &AppPaths, id: &str, name: &str, programs: &[&str
                 args: vec![],
                 icon: None,
                 pinned: false,
+                arm64_build: None,
             })
             .collect(),
         domain: None,

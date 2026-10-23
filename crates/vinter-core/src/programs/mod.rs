@@ -81,6 +81,7 @@ impl DiscoveredProgram {
             args: self.args.clone(),
             icon: self.icon.clone(),
             pinned: false,
+            arm64_build: None,
         }
     }
 }
@@ -296,6 +297,17 @@ pub fn launch_with(
         exe: program.exe.clone(),
     })?;
 
+    // per-app-engine: the app's own ARM64 build instead, natively.
+    let (program, exe) = match native_build(paths, &rt, &prefix, &program) {
+        Some((win, unix)) => (
+            ProgramDef {
+                exe: win,
+                ..program
+            },
+            unix,
+        ),
+        None => (program, exe),
+    };
     let found = check_architecture(&program.name, &exe, &bottle, &rt)?;
     let (log, _) = logs::create(&dir, &program.name)?;
     bottle::domain::refresh_ticket(&rt, &dir, &bottle, &log);
@@ -357,6 +369,126 @@ pub(crate) fn wow64_notes(
         ));
     }
     notes
+}
+
+/// The ARM64 build to launch instead of `program`'s own exe, if the
+/// `per-app-engine` flag is on, the bottle is on the Apple Silicon engine
+/// and the build chosen for it is still there and still ARM.
+fn native_build(
+    paths: &AppPaths,
+    rt: &runtime::Runtime,
+    prefix: &Path,
+    program: &ProgramDef,
+) -> Option<(String, PathBuf)> {
+    let flag = crate::experimental::ExperimentalFlag::PerAppEngine;
+    if !crate::engine::is_fex(rt.engine)
+        || !crate::experimental::Flags::load(paths).is_enabled(flag)
+    {
+        return None;
+    }
+    let win = program.arm64_build.clone()?;
+    let unix = winpath::to_unix(prefix, &win)?;
+    arch::detect(&unix)
+        .is_some_and(|a| a.is_arm())
+        .then_some((win, unix))
+}
+
+/// ARM64 builds of a bottle's program found next to it: `.exe` files in its
+/// folder, or in an `arm64`/`aarch64` folder beside it, with the same name
+/// and built for ARM. These are what `per-app-engine` can launch instead.
+pub fn arm64_builds(paths: &AppPaths, bottle_id: &str, index: usize) -> Result<Vec<String>> {
+    let bottle = bottle::get(paths, bottle_id)?;
+    let program = bottle
+        .programs
+        .get(index)
+        .ok_or(Error::ProgramNotFound(index))?;
+    let prefix = bottle::dir(paths, bottle_id)?.join(PREFIX_DIR);
+    let Some(exe) = winpath::to_unix(&prefix, &program.exe) else {
+        return Ok(Vec::new());
+    };
+    let (Some(folder), Some(stem)) = (exe.parent(), exe.file_stem()) else {
+        return Ok(Vec::new());
+    };
+    let stem = stem.to_string_lossy().to_ascii_lowercase();
+    // ARM folders as they are spelled on disk (macOS file systems ignore
+    // case, so guessing spellings would find one folder several times).
+    let mut dirs = vec![folder.to_path_buf()];
+    for base in [Some(folder), folder.parent()].into_iter().flatten() {
+        let Ok(entries) = std::fs::read_dir(base) else {
+            continue;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            if matches!(name.as_str(), "arm64" | "aarch64") && entry.path().is_dir() {
+                dirs.push(entry.path());
+            }
+        }
+    }
+    let mut found = Vec::new();
+    for dir in dirs {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            let name = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_ascii_lowercase())
+                .unwrap_or_default();
+            let is_exe = path
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
+            let same_app = name == stem
+                || name.strip_prefix(&stem).is_some_and(|rest| {
+                    matches!(
+                        rest.trim_start_matches(['-', '_', '.']),
+                        "arm64" | "aarch64" | "arm"
+                    )
+                });
+            if is_exe
+                && same_app
+                && path != exe
+                && arch::detect(&path).is_some_and(|a| a.is_arm())
+                && let Some(win) = winpath::to_windows(&prefix, &path)
+            {
+                found.push(win);
+            }
+        }
+    }
+    found.sort();
+    found.dedup();
+    Ok(found)
+}
+
+/// Chooses (or with `None`, clears) the ARM64 build `per-app-engine` launches
+/// for a program. It must be one of [`arm64_builds`].
+pub fn set_arm64_build(
+    paths: &AppPaths,
+    bottle_id: &str,
+    index: usize,
+    build: Option<String>,
+) -> Result<Bottle> {
+    let flag = crate::experimental::ExperimentalFlag::PerAppEngine;
+    if !crate::experimental::Flags::load(paths).is_enabled(flag) {
+        return Err(Error::Unsupported(format!(
+            "choosing an engine per app is experimental; turn on {flag} first"
+        )));
+    }
+    if let Some(b) = &build
+        && !arm64_builds(paths, bottle_id, index)?.contains(b)
+    {
+        return Err(Error::InvalidSetting(format!(
+            "{b} is not an ARM64 build of this program"
+        )));
+    }
+    let mut bottle = bottle::get(paths, bottle_id)?;
+    let program = bottle
+        .programs
+        .get_mut(index)
+        .ok_or(Error::ProgramNotFound(index))?;
+    program.arm64_build = build;
+    bottle.save(&bottle::dir(paths, bottle_id)?)?;
+    Ok(bottle)
 }
 
 /// For a bottle's 32-bit program: whether it is large-address-aware.

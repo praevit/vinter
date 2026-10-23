@@ -118,6 +118,10 @@ export function Settings() {
 function D3dMetalGroup() {
   const queryClient = useQueryClient();
   const { data: imported } = useQuery({ queryKey: ["d3dmetal"], queryFn: () => commands.d3dmetalStatus() });
+  const { data: userInstall } = useQuery({
+    queryKey: ["d3dmetal", "user-install"],
+    queryFn: () => commands.d3dmetalUserInstall(),
+  });
   const [source, setSource] = useState<D3dMetalSource | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -181,6 +185,14 @@ function D3dMetalGroup() {
           <Button onClick={choose}>Import…</Button>
         )}
       </div>
+      {!imported && userInstall && (
+        <div className="flex flex-wrap items-center gap-2 px-5 py-3 text-sm">
+          <ExperimentalBadge />
+          <span>
+            Using the Game Porting Toolkit you installed, at <span className="select-text">{userInstall}</span>.
+          </span>
+        </div>
+      )}
       {!imported && (
         <div className="px-5 py-3">
           <button

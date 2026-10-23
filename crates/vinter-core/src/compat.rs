@@ -165,6 +165,7 @@ mod tests {
             args: vec![],
             icon: None,
             pinned: false,
+            arm64_build: None,
         });
         b.save(&dir).unwrap();
         (tmp, paths)

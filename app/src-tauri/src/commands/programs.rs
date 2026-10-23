@@ -44,6 +44,8 @@ pub struct ProgramView {
     pub arch: Option<programs::arch::PeArch>,
     /// For 32-bit programs: can use up to 4 GB instead of 2 GB.
     pub large_address_aware: Option<bool>,
+    /// The ARM64 build launched instead (experimental `per-app-engine`).
+    pub arm64_build: Option<String>,
 }
 
 /// Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
@@ -255,6 +257,7 @@ pub async fn programs_list(
                 pinned: p.pinned,
                 arch: programs::arch_of(&paths, &bottle_id, p),
                 large_address_aware: programs::large_address_aware_of(&paths, &bottle_id, p),
+                arm64_build: p.arm64_build.clone(),
                 icon_data_url: p
                     .icon
                     .as_deref()

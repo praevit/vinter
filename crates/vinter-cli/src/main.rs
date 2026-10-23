@@ -297,6 +297,19 @@ enum BottleCommand {
     Unpin { bottle: String, program: usize },
     /// Print a debug report for bug reports.
     Report { bottle: String },
+    /// Launch a program's own ARM64 build instead of its Intel one, in an
+    /// Apple Silicon bottle (experimental: per-app-engine). Without options,
+    /// lists the ARM64 builds found next to it.
+    Arm64Build {
+        bottle: String,
+        program: usize,
+        /// Use the ARM64 build with this number from the list.
+        #[arg(long = "use")]
+        use_build: Option<usize>,
+        /// Go back to the program as installed.
+        #[arg(long, conflicts_with = "use_build")]
+        off: bool,
+    },
     /// Recreate a bottle on the Apple Silicon engine (experimental:
     /// bottle-migrate-arm64): a new bottle, its recipe re-run, your files
     /// copied. The old bottle is not changed.
@@ -1106,6 +1119,40 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                     );
                 }
                 println!("Log:           {}", r.log_id);
+            })
+        }
+        BottleCommand::Arm64Build {
+            bottle: key,
+            program,
+            use_build,
+            off,
+        } => {
+            let b = bottle::resolve(paths, &key)?;
+            let builds = programs::arm64_builds(paths, &b.id, program)?;
+            let choice = match (use_build, off) {
+                (Some(n), _) => {
+                    Some(Some(builds.get(n).cloned().with_context(|| {
+                        format!("there is no ARM64 build number {n}")
+                    })?))
+                }
+                (None, true) => Some(None),
+                (None, false) => None,
+            };
+            if let Some(choice) = choice {
+                let saved = programs::set_arm64_build(paths, &b.id, program, choice)?;
+                let p = &saved.programs[program];
+                return out.print(p, || match &p.arm64_build {
+                    Some(build) => println!("{} now starts {build}.", p.name),
+                    None => println!("{} starts as installed.", p.name),
+                });
+            }
+            out.print(&builds, || {
+                if builds.is_empty() {
+                    println!("No ARM64 build of this program was found next to it.");
+                }
+                for (i, build) in builds.iter().enumerate() {
+                    println!("{i}  {build}");
+                }
             })
         }
         BottleCommand::MigrateArm64 {

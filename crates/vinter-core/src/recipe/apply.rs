@@ -381,6 +381,7 @@ fn add_programs(paths: &AppPaths, loaded: &LoadedRecipe, bottle_id: &str) -> Res
                 args: p.args.clone(),
                 icon: programs::save_icon_for(paths, bottle_id, &unix),
                 pinned: true,
+                arm64_build: None,
             })
         })
         .collect();

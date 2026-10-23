@@ -197,6 +197,10 @@ pub struct ProgramDef {
     pub icon: Option<String>,
     #[serde(default)]
     pub pinned: bool,
+    /// Windows path of the app's own ARM64 build, launched instead of `exe`
+    /// in Apple Silicon bottles (the `per-app-engine` experimental flag).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arm64_build: Option<String>,
 }
 
 /// Contents of `bottle.toml`.

@@ -197,6 +197,8 @@ impl ExperimentalFlag {
                 | Self::GraphicsDxvkArm64ec
                 | Self::EngineAbCompare
                 | Self::BottleMigrateArm64
+                | Self::GraphicsUserGptk
+                | Self::PerAppEngine
         )
     }
 }

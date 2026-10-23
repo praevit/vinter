@@ -106,7 +106,8 @@ pub(crate) fn backends_for(
             } else {
                 component::for_backend(backend, os)
             };
-            let imported = backend == Backend::D3dmetal && d3dmetal::installed(paths).is_some();
+            let imported =
+                backend == Backend::D3dmetal && d3dmetal::active_lib_dir(paths).is_some();
             let reason = unavailable_reason(backend, runtime, os, component.is_some() || imported);
             BackendInfo {
                 backend,
@@ -114,7 +115,10 @@ pub(crate) fn backends_for(
                 description: backend.description().into(),
                 available: reason.is_none(),
                 reason,
-                experimental: fex && matches!(backend, Backend::Dxvk | Backend::D3dmetal),
+                experimental: (fex && backend == Backend::Dxvk)
+                    || (backend == Backend::D3dmetal
+                        && d3dmetal::installed(paths).is_none()
+                        && d3dmetal::user_install(paths).is_some()),
                 component_installed: component
                     .as_ref()
                     .is_some_and(|c| component::installed(paths, &c.id).is_some()),
@@ -195,8 +199,9 @@ fn fex_unavailable_reason(backend: Backend, runtime: &Runtime) -> Option<String>
             "{} does not include DXVK for Apple Silicon.",
             runtime.name
         )),
+        // Apple's D3DMetal redistributable is x86-64 only (wine/x86_64-windows).
         Backend::D3dmetal => Some(
-            "D3DMetal in Apple Silicon bottles is experimental (graphics-user-gptk in Settings → Experimental)."
+            "Apple's D3DMetal is built for Intel Wine only, so it works in Intel (Rosetta) bottles, not Apple Silicon ones."
                 .into(),
         ),
     }
@@ -259,7 +264,9 @@ pub fn launch_env(backend: Backend, data_dir: Option<&std::path::Path>) -> Vec<(
         Backend::D3dmetal => {
             let mut env = vec![("GRAPHICS_BACKEND".to_string(), "d3dmetal".to_string())];
             if let Some(data) = data_dir {
-                let lib = d3dmetal::lib_dir(&crate::AppPaths::with_data_dir(data));
+                let paths = crate::AppPaths::with_data_dir(data);
+                let lib =
+                    d3dmetal::active_lib_dir(&paths).unwrap_or_else(|| d3dmetal::lib_dir(&paths));
                 env.push(("D3DMETAL_RUNTIME_DIR".into(), lib.display().to_string()));
             }
             env
