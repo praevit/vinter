@@ -5,6 +5,7 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::AppPaths;
+use crate::engine::{ARM64_MIN_MACOS, EngineKind, Host, unmet_requirement};
 
 /// Below this much free space we refuse to be optimistic.
 const DISK_ERROR_BYTES: u64 = 2 * GB;
@@ -57,6 +58,10 @@ pub struct SystemStatus {
     pub arch: String,
     /// Data folder, for display only.
     pub data_dir: String,
+    /// macOS version, e.g. "27.0.1"; `None` elsewhere or if unknown.
+    pub macos_version: Option<String>,
+    /// This machine can run the Apple Silicon engine (Wine without Rosetta).
+    pub arm64_engine: bool,
     pub checks: Vec<Check>,
 }
 
@@ -72,6 +77,7 @@ pub fn system_checks(paths: &AppPaths) -> SystemStatus {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     let data_dir = paths.data_dir();
+    let host = Host::current();
 
     let rosetta = if super::rosetta::needed_on(os, arch) {
         rosetta_check(super::rosetta::is_installed())
@@ -89,9 +95,14 @@ pub fn system_checks(paths: &AppPaths) -> SystemStatus {
         os: os.into(),
         arch: arch.into(),
         data_dir: data_dir.display().to_string(),
+        macos_version: host.macos_version.clone(),
+        arm64_engine: super::readiness::arm64_available(&host),
         checks: vec![
             platform_check(os, arch),
+            cpu_check(arch, cpu_name().as_deref()),
+            macos_check(&host),
             rosetta,
+            arm64_engine_check(&host),
             data_dir_check(data_dir),
             disk_space_check(free_space(data_dir)),
         ],
@@ -115,6 +126,91 @@ fn platform_check(os: &str, arch: &str) -> Check {
         ),
     };
     Check::new("platform", "Platform", status, detail)
+}
+
+fn cpu_check(arch: &str, name: Option<&str>) -> Check {
+    let kind = match arch {
+        "aarch64" => "ARM64",
+        other => other,
+    };
+    let detail = match name {
+        Some(name) => format!("{name} ({kind})."),
+        None => format!("{kind} processor."),
+    };
+    Check::new("cpu", "Processor", CheckStatus::Ok, detail)
+}
+
+/// The processor's marketing name, e.g. "Apple M2".
+fn cpu_name() -> Option<String> {
+    let name = if cfg!(target_os = "macos") {
+        let out = std::process::Command::new("/usr/sbin/sysctl")
+            .args(["-n", "machdep.cpu.brand_string"])
+            .output()
+            .ok()?;
+        String::from_utf8(out.stdout).ok()?
+    } else {
+        let info = std::fs::read_to_string("/proc/cpuinfo").ok()?;
+        info.lines()
+            .find(|l| l.starts_with("model name"))?
+            .split_once(':')?
+            .1
+            .to_string()
+    };
+    Some(name.trim().to_string()).filter(|n| !n.is_empty())
+}
+
+fn macos_check(host: &Host) -> Check {
+    let label = "macOS";
+    if host.os != "macos" {
+        return Check::new("macos", label, CheckStatus::Skipped, "Not a Mac.");
+    }
+    let Some(version) = &host.macos_version else {
+        return Check::new(
+            "macos",
+            label,
+            CheckStatus::Warning,
+            "Could not read the macOS version.",
+        );
+    };
+    if unmet_requirement(EngineKind::Arm64Fex, host).is_some() && host.arch == "aarch64" {
+        return Check::new(
+            "macos",
+            label,
+            CheckStatus::Warning,
+            format!(
+                "macOS {version}. Update to macOS {ARM64_MIN_MACOS} or newer to run Windows apps without Rosetta."
+            ),
+        );
+    }
+    Check::new("macos", label, CheckStatus::Ok, format!("macOS {version}."))
+}
+
+fn arm64_engine_check(host: &Host) -> Check {
+    let label = "Native Wine";
+    if host.os != "macos" || host.arch != "aarch64" {
+        return Check::new(
+            "arm64_engine",
+            label,
+            CheckStatus::Skipped,
+            "Only Macs with Apple Silicon run Wine natively.",
+        );
+    }
+    match unmet_requirement(EngineKind::Arm64Fex, host) {
+        None => Check::new(
+            "arm64_engine",
+            label,
+            CheckStatus::Ok,
+            "This Mac can run Windows apps without Rosetta, in Apple Silicon bottles.",
+        ),
+        Some(reason) => Check::new(
+            "arm64_engine",
+            label,
+            CheckStatus::Warning,
+            format!(
+                "Apple Silicon bottles cannot run yet: {reason}. Until then bottles use Rosetta, which macOS 28 mostly removes."
+            ),
+        ),
+    }
 }
 
 fn rosetta_check(installed: bool) -> Check {
@@ -227,6 +323,43 @@ mod tests {
         );
     }
 
+    fn host(os: &str, arch: &str, version: Option<&str>) -> Host {
+        Host {
+            os: os.into(),
+            arch: arch.into(),
+            macos_version: version.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn macos_and_arm64_engine_checks() {
+        let new_mac = host("macos", "aarch64", Some("27.0.1"));
+        let old_mac = host("macos", "aarch64", Some("26.4"));
+        let intel = host("macos", "x86_64", Some("27.0"));
+        let linux = host("linux", "x86_64", None);
+
+        assert_eq!(macos_check(&new_mac).status, CheckStatus::Ok);
+        assert_eq!(macos_check(&new_mac).detail, "macOS 27.0.1.");
+        assert_eq!(macos_check(&old_mac).status, CheckStatus::Warning);
+        assert!(macos_check(&old_mac).detail.contains("26.5"));
+        assert_eq!(macos_check(&intel).status, CheckStatus::Ok);
+        assert_eq!(macos_check(&linux).status, CheckStatus::Skipped);
+
+        assert_eq!(arm64_engine_check(&new_mac).status, CheckStatus::Ok);
+        assert_eq!(arm64_engine_check(&old_mac).status, CheckStatus::Warning);
+        assert_eq!(arm64_engine_check(&intel).status, CheckStatus::Skipped);
+        assert_eq!(arm64_engine_check(&linux).status, CheckStatus::Skipped);
+    }
+
+    #[test]
+    fn cpu_names() {
+        assert_eq!(
+            cpu_check("aarch64", Some("Apple M2")).detail,
+            "Apple M2 (ARM64)."
+        );
+        assert_eq!(cpu_check("x86_64", None).detail, "x86_64 processor.");
+    }
+
     #[test]
     fn rosetta_states() {
         assert_eq!(rosetta_check(true).status, CheckStatus::Ok);
@@ -271,7 +404,18 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let status = system_checks(&AppPaths::with_data_dir(tmp.path()));
         let ids: Vec<_> = status.checks.iter().map(|c| c.id.as_str()).collect();
-        assert_eq!(ids, ["platform", "rosetta", "data_dir", "disk_space"]);
+        assert_eq!(
+            ids,
+            [
+                "platform",
+                "cpu",
+                "macos",
+                "rosetta",
+                "arm64_engine",
+                "data_dir",
+                "disk_space"
+            ]
+        );
         assert_eq!(status.data_dir, tmp.path().display().to_string());
         assert_eq!(status.version, crate::VERSION);
     }

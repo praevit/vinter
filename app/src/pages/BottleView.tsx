@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Copy, Eraser, FolderOpen, Square, Trash2 } from "lucide-react";
-import { commands, type Tool } from "../api/bindings";
+import { commands, type Readiness, type Tool } from "../api/bindings";
+import { READINESS_LABELS, ReadinessDot } from "../components/ReadinessDot";
 import {
   TOOLS,
   WINDOWS_VERSIONS,
@@ -46,7 +47,9 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
   const [tab, setTab] = useState<Tab>("programs");
   const [logToShow, setLogToShow] = useState<string>();
 
-  const status = list?.find((b) => b.id === id)?.status;
+  const listed = list?.find((b) => b.id === id);
+  const status = listed?.status;
+  const readiness = listed?.readiness;
   const setup = jobs.job(bottleJobKey(id));
   const runtime = runtimes?.find((r) => r.id === bottle?.runtime);
   const { data: recipeState } = useRecipeState(id);
@@ -84,6 +87,9 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
         </Notice>
       ) : (
         <>
+          {readiness && (readiness.level === "yellow" || readiness.level === "red") && (
+            <ReadinessNotice readiness={readiness} onNewBottle={() => onNavigate({ page: "new-bottle" })} />
+          )}
           {!runtime && runtimes && (
             <Notice>
               This bottle uses {bottle.runtime}, which is not installed. Pick another runtime in
@@ -137,6 +143,23 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
 
 function Page({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto flex max-w-3xl flex-col gap-6 px-8 py-10">{children}</div>;
+}
+
+/** Why a bottle depends on Rosetta, and what to do about it. */
+function ReadinessNotice({ readiness, onNewBottle }: { readiness: Readiness; onNewBottle: () => void }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-frost-200 p-4 text-sm dark:border-slate-deep-700">
+      <span className="mt-1.5 flex">
+        <ReadinessDot readiness={readiness} />
+      </span>
+      <div className="flex flex-1 flex-col items-start gap-2">
+        <p>
+          <span className="font-medium">{READINESS_LABELS[readiness.level]}.</span> {readiness.summary}
+        </p>
+        {readiness.level === "yellow" && <Button onClick={onNewBottle}>New Apple Silicon bottle…</Button>}
+      </div>
+    </div>
+  );
 }
 
 function Notice({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Activity, AlertTriangle, Info, LoaderCircle, PackagePlus, Plus, Settings, Wine, type LucideIcon } from "lucide-react";
 import { useBottles } from "../api/bottles";
+import { ReadinessDot } from "./ReadinessDot";
 
 export type Route =
   | { page: "home" }
@@ -86,6 +87,7 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
               >
                 <Wine className="size-4 shrink-0 text-wine-500 dark:text-rose-300" />
                 <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                {b.status === "ready" && <ReadinessDot readiness={b.readiness} />}
                 {b.status === "setting_up" && (
                   <LoaderCircle className="size-3.5 shrink-0 animate-spin text-frost-400" />
                 )}

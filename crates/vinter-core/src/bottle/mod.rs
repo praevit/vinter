@@ -42,6 +42,9 @@ pub struct BottleSummary {
     pub name: String,
     pub runtime: String,
     pub windows_version: WindowsVersion,
+    pub engine: crate::engine::EngineKind,
+    /// Whether it keeps working once Rosetta is gone.
+    pub readiness: crate::system::readiness::Readiness,
     /// False while setup runs, or if it was interrupted.
     pub setup_complete: bool,
     pub program_count: u32,
@@ -128,6 +131,7 @@ pub fn list(paths: &AppPaths) -> Result<Vec<BottleSummary>> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e).at(&root),
     };
+    let host = crate::engine::Host::current();
     let mut bottles = Vec::new();
     for entry in entries {
         let path = entry.at(&root)?.path();
@@ -145,6 +149,8 @@ pub fn list(paths: &AppPaths) -> Result<Vec<BottleSummary>> {
                 name: b.name,
                 runtime: b.runtime,
                 windows_version: b.windows_version,
+                readiness: crate::system::readiness::for_engine(b.engine, &host),
+                engine: b.engine,
             });
         }
     }

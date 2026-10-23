@@ -18,6 +18,7 @@ use vinter_core::process::logs;
 use vinter_core::programs;
 use vinter_core::recipe::{self, ApplyOptions, RecipeProgress};
 use vinter_core::runtime::{self, InstallProgress, InstallStage};
+use vinter_core::system::readiness::ReadinessLevel;
 use vinter_core::system::{CheckStatus, rosetta, system_checks};
 
 #[derive(Parser)]
@@ -608,12 +609,27 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                     } else {
                         "  (setup incomplete)"
                     };
+                    let readiness = match b.readiness.level {
+                        ReadinessLevel::Green => "ready",
+                        ReadinessLevel::Yellow => "can move",
+                        ReadinessLevel::Red => "at risk",
+                        ReadinessLevel::NotApplicable => "",
+                    };
                     println!(
-                        "{}  {:<24} {:<28} {}{state}",
+                        "{}  {:<24} {:<28} {:<8} {:<16} {readiness}{state}",
                         &b.id[..8],
                         b.name,
                         b.runtime,
-                        b.windows_version.winecfg_name()
+                        b.windows_version.winecfg_name(),
+                        b.engine.id(),
+                    );
+                }
+                if bottles
+                    .iter()
+                    .any(|b| b.readiness.level != ReadinessLevel::NotApplicable)
+                {
+                    println!(
+                        "\nRosetta readiness: \"ready\" runs without Rosetta; \"can move\" uses Rosetta, and this Mac can run\nApple Silicon bottles; \"at risk\" uses Rosetta, which macOS 28 mostly removes. `--json` has the details."
                     );
                 }
             })

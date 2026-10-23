@@ -425,6 +425,9 @@ export type BottleSummary = {
 	name: string,
 	runtime: string,
 	windows_version: WindowsVersion,
+	engine: EngineKind,
+	/**  Whether it keeps working once Rosetta is gone. */
+	readiness: Readiness,
 	/**  False while setup runs, or if it was interrupted. */
 	setup_complete: boolean,
 	program_count: number,
@@ -748,6 +751,25 @@ export type ProgramView = {
 	pinned: boolean,
 };
 
+export type Readiness = {
+	level: ReadinessLevel,
+	/**  One or two sentences for a tooltip or notice. */
+	summary: string,
+};
+
+export type ReadinessLevel = 
+/**  Runs on the Apple Silicon engine here: no Rosetta needed. */
+"green" | 
+/**  Uses Rosetta, but this Mac can run Apple Silicon bottles. */
+"yellow" | 
+/**
+ *  Uses Rosetta and this Mac cannot run Apple Silicon bottles, or the
+ *  bottle's own engine cannot run here.
+ */
+"red" | 
+/**  Not a Rosetta question here (Linux, Intel Macs). */
+"not_applicable";
+
 export type RecipeList = {
 	recipes: RecipeSummary[],
 	/**  User recipe files that could not be loaded, with the reason. */
@@ -1061,6 +1083,10 @@ export type SystemStatus = {
 	arch: string,
 	/**  Data folder, for display only. */
 	data_dir: string,
+	/**  macOS version, e.g. "27.0.1"; `None` elsewhere or if unknown. */
+	macos_version: string | null,
+	/**  This machine can run the Apple Silicon engine (Wine without Rosetta). */
+	arm64_engine: boolean,
 	checks: Check[],
 };
 
