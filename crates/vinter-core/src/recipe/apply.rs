@@ -30,6 +30,8 @@ pub struct ApplyOptions {
     pub installer: Option<PathBuf>,
     /// The user agreed to winetricks downloads (may include Microsoft software).
     pub accept_downloads: bool,
+    /// Installed runtime to use instead of the one the recipe would pick.
+    pub runtime: Option<String>,
 }
 
 /// Progress of a recipe run: task `task` of `tasks`.
@@ -95,7 +97,10 @@ where
     let r = &loaded.recipe;
     check_consent(loaded, opts.accept_downloads)?;
     check_installer_given(loaded, opts.installer.as_deref())?;
-    let runtime_choice = pick_runtime(paths, r.runtime_flavor)?;
+    let runtime_choice = match &opts.runtime {
+        Some(id) => RuntimeChoice::Installed(runtime::get(paths, id)?),
+        None => pick_runtime(paths, r.runtime_flavor)?,
+    };
 
     let mut tasks = Tasks::new(&mut on_progress);
     tasks.total = r.steps.len()
@@ -202,14 +207,19 @@ where
                 .into_iter()
                 .find(|b| b.backend == r.graphics)
                 .expect("every backend is listed");
-            if let Some(reason) = info.reason {
-                return Err(Error::BackendUnavailable(reason));
+            match info.reason {
+                // Apple Silicon bottles only offer what their runtime ships;
+                // the recipe still works with WineD3D, just slower.
+                Some(_) if crate::engine::is_fex(rt.engine) => {}
+                Some(reason) => return Err(Error::BackendUnavailable(reason)),
+                None => {
+                    if let Some(c) = &info.component {
+                        graphics::component::ensure(paths, c, |p| tasks.download(p)).await?;
+                    }
+                    let (paths, id, backend) = (paths.clone(), bottle_id.to_string(), r.graphics);
+                    blocking(move || graphics::apply(&paths, &id, backend)).await?;
+                }
             }
-            if let Some(c) = &info.component {
-                graphics::component::ensure(paths, c, |p| tasks.download(p)).await?;
-            }
-            let (paths, id, backend) = (paths.clone(), bottle_id.to_string(), r.graphics);
-            blocking(move || graphics::apply(&paths, &id, backend)).await?;
         }
     }
 

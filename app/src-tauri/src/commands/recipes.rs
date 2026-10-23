@@ -30,7 +30,7 @@ pub fn recipes_list(state: State<'_, AppState>) -> RecipeList {
     }
 }
 
-fn report(job: &JobReporter, p: RecipeProgress) {
+pub(crate) fn report(job: &JobReporter, p: RecipeProgress) {
     let mut message = format!("Step {} of {}", p.task, p.tasks);
     if !p.detail.is_empty() {
         message.push_str(" · ");
@@ -41,7 +41,7 @@ fn report(job: &JobReporter, p: RecipeProgress) {
 
 /// A finished recipe: creates launchers for the programs it pinned, so the
 /// app can be opened from Spotlight or the app menu right away.
-fn finish(app: &AppHandle, result: vinter_core::Result<Bottle>) -> Result<(), String> {
+pub(crate) fn finish(app: &AppHandle, result: vinter_core::Result<Bottle>) -> Result<(), String> {
     let bottle = match result {
         Ok(bottle) => bottle,
         Err(e) => {
@@ -88,6 +88,7 @@ pub fn recipe_apply(
         bottle_name,
         installer: installer_path.map(PathBuf::from),
         accept_downloads,
+        runtime: None,
     };
     let id = bottle_id.clone();
     let job_id = jobs::spawn(&app, |job| {
@@ -99,6 +100,55 @@ pub fn recipe_apply(
         }
     });
     Ok(StartedBottle { bottle_id, job_id })
+}
+
+/// What "Recreate for Apple Silicon" would do (experimental
+/// `bottle-migrate-arm64`).
+#[tauri::command]
+#[specta::specta]
+pub fn bottle_migrate_plan(
+    state: State<'_, AppState>,
+    bottle_id: String,
+) -> CommandResult<vinter_core::migrate::MigrationPlan> {
+    Ok(vinter_core::migrate::plan(&state.paths, &bottle_id)?)
+}
+
+/// Recreates a bottle on the Apple Silicon engine, as a job. The old bottle
+/// is not changed.
+#[tauri::command]
+#[specta::specta]
+pub fn bottle_migrate_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bottle_id: String,
+    name: String,
+    installer_path: Option<String>,
+    accept_downloads: bool,
+) -> CommandResult<StartedBottle> {
+    vinter_core::migrate::plan(&state.paths, &bottle_id)?;
+    let new_id = uuid::Uuid::new_v4().to_string();
+    state.mark_busy(&new_id);
+    let paths = state.paths.clone();
+    let opts = vinter_core::migrate::MigrateOptions {
+        bottle_id: Some(new_id.clone()),
+        name,
+        installer: installer_path.map(PathBuf::from),
+        accept_downloads,
+    };
+    let id = new_id.clone();
+    let job_id = jobs::spawn(&app, |job| {
+        let app = app.clone();
+        async move {
+            let result =
+                vinter_core::migrate::migrate(&paths, &bottle_id, opts, |p| report(&job, p)).await;
+            app.state::<AppState>().clear_busy(&id);
+            finish(&app, result)
+        }
+    });
+    Ok(StartedBottle {
+        bottle_id: new_id,
+        job_id,
+    })
 }
 
 /// The unfinished recipe in a bottle, if setting it up stopped.

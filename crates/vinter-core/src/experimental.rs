@@ -196,6 +196,7 @@ impl ExperimentalFlag {
                 | Self::Wow64LargeAddress
                 | Self::GraphicsDxvkArm64ec
                 | Self::EngineAbCompare
+                | Self::BottleMigrateArm64
         )
     }
 }

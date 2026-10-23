@@ -201,6 +201,16 @@ export const commands = {
 	 *  `engine-ab-compare`). Takes up to twice `seconds`.
 	 */
 	compareRun: (bottleA: string, programA: number, bottleB: string, programB: number, seconds: number) => __TAURI_INVOKE<Comparison>("compare_run", { bottleA, programA, bottleB, programB, seconds }),
+	/**
+	 *  What "Recreate for Apple Silicon" would do (experimental
+	 *  `bottle-migrate-arm64`).
+	 */
+	bottleMigratePlan: (bottleId: string) => __TAURI_INVOKE<MigrationPlan>("bottle_migrate_plan", { bottleId }),
+	/**
+	 *  Recreates a bottle on the Apple Silicon engine, as a job. The old bottle
+	 *  is not changed.
+	 */
+	bottleMigrateStart: (bottleId: string, name: string, installerPath: string | null, acceptDownloads: boolean) => __TAURI_INVOKE<StartedBottle>("bottle_migrate_start", { bottleId, name, installerPath, acceptDownloads }),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -758,6 +768,22 @@ export type LogEntry = {
 	/**  RFC 3339 start time. */
 	started_at: string,
 	size: number,
+};
+
+/**  What a migration would do, for the wizard to show first. */
+export type MigrationPlan = {
+	source: string,
+	/**  The Apple Silicon runtime the new bottle uses. */
+	runtime_id: string,
+	runtime_name: string,
+	/**  Recipe that will reinstall the apps, if the bottle was made from one. */
+	recipe: string | null,
+	/**  User folders that will be copied, as `user/folder`. */
+	folders: string[],
+	/**  Bytes to copy. */
+	bytes: number,
+	/**  Programs that will not be there until reinstalled (no recipe). */
+	reinstall: string[],
 };
 
 /**  Asks the interface to show a page (from the app menu). */

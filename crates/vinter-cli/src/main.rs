@@ -297,6 +297,24 @@ enum BottleCommand {
     Unpin { bottle: String, program: usize },
     /// Print a debug report for bug reports.
     Report { bottle: String },
+    /// Recreate a bottle on the Apple Silicon engine (experimental:
+    /// bottle-migrate-arm64): a new bottle, its recipe re-run, your files
+    /// copied. The old bottle is not changed.
+    MigrateArm64 {
+        bottle: String,
+        /// Name of the new bottle (default: "<name> (Apple Silicon)").
+        #[arg(long)]
+        name: Option<String>,
+        /// Installer, for a recipe that needs your own.
+        #[arg(long)]
+        installer: Option<PathBuf>,
+        /// Agree to the recipe's downloads.
+        #[arg(long)]
+        accept_downloads: bool,
+        /// Only show what would happen.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Save a bottle as one .vinterbottle file.
     Backup {
         bottle: String,
@@ -1090,6 +1108,46 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                 println!("Log:           {}", r.log_id);
             })
         }
+        BottleCommand::MigrateArm64 {
+            bottle: key,
+            name,
+            installer,
+            accept_downloads,
+            dry_run,
+        } => {
+            use vinter_core::migrate;
+            let b = bottle::resolve(paths, &key)?;
+            let plan = migrate::plan(paths, &b.id)?;
+            if dry_run {
+                return out.print(&plan, || {
+                    println!("New bottle on {}", plan.runtime_name);
+                    match &plan.recipe {
+                        Some(r) => println!("Reinstalls its apps with recipe {r}"),
+                        None => println!(
+                            "No recipe: reinstall {} yourself",
+                            plan.reinstall.join(", ")
+                        ),
+                    }
+                    println!("Copies {} ({})", plan.folders.join(", "), mb(plan.bytes));
+                });
+            }
+            let opts = migrate::MigrateOptions {
+                bottle_id: None,
+                name: name.unwrap_or_else(|| format!("{} (Apple Silicon)", b.name)),
+                installer,
+                accept_downloads,
+            };
+            let new = migrate::migrate(paths, &b.id, opts, |p| {
+                out.note(format_args!("[{}/{}] {}", p.task, p.tasks, p.label))
+            })
+            .await?;
+            out.print(&new, || {
+                println!(
+                    "Created {} ({}). {} is unchanged.",
+                    new.name, new.id, b.name
+                )
+            })
+        }
         BottleCommand::Backup { bottle: key, file } => {
             bottle::backup::export(paths, &id(&key)?, &file, |_, _| {})?;
             out.print(&json!({ "file": file }), || {
@@ -1459,6 +1517,7 @@ async fn recipe_command(paths: &AppPaths, out: Out, cmd: RecipeCommand) -> Resul
                 bottle_name: name.unwrap_or_else(|| r.recipe.name.clone()),
                 installer,
                 accept_downloads,
+                runtime: None,
             };
             let b = recipe::apply(paths, &r, opts, show_progress).await?;
             let launchers = sync_launchers(paths, &b.id)?;

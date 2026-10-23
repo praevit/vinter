@@ -89,6 +89,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::compat::compat_note_remove,
             commands::compat::compat_notes_export,
             commands::compat::compare_run,
+            commands::recipes::bottle_migrate_plan,
+            commands::recipes::bottle_migrate_start,
             commands::app::update_check,
             commands::app::update_status,
             commands::app::update_install,

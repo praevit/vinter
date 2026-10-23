@@ -17,6 +17,7 @@ pub mod error;
 pub mod experimental;
 pub mod graphics;
 pub mod launcher;
+pub mod migrate;
 pub mod paths;
 pub mod process;
 pub mod programs;

@@ -134,6 +134,7 @@ fn options(installer: Option<PathBuf>) -> ApplyOptions {
         bottle_name: "My App".into(),
         installer,
         accept_downloads: false,
+        runtime: None,
     }
 }
 

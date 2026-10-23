@@ -3,6 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Copy, Eraser, FolderOpen, Square, Trash2 } from "lucide-react";
 import { commands, type Readiness, type Tool } from "../api/bindings";
 import { READINESS_LABELS, ReadinessDot } from "../components/ReadinessDot";
+import { ExperimentalBadge } from "../components/ExperimentalBadge";
+import { MigrateDialog } from "../components/MigrateDialog";
+import { useExperimental } from "../api/experimental";
 import {
   TOOLS,
   WINDOWS_VERSIONS,
@@ -46,6 +49,8 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
   const jobs = useJobs();
   const [tab, setTab] = useState<Tab>("programs");
   const [logToShow, setLogToShow] = useState<string>();
+  const [migrating, setMigrating] = useState(false);
+  const canMigrate = useExperimental("bottle-migrate-arm64");
 
   const listed = list?.find((b) => b.id === id);
   const status = listed?.status;
@@ -92,6 +97,7 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
               readiness={readiness}
               legacy32={listed?.legacy_32bit ?? false}
               onNewBottle={() => onNavigate({ page: "new-bottle" })}
+              onRecreate={canMigrate ? () => setMigrating(true) : undefined}
             />
           )}
           {!runtime && runtimes && (
@@ -141,6 +147,17 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
           )}
         </>
       )}
+      {migrating && (
+        <MigrateDialog
+          bottleId={bottle.id}
+          bottleName={bottle.name}
+          onClose={() => setMigrating(false)}
+          onStarted={(id) => {
+            setMigrating(false);
+            onNavigate({ page: "bottle", id });
+          }}
+        />
+      )}
     </Page>
   );
 }
@@ -154,10 +171,12 @@ function ReadinessNotice({
   readiness,
   legacy32,
   onNewBottle,
+  onRecreate,
 }: {
   readiness: Readiness;
   legacy32: boolean;
   onNewBottle: () => void;
+  onRecreate?: () => void;
 }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-frost-200 p-4 text-sm dark:border-slate-deep-700">
@@ -169,7 +188,14 @@ function ReadinessNotice({
           <span className="font-medium">{legacy32 ? "Legacy 32-bit bottle" : READINESS_LABELS[readiness.level]}.</span>{" "}
           {readiness.summary}
         </p>
-        {(readiness.level === "yellow" || legacy32) && <Button onClick={onNewBottle}>New Apple Silicon bottle…</Button>}
+        <div className="flex flex-wrap gap-2">
+          {(readiness.level === "yellow" || legacy32) && <Button onClick={onNewBottle}>New Apple Silicon bottle…</Button>}
+          {readiness.level === "yellow" && onRecreate && (
+            <Button onClick={onRecreate}>
+              Recreate for Apple Silicon… <ExperimentalBadge />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

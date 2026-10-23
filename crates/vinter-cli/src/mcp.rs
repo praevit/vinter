@@ -374,6 +374,7 @@ impl Vinter {
             installer: a.installer.map(Into::into),
             // The person agreed in the approval, which names the downloads.
             accept_downloads: true,
+            runtime: None,
         };
         structured(
             recipe::apply(&self.paths, &loaded, opts, |_| {})
