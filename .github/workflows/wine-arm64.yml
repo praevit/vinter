@@ -1,0 +1,59 @@
+name: Apple Silicon Wine (build from source)
+
+# Builds an arm64-fex runtime from configurable git sources with
+# wine/build-arm64.sh, and uploads the tarball, its sha256 and a
+# runtimes.json entry as a build artifact. It never publishes a release:
+# review the artifact, test it with `vinter runtime install-file`, then
+# publish by hand. Run by hand only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: Build number (start at 1)
+        required: true
+        default: "1"
+      wine_git:
+        description: Wine repository (macOS ARM64 port)
+        default: https://github.com/citi94/wine-macos-arm64
+      wine_ref:
+        description: Branch or tag of that repository
+        default: macos-arm64-port
+      patches_git:
+        description: Patch set repository with patches/{wine,fex,llvm-mingw}, or "none"
+        default: https://github.com/Irz-Z/wine-macos-native
+      patches_ref:
+        description: Branch or tag of the patch set
+        default: v0.1.0
+      fex_git:
+        description: FEX repository
+        default: https://github.com/FEX-Emu/FEX
+      fex_ref:
+        description: FEX branch or tag
+        default: FEX-2609
+
+permissions:
+  contents: read
+
+jobs:
+  macos-arm64:
+    runs-on: macos-15
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        env:
+          WINE_GIT: ${{ inputs.wine_git }}
+          WINE_REF: ${{ inputs.wine_ref }}
+          PATCHES_GIT: ${{ inputs.patches_git }}
+          PATCHES_REF: ${{ inputs.patches_ref }}
+          FEX_GIT: ${{ inputs.fex_git }}
+          FEX_REF: ${{ inputs.fex_ref }}
+        run: wine/build-arm64.sh "${{ inputs.build }}" out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apple-silicon-wine-${{ inputs.build }}
+          path: out/*
+          retention-days: 14

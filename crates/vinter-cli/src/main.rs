@@ -168,6 +168,9 @@ enum RuntimeCommand {
     Install { id: String },
     /// Delete an installed runtime.
     Remove { id: String },
+    /// Install a runtime you built yourself from its manifest-entry.json, with
+    /// the tarball next to it (experimental: runtime-build-from-source).
+    InstallFile { entry: PathBuf },
     /// Run a program with a runtime's bin folder first on PATH,
     /// e.g. `vinter runtime exec <id> -- wine --version`. Its output is passed
     /// through as is, even with --json.
@@ -673,6 +676,17 @@ async fn run(out: Out, command: Command) -> Result<()> {
                 out.print(&json!({ "removed": id }), || println!("Removed {id}."))
             }
             RuntimeCommand::Exec { id, command } => runtime_exec(&paths, &id, &command),
+            RuntimeCommand::InstallFile { entry } => {
+                let rt = runtime::install_file(&paths, &entry, |p| {
+                    if !out.json {
+                        print_progress(p);
+                    }
+                })
+                .await?;
+                out.print(&rt, || {
+                    println!("\nInstalled {} at {}", rt.id, rt.path.display())
+                })
+            }
         },
         Command::Bottle(cmd) => bottle_command(&paths, out, cmd).await,
         Command::Component(cmd) => component_command(&paths, out, cmd).await,

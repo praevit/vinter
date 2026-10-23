@@ -31,6 +31,40 @@ pub async fn runtimes_installed(state: State<'_, AppState>) -> CommandResult<Vec
     blocking(move || Ok(runtime::installed(&paths)?)).await
 }
 
+/// Installs a runtime you built yourself (experimental
+/// `runtime-build-from-source`): asks for the build's `manifest-entry.json`
+/// (the tarball must be next to it) and installs it as a job. `None` if the
+/// dialog was cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn runtime_install_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CommandResult<Option<JobId>> {
+    use tauri_plugin_dialog::DialogExt;
+    let dialog = app.clone();
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        dialog
+            .dialog()
+            .file()
+            .set_title("Choose the build's manifest-entry.json")
+            .add_filter("Runtime manifest entry", &["json"])
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok())
+    })
+    .await?;
+    let Some(entry) = picked else {
+        return Ok(None);
+    };
+    let paths = state.paths.clone();
+    Ok(Some(jobs::spawn(&app, |job| async move {
+        runtime::install_file(&paths, &entry, |p| report(&job, p))
+            .await
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    })))
+}
+
 /// Starts downloading and installing a runtime. Progress comes as job events.
 #[tauri::command]
 #[specta::specta]

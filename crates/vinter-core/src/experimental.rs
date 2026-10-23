@@ -201,6 +201,7 @@ impl ExperimentalFlag {
                 | Self::PerAppEngine
                 | Self::FexConfigEditor
                 | Self::Arm64FexLinux
+                | Self::RuntimeBuildFromSource
         )
     }
 }

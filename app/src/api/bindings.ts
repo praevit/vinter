@@ -18,6 +18,13 @@ export const commands = {
 	runtimesInstalled: () => __TAURI_INVOKE<Runtime[]>("runtimes_installed"),
 	/**  Id of the runtime new bottles use unless the user picks another. */
 	runtimeDefault: () => __TAURI_INVOKE<string | null>("runtime_default"),
+	/**
+	 *  Installs a runtime you built yourself (experimental
+	 *  `runtime-build-from-source`): asks for the build's `manifest-entry.json`
+	 *  (the tarball must be next to it) and installs it as a job. `None` if the
+	 *  dialog was cancelled.
+	 */
+	runtimeInstallFile: () => __TAURI_INVOKE<string | null>("runtime_install_file"),
 	/**  Starts downloading and installing a runtime. Progress comes as job events. */
 	runtimeInstall: (id: string) => __TAURI_INVOKE<string>("runtime_install", { id }),
 	/**  Deletes an installed runtime. */

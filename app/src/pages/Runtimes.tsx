@@ -10,6 +10,7 @@ import {
 } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
+import { useExperimental } from "../api/experimental";
 import { useEnsureRosetta } from "../api/rosetta";
 import {
   ENGINE_LABELS,
@@ -61,6 +62,8 @@ export function Runtimes() {
           installed.data?.map((r) => <InstalledRow key={r.id} runtime={r} />)
         )}
       </Section>
+
+      <InstallFileButton />
 
       {notInstalled.length > 0 && (
         <Section title="Available">
@@ -283,5 +286,37 @@ function AvailableRow({ runtime: r }: { runtime: RuntimeInfo }) {
       )}
       {error && <p className="text-xs text-wine-500 select-text dark:text-rose-400">{error}</p>}
     </li>
+  );
+}
+
+/** Installs a runtime the user built (experimental `runtime-build-from-source`). */
+function InstallFileButton() {
+  const enabled = useExperimental("runtime-build-from-source");
+  const jobs = useJobs();
+  const [error, setError] = useState<string>();
+  if (!enabled) return null;
+  const pick = async () => {
+    setError(undefined);
+    try {
+      const job = await commands.runtimeInstallFile();
+      if (job) jobs.start("runtime:self-built", async () => job);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+  const job = jobs.job("runtime:self-built");
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={pick} disabled={isRunning(job)}>
+          Install a runtime you built…
+        </Button>
+        <ExperimentalBadge />
+        <span className={subtle}>Pick the build's manifest-entry.json; its tarball must be next to it.</span>
+      </div>
+      {job && isRunning(job) && <ProgressBar percent={job.percent} />}
+      {job?.done && !job.done.ok && <ErrorText>{job.done.error}</ErrorText>}
+      {error && <ErrorText>{error}</ErrorText>}
+    </div>
   );
 }

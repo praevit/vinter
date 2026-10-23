@@ -13,7 +13,7 @@ pub use crate::download::{InstallProgress, InstallStage};
 use crate::engine::{Engine, EngineKind};
 use crate::error::{IoResultExt, validate_id};
 use crate::{AppPaths, Error, Result};
-pub use install::{install, install_from_archive};
+pub use install::{install, install_file, install_from_archive};
 pub use manifest::{ArchiveFormat, Flavor, RuntimeInfo};
 
 /// File written into every installed runtime folder.

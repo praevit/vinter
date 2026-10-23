@@ -153,6 +153,65 @@ async fn smoke_test(info: &RuntimeInfo, staging: &Path) -> Result<()> {
     )))
 }
 
+/// Installs a runtime you built yourself (the `runtime-build-from-source`
+/// experimental flag): `entry` is the `manifest-entry.json` the build wrote,
+/// with the tarball it names next to it. The tarball is checked against the
+/// entry's sha256 and smoke-tested like any download.
+pub async fn install_file<P>(paths: &AppPaths, entry: &Path, mut on_progress: P) -> Result<Runtime>
+where
+    P: FnMut(InstallProgress) + Send,
+{
+    let flag = crate::experimental::ExperimentalFlag::RuntimeBuildFromSource;
+    if !crate::experimental::Flags::load(paths).is_enabled(flag) {
+        return Err(Error::Unsupported(format!(
+            "installing self-built runtimes is experimental; turn on {flag} first"
+        )));
+    }
+    let text = std::fs::read_to_string(entry).at(entry)?;
+    let mut info: RuntimeInfo = serde_json::from_str(&text).map_err(|e| Error::Config {
+        path: entry.to_path_buf(),
+        message: e.to_string(),
+    })?;
+    let host = crate::engine::Host::for_paths(paths);
+    if !info.runs_on(&host.os, &host.arch) {
+        return Err(Error::Unsupported(format!(
+            "{} is built for {} on {}, not this machine",
+            info.name, info.os, info.arch
+        )));
+    }
+    if let Some(reason) = crate::engine::unmet_requirement(info.engine, &host) {
+        return Err(Error::EngineUnavailable {
+            runtime: info.name.clone(),
+            reason,
+        });
+    }
+    info.needs_rosetta =
+        crate::system::rosetta::needed_on(&host.os, &host.arch) && info.arch == "x86_64";
+    let file_name = info
+        .url
+        .rsplit('/')
+        .next()
+        .filter(|n| !n.is_empty() && !n.contains(".."))
+        .ok_or_else(|| Error::BadArchive("the entry's url has no file name".into()))?;
+    let archive = entry.parent().unwrap_or(Path::new(".")).join(file_name);
+    if !archive.is_file() {
+        return Err(Error::BadArchive(format!(
+            "{file_name} must be next to {}",
+            entry.display()
+        )));
+    }
+    // Check first without deleting anything: unlike a download, this file is
+    // the user's own build (the normal check removes a bad archive).
+    let actual = download::sha256_file(&archive, &mut on_progress).await?;
+    if !actual.eq_ignore_ascii_case(&info.sha256) {
+        return Err(Error::ChecksumMismatch {
+            expected: info.sha256.clone(),
+            actual,
+        });
+    }
+    install_from_archive(paths, &info, &archive, &mut on_progress).await
+}
+
 fn ensure_not_installed(paths: &AppPaths, id: &str) -> Result<()> {
     if paths.runtimes_dir().join(id).exists() {
         Err(Error::RuntimeAlreadyInstalled(id.to_string()))
@@ -301,6 +360,46 @@ mod tests {
         }
         assert!(!archive.exists(), "a bad download must be deleted");
         assert!(visible_entries(&paths.runtimes_dir()).is_empty());
+    }
+
+    #[tokio::test]
+    async fn installs_a_self_built_runtime_only_with_the_flag() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = AppPaths::with_data_dir(tmp.path().join("data"));
+        let archive = make_archive(tmp.path(), "wine-test", true);
+        let mut entry = info("self-built-1", sha256_of(&archive));
+        entry.url = format!(
+            "https://example.invalid/{}",
+            archive.file_name().unwrap().to_string_lossy()
+        );
+        let entry_file = tmp.path().join("manifest-entry.json");
+        std::fs::write(&entry_file, serde_json::to_string(&entry).unwrap()).unwrap();
+
+        let err = install_file(&paths, &entry_file, |_| {}).await.unwrap_err();
+        assert!(
+            err.to_string().contains("runtime-build-from-source"),
+            "{err}"
+        );
+
+        crate::experimental::set(
+            &paths,
+            crate::experimental::ExperimentalFlag::RuntimeBuildFromSource,
+            true,
+        )
+        .unwrap();
+        let rt = install_file(&paths, &entry_file, |_| {}).await.unwrap();
+        assert_eq!(rt.id, "self-built-1");
+
+        // A wrong checksum is refused like any download.
+        let mut bad = entry.clone();
+        bad.id = "self-built-2".into();
+        bad.sha256 = "0".repeat(64);
+        std::fs::write(&entry_file, serde_json::to_string(&bad).unwrap()).unwrap();
+        assert!(matches!(
+            install_file(&paths, &entry_file, |_| {}).await,
+            Err(Error::ChecksumMismatch { .. })
+        ));
+        assert!(archive.is_file(), "the user's own build is never deleted");
     }
 
     #[cfg(unix)]
