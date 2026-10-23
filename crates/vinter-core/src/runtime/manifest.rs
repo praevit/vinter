@@ -89,12 +89,14 @@ pub fn all() -> &'static [RuntimeInfo] {
     })
 }
 
-/// Runtimes that run on this machine.
-pub fn available() -> Vec<RuntimeInfo> {
-    let host = crate::system::os_version();
-    available_for(std::env::consts::OS, std::env::consts::ARCH)
+/// Runtimes that run on this machine (as the user's experimental flags
+/// present it: `simulate-macos28` hides the Rosetta ones).
+pub fn available(paths: &crate::AppPaths) -> Vec<RuntimeInfo> {
+    let host = crate::engine::Host::for_paths(paths);
+    available_for(&host.os, &host.arch)
         .into_iter()
-        .filter(|r| supports_version(r, host.as_deref()))
+        .filter(|r| supports_version(r, host.macos_version.as_deref()))
+        .filter(|r| !(host.rosetta_removed && r.engine == crate::engine::EngineKind::X86_64Rosetta))
         .collect()
 }
 
@@ -121,8 +123,8 @@ pub fn available_for(os: &str, arch: &str) -> Vec<RuntimeInfo> {
 }
 
 /// Looks up an available runtime by id.
-pub fn find(id: &str) -> Result<RuntimeInfo> {
-    available()
+pub fn find(paths: &crate::AppPaths, id: &str) -> Result<RuntimeInfo> {
+    available(paths)
         .into_iter()
         .find(|r| r.id == id)
         .ok_or_else(|| Error::RuntimeNotFound(id.to_string()))

@@ -243,17 +243,42 @@ pub struct Host {
     pub arch: String,
     /// macOS version, e.g. "26.5"; `None` elsewhere or if unknown.
     pub macos_version: Option<String>,
+    /// Rosetta is treated as gone (the `simulate-macos28` experimental flag).
+    pub rosetta_removed: bool,
 }
 
 impl Host {
+    /// This machine, ignoring experimental flags.
     pub fn current() -> Self {
         Self {
             os: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             macos_version: crate::system::os_version(),
+            rosetta_removed: false,
+        }
+    }
+
+    /// This machine as the user's experimental flags present it.
+    pub fn for_paths(paths: &AppPaths) -> Self {
+        let flags = Flags::load(paths);
+        Self {
+            rosetta_removed: flags.is_enabled(ExperimentalFlag::SimulateMacos28),
+            ..Self::current()
+        }
+    }
+
+    /// [`Host::for_paths`] for the data folder a runtime is installed in
+    /// (`<data>/runtimes/<id>`).
+    pub fn for_runtime(rt: &Runtime) -> Self {
+        match rt.path.parent().and_then(Path::parent) {
+            Some(data) => Self::for_paths(&AppPaths::with_data_dir(data)),
+            None => Self::current(),
         }
     }
 }
+
+/// What `simulate-macos28` says when it hides the Rosetta engine.
+pub const ROSETTA_REMOVED: &str = "Rosetta is gone in this simulation of macOS 28 (simulate-macos28 is on in Settings → Experimental)";
 
 /// Why `kind` cannot run on `host`, if it cannot. Rosetta being installed is
 /// checked separately, since that needs a process.
@@ -261,6 +286,7 @@ pub fn unmet_requirement(kind: EngineKind, host: &Host) -> Option<String> {
     let silicon = matches!(host.arch.as_str(), "aarch64" | "arm64");
     match kind {
         EngineKind::X86_64Rosetta if host.os != "macos" => Some("it needs macOS".into()),
+        EngineKind::X86_64Rosetta if host.rosetta_removed => Some(ROSETTA_REMOVED.into()),
         EngineKind::X86_64Rosetta => None,
         EngineKind::X86_64Native if host.os != "linux" || host.arch != "x86_64" => {
             Some("it needs Linux on an x86_64 processor".into())
@@ -286,7 +312,7 @@ pub fn unmet_requirement(kind: EngineKind, host: &Host) -> Option<String> {
 }
 
 fn check_host(kind: EngineKind, rt: &Runtime) -> Result<()> {
-    match unmet_requirement(kind, &Host::current()) {
+    match unmet_requirement(kind, &Host::for_runtime(rt)) {
         Some(reason) => Err(Error::EngineUnavailable {
             runtime: rt.name.clone(),
             reason,
@@ -411,7 +437,21 @@ mod tests {
             os: os.into(),
             arch: arch.into(),
             macos_version: version.map(Into::into),
+            rosetta_removed: false,
         }
+    }
+
+    #[test]
+    fn simulated_macos28_hides_only_rosetta() {
+        let gone = Host {
+            rosetta_removed: true,
+            ..host("macos", "aarch64", Some("27.0"))
+        };
+        assert_eq!(
+            unmet_requirement(EngineKind::X86_64Rosetta, &gone).as_deref(),
+            Some(ROSETTA_REMOVED)
+        );
+        assert_eq!(unmet_requirement(EngineKind::Arm64Fex, &gone), None);
     }
 
     #[test]

@@ -88,6 +88,9 @@ pub struct Runtime {
     pub engine: EngineKind,
     /// FEX release it ships, if any.
     pub fex_version: Option<String>,
+    /// Why its engine cannot run on this machine, if it cannot (e.g. too old
+    /// a macOS, or Rosetta hidden by `simulate-macos28`).
+    pub unavailable: Option<String>,
     /// x86_64 build on Apple Silicon: runs only with Rosetta 2.
     pub needs_rosetta: bool,
     /// Graphics backends it supports.
@@ -101,6 +104,15 @@ pub struct Runtime {
 
 impl Runtime {
     fn from_record(path: PathBuf, record: RuntimeRecord) -> Self {
+        let engine = record.engine.unwrap_or_else(|| {
+            EngineKind::for_build(std::env::consts::OS, &record.arch)
+                .unwrap_or_else(EngineKind::legacy)
+        });
+        let host = match path.parent().and_then(Path::parent) {
+            Some(data) => crate::engine::Host::for_paths(&AppPaths::with_data_dir(data)),
+            None => crate::engine::Host::current(),
+        };
+        let unavailable = crate::engine::unmet_requirement(engine, &host);
         let wine_bin = path.join(&record.wine_bin);
         // The Wine installation: the folder holding bin/, lib/ and share/.
         let root = wine_bin
@@ -120,10 +132,8 @@ impl Runtime {
             installed_at: record.installed_at,
             source_url: record.source_url,
             needs_rosetta: arch_needs_rosetta(&record.arch),
-            engine: record.engine.unwrap_or_else(|| {
-                EngineKind::for_build(std::env::consts::OS, &record.arch)
-                    .unwrap_or_else(EngineKind::legacy)
-            }),
+            engine,
+            unavailable,
             arch: record.arch,
             fex_version: record.fex_version,
             graphics: record.graphics,
@@ -274,7 +284,10 @@ pub fn default_for_new_bottles(paths: &AppPaths) -> Result<Option<Runtime>> {
     {
         return Ok(Some(rt.clone()));
     }
-    Ok(pick_default(installed, &crate::engine::Host::current()))
+    Ok(pick_default(
+        installed,
+        &crate::engine::Host::for_paths(paths),
+    ))
 }
 
 fn pick_default(installed: Vec<Runtime>, host: &crate::engine::Host) -> Option<Runtime> {
@@ -309,6 +322,7 @@ mod default_tests {
             arch: String::new(),
             engine,
             fex_version: None,
+            unavailable: None,
             needs_rosetta: false,
             graphics: vec![],
             kerberos: false,
@@ -322,6 +336,7 @@ mod default_tests {
             os: "macos".into(),
             arch: "aarch64".into(),
             macos_version: Some("27.0".into()),
+            rosetta_removed: false,
         };
         let old_mac = Host {
             macos_version: Some("26.4".into()),

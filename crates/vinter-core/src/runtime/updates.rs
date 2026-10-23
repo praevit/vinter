@@ -69,7 +69,11 @@ fn compare_releases(a: (&str, Option<u32>), b: (&str, Option<u32>)) -> Ordering 
 /// that is newer and not installed yet: a newer Wine version, or a newer
 /// build of the same runtime.
 pub fn find(paths: &AppPaths) -> Result<Vec<RuntimeUpdate>> {
-    find_in(paths, &super::installed(paths)?, &manifest::available())
+    find_in(
+        paths,
+        &super::installed(paths)?,
+        &manifest::available(paths),
+    )
 }
 
 pub(crate) fn find_in<'a>(
@@ -181,6 +185,7 @@ mod find_tests {
             graphics: vec![],
             engine: crate::engine::EngineKind::legacy(),
             fex_version: None,
+            unavailable: None,
             kerberos: false,
             domain_identity: false,
         }

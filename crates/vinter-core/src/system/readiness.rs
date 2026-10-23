@@ -51,6 +51,11 @@ pub fn for_engine(engine: EngineKind, host: &Host) -> Readiness {
                 format!("Made for the Apple Silicon engine, which cannot run here: {reason}."),
             ),
         },
+        EngineKind::X86_64Rosetta if silicon_mac && host.rosetta_removed => (
+            ReadinessLevel::Red,
+            "Uses Rosetta, which is gone in this simulation of macOS 28. Move its apps to an Apple Silicon bottle."
+                .to_string(),
+        ),
         EngineKind::X86_64Rosetta if !silicon_mac => (
             ReadinessLevel::NotApplicable,
             "This Mac runs Intel Wine without Rosetta.".to_string(),
@@ -107,6 +112,7 @@ mod tests {
             os: os.into(),
             arch: arch.into(),
             macos_version: version.map(Into::into),
+            rosetta_removed: false,
         }
     }
 
@@ -138,5 +144,12 @@ mod tests {
         assert_eq!(for_32bit_prefix(&new_mac).level, Red);
         assert!(for_32bit_prefix(&new_mac).summary.contains("32-bit"));
         assert_eq!(for_32bit_prefix(&linux).level, NotApplicable);
+
+        let simulated = Host {
+            rosetta_removed: true,
+            ..new_mac.clone()
+        };
+        assert_eq!(for_engine(X86_64Rosetta, &simulated).level, Red);
+        assert_eq!(for_engine(Arm64Fex, &simulated).level, Green);
     }
 }

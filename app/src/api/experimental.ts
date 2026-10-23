@@ -16,6 +16,7 @@ export function useSetExperimental() {
   return useMutation({
     mutationFn: ({ flag, enabled }: { flag: ExperimentalFlag; enabled: boolean }) =>
       commands.experimentalSet(flag, enabled),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["experimental"] }),
+    // Flags can change what any page shows (runtimes, readiness...): reload everything.
+    onSettled: () => queryClient.invalidateQueries(),
   });
 }

@@ -10,9 +10,12 @@ import { Button, ErrorText, Label, field } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { RestoreButton } from "../components/BackupControls";
 import { Select } from "../components/Select";
+import { SimulatedMacos28Notice } from "../components/SimulatedMacos28";
 
 export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
-  const { data: runtimes } = useInstalledRuntimes();
+  const { data: allRuntimes } = useInstalledRuntimes();
+  // Runtimes whose engine cannot run here (too old a macOS, Rosetta hidden...) are left out.
+  const runtimes = allRuntimes?.filter((r) => !r.unavailable);
   const jobs = useJobs();
   const ensureRosetta = useEnsureRosetta();
   const queryClient = useQueryClient();
@@ -71,6 +74,8 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
         <p className="text-sm">Have a backup? Restore it as a new bottle.</p>
         <RestoreButton />
       </div>
+
+      <SimulatedMacos28Notice />
 
       <Label title="Name">
         <input

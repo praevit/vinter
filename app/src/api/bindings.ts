@@ -879,6 +879,11 @@ export type Runtime = {
 	engine: EngineKind,
 	/**  FEX release it ships, if any. */
 	fex_version: string | null,
+	/**
+	 *  Why its engine cannot run on this machine, if it cannot (e.g. too old
+	 *  a macOS, or Rosetta hidden by `simulate-macos28`).
+	 */
+	unavailable: string | null,
 	/**  x86_64 build on Apple Silicon: runs only with Rosetta 2. */
 	needs_rosetta: boolean,
 	/**  Graphics backends it supports. */

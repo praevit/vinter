@@ -135,7 +135,7 @@ pub fn list(paths: &AppPaths) -> Result<Vec<BottleSummary>> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e).at(&root),
     };
-    let host = crate::engine::Host::current();
+    let host = crate::engine::Host::for_paths(paths);
     let mut bottles = Vec::new();
     for entry in entries {
         let path = entry.at(&root)?.path();

@@ -192,7 +192,7 @@ impl Vinter {
             blocking(move || {
                 Ok(json!({
                     "installed": runtime::installed(&paths)?,
-                    "available": runtime::manifest::available(),
+                    "available": runtime::manifest::available(&paths),
                 }))
             })
             .await,

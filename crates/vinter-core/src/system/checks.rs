@@ -77,9 +77,16 @@ pub fn system_checks(paths: &AppPaths) -> SystemStatus {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     let data_dir = paths.data_dir();
-    let host = Host::current();
+    let host = Host::for_paths(paths);
 
-    let rosetta = if super::rosetta::needed_on(os, arch) {
+    let rosetta = if super::rosetta::needed_on(os, arch) && host.rosetta_removed {
+        Check::new(
+            "rosetta",
+            "Rosetta 2",
+            CheckStatus::Warning,
+            "Treated as gone: simulate-macos28 is on in Settings → Experimental.",
+        )
+    } else if super::rosetta::needed_on(os, arch) {
         rosetta_check(super::rosetta::is_installed())
     } else {
         Check::new(
@@ -328,6 +335,7 @@ mod tests {
             os: os.into(),
             arch: arch.into(),
             macos_version: version.map(Into::into),
+            rosetta_removed: false,
         }
     }
 

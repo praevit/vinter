@@ -11,8 +11,8 @@ use crate::state::AppState;
 /// Runtimes from the manifest that run on this machine.
 #[tauri::command]
 #[specta::specta]
-pub fn runtimes_available() -> Vec<RuntimeInfo> {
-    runtime::manifest::available()
+pub fn runtimes_available(state: State<'_, AppState>) -> Vec<RuntimeInfo> {
+    runtime::manifest::available(&state.paths)
 }
 
 /// Id of the runtime new bottles use unless the user picks another.
@@ -39,7 +39,7 @@ pub fn runtime_install(
     state: State<'_, AppState>,
     id: String,
 ) -> CommandResult<JobId> {
-    let info = runtime::manifest::find(&id)?;
+    let info = runtime::manifest::find(&state.paths, &id)?;
     if runtime::get(&state.paths, &id).is_ok() {
         return Err(format!("{} is already installed.", info.name).into());
     }
@@ -112,7 +112,13 @@ pub enum RuntimeLink {
 #[tauri::command]
 #[specta::specta]
 pub fn runtime_open_link(app: AppHandle, id: String, link: RuntimeLink) -> CommandResult<()> {
-    let info = runtime::manifest::find(&id)?;
+    // Any manifest entry: an installed runtime keeps its links even when it is
+    // hidden from the install list (e.g. by simulate-macos28).
+    let info = runtime::manifest::all()
+        .iter()
+        .find(|r| r.id == id)
+        .cloned()
+        .ok_or_else(|| vinter_core::Error::RuntimeNotFound(id.clone()))?;
     let url = match link {
         RuntimeLink::Source => info.source_url,
         RuntimeLink::Release => info.release_url,

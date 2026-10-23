@@ -595,7 +595,7 @@ fn check(paths: &AppPaths, out: Out) -> Result<()> {
 
 fn runtime_list(paths: &AppPaths, out: Out) -> Result<()> {
     let installed = runtime::installed(paths)?;
-    let available = runtime::manifest::available();
+    let available = runtime::manifest::available(paths);
     let value = json!({ "installed": installed, "available": available });
     out.print(&value, || {
         println!("Installed:");
@@ -603,7 +603,12 @@ fn runtime_list(paths: &AppPaths, out: Out) -> Result<()> {
             println!("  (none)");
         }
         for r in &installed {
-            println!("  {:<30} {:<26} {}", r.id, r.name, mb(r.size));
+            let note = if r.unavailable.is_some() {
+                "  (cannot run here)"
+            } else {
+                ""
+            };
+            println!("  {:<30} {:<26} {}{note}", r.id, r.name, mb(r.size));
         }
         println!("\nAvailable:");
         for r in &available {
@@ -618,7 +623,7 @@ fn runtime_list(paths: &AppPaths, out: Out) -> Result<()> {
 }
 
 async fn runtime_install(paths: &AppPaths, out: Out, id: &str) -> Result<()> {
-    let info = runtime::manifest::find(id)?;
+    let info = runtime::manifest::find(paths, id)?;
     out.note(format_args!("Installing {} from {}", info.name, info.url));
     let mut last_stage = None;
     let rt = runtime::install(paths, &info, |p: InstallProgress| {

@@ -593,3 +593,45 @@ fn legacy_32bit_prefixes_are_flagged() {
     let err = validate_env_var("WINEARCH", "win32").unwrap_err();
     assert!(err.to_string().contains("64-bit"), "{err}");
 }
+
+#[test]
+fn simulate_macos28_hides_rosetta_everywhere() {
+    use crate::experimental::{self, ExperimentalFlag};
+    if !(cfg!(target_os = "macos") && cfg!(target_arch = "aarch64")) {
+        return; // Rosetta only exists on Apple Silicon Macs.
+    }
+    let (_tmp, paths) = setup();
+    let b = create(&paths, new_bottle("Intel", "fake"), |_| {}).unwrap();
+    assert_eq!(b.engine, crate::engine::EngineKind::X86_64Rosetta);
+    assert!(runtime::get(&paths, "fake").unwrap().unavailable.is_none());
+
+    experimental::set(&paths, ExperimentalFlag::SimulateMacos28, true).unwrap();
+    let rt = runtime::get(&paths, "fake").unwrap();
+    assert_eq!(
+        rt.unavailable.as_deref(),
+        Some(crate::engine::ROSETTA_REMOVED)
+    );
+    assert!(matches!(
+        rt.check_can_run(),
+        Err(Error::EngineUnavailable { .. })
+    ));
+    assert!(matches!(
+        run_tool(&paths, &b.id, Tool::Notepad),
+        Err(Error::EngineUnavailable { .. })
+    ));
+    assert!(
+        runtime::manifest::available(&paths)
+            .iter()
+            .all(|r| r.engine != crate::engine::EngineKind::X86_64Rosetta)
+    );
+    assert_eq!(
+        list(&paths).unwrap()[0].readiness.level,
+        crate::system::readiness::ReadinessLevel::Red
+    );
+    assert!(runtime::default_for_new_bottles(&paths).unwrap().is_none());
+
+    // Off again: everything is back.
+    experimental::set(&paths, ExperimentalFlag::SimulateMacos28, false).unwrap();
+    assert!(runtime::get(&paths, "fake").unwrap().unavailable.is_none());
+    run_tool(&paths, &b.id, Tool::Notepad).unwrap();
+}

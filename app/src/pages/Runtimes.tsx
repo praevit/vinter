@@ -21,6 +21,7 @@ import {
   useRemoveRuntime,
 } from "../api/runtimes";
 import { ProgressBar } from "../components/ProgressBar";
+import { SimulatedMacos28Notice } from "../components/SimulatedMacos28";
 import { Button, ErrorText } from "../components/ui";
 
 const FLAVORS: Record<Flavor, string> = {
@@ -45,6 +46,8 @@ export function Runtimes() {
           and checks every download's fingerprint before installing it.
         </p>
       </header>
+
+      <SimulatedMacos28Notice />
 
       <Updates />
 
@@ -181,6 +184,7 @@ function InstalledRow({ runtime: r }: { runtime: Runtime }) {
         <div className={subtle}>
           {formatBytes(r.size)} on disk · installed {new Date(r.installed_at).toLocaleDateString()}
         </div>
+        {r.unavailable && <div className="text-xs text-amber-700 dark:text-amber-300">Cannot run here: {r.unavailable}.</div>}
         {remove.error && (
           <div className="text-xs text-wine-500 dark:text-rose-400">
             {errorMessage(remove.error)}

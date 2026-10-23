@@ -425,10 +425,15 @@ enum RuntimeChoice {
     Install(runtime::RuntimeInfo),
 }
 
-/// An installed runtime of the wanted flavor, or one to install.
+/// An installed runtime of the wanted flavor, or one to install. Recipes
+/// were written and tested on Intel runtimes, so those come first; Apple
+/// Silicon ones are used only when nothing else fits.
 fn pick_runtime(paths: &AppPaths, flavor: Option<runtime::Flavor>) -> Result<RuntimeChoice> {
     let wanted = flavor.unwrap_or(runtime::Flavor::Stable);
-    let installed = runtime::installed(paths)?;
+    let fex_last = |engine: crate::engine::EngineKind| crate::engine::is_fex(engine);
+    let mut installed = runtime::installed(paths)?;
+    installed.retain(|r| r.unavailable.is_none());
+    installed.sort_by_key(|r| fex_last(r.engine));
     if let Some(rt) = installed
         .iter()
         .find(|r| r.flavor == wanted)
@@ -440,7 +445,9 @@ fn pick_runtime(paths: &AppPaths, flavor: Option<runtime::Flavor>) -> Result<Run
     {
         return Ok(RuntimeChoice::Installed(rt.clone()));
     }
-    runtime::manifest::available()
+    let mut offered = runtime::manifest::available(paths);
+    offered.sort_by_key(|r| fex_last(r.engine));
+    offered
         .into_iter()
         .find(|r| r.flavor == wanted)
         .map(RuntimeChoice::Install)

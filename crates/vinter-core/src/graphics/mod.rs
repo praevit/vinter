@@ -327,6 +327,7 @@ mod tests {
             graphics,
             engine: crate::engine::EngineKind::legacy(),
             fex_version: None,
+            unavailable: None,
             kerberos: false,
             domain_identity: false,
         }
