@@ -313,6 +313,18 @@ enum BottleCommand {
         #[arg(long, conflicts_with = "use_build")]
         off: bool,
     },
+    /// Known fixes for game launchers, per program (experimental:
+    /// launcher-shims). Without options, lists the fixes that fit it.
+    Shims {
+        bottle: String,
+        program: usize,
+        /// Turn this fix on.
+        #[arg(long)]
+        enable: Option<String>,
+        /// Turn this fix off.
+        #[arg(long)]
+        disable: Option<String>,
+    },
     /// A program's own FEX settings, in an Apple Silicon bottle
     /// (experimental: fex-config-editor). Options come from FEX's own schema.
     Fex {
@@ -1181,6 +1193,44 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                 }
                 for (i, build) in builds.iter().enumerate() {
                     println!("{i}  {build}");
+                }
+            })
+        }
+        BottleCommand::Shims {
+            bottle: key,
+            program,
+            enable,
+            disable,
+        } => {
+            use vinter_core::shims;
+            let b = bottle::resolve(paths, &key)?;
+            if let Some(id) = &enable {
+                shims::set(paths, &b.id, program, id, true)?;
+            }
+            if let Some(id) = &disable {
+                shims::set(paths, &b.id, program, id, false)?;
+            }
+            let p = b.programs.get(program).context("no such program")?;
+            let on = shims::turned_on(paths, &b.id, program)?;
+            let fits = shims::for_program(p);
+            let value = json!({ "fixes": fits, "on": on });
+            out.print(&value, || {
+                if fits.is_empty() {
+                    println!("No known launcher fixes for {}.", p.name);
+                }
+                for s in &fits {
+                    let state = if on.iter().any(|i| i == s.id) {
+                        "on "
+                    } else {
+                        "off"
+                    };
+                    println!(
+                        "[{state}] {}  {}: adds {} ({})",
+                        s.id,
+                        s.title,
+                        s.args.join(" "),
+                        s.source
+                    );
                 }
             })
         }

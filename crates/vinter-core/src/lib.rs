@@ -27,6 +27,7 @@ pub mod report;
 pub mod runtime;
 pub mod secret;
 pub mod settings;
+pub mod shims;
 pub mod storage;
 pub mod system;
 

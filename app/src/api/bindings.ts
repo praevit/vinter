@@ -239,6 +239,12 @@ export const commands = {
 	fexProgramSettings: (bottleId: string, index: number) => __TAURI_INVOKE<{ [key in string]: string }>("fex_program_settings", { bottleId, index }),
 	/**  Sets (or with `None`, clears) one of a program's FEX settings. */
 	fexSettingSet: (bottleId: string, index: number, name: string, value: string | null) => __TAURI_INVOKE<{ [key in string]: string }>("fex_setting_set", { bottleId, index, name, value }),
+	/**  Launcher fixes for a program (experimental `launcher-shims`). */
+	programShims: (bottleId: string, index: number) => __TAURI_INVOKE<ShimView[]>("program_shims", { bottleId, index }),
+	/**  Turns a launcher fix on or off for a program. */
+	programShimSet: (bottleId: string, index: number, id: string, on: boolean) => __TAURI_INVOKE<null>("program_shim_set", { bottleId, index, id, on }),
+	/**  Opens a launcher fix's documentation. Only the fixed URLs Vinter ships. */
+	shimOpenSource: (id: string) => __TAURI_INVOKE<null>("shim_open_source", { id }),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -1241,6 +1247,23 @@ export type Severity =
 "error" | 
 /**  May cause problems. */
 "warning";
+
+/**  One known workaround. */
+export type Shim = {
+	id: string,
+	launcher: string,
+	title: string,
+	why: string,
+	/**  Arguments added at launch. */
+	args: string[],
+	/**  Where the arguments are documented. */
+	source: string,
+};
+
+/**  A launcher fix that fits a program, and whether it is on. */
+export type ShimView = {
+	on: boolean,
+} & Shim;
 
 export type Snapshot = {
 	id: string,

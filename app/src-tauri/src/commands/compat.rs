@@ -195,3 +195,69 @@ pub async fn fex_setting_set(
     })
     .await
 }
+
+/// A launcher fix that fits a program, and whether it is on.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct ShimView {
+    #[serde(flatten)]
+    pub shim: vinter_core::shims::Shim,
+    pub on: bool,
+}
+
+/// Launcher fixes for a program (experimental `launcher-shims`).
+#[tauri::command]
+#[specta::specta]
+pub async fn program_shims(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+) -> CommandResult<Vec<ShimView>> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        let b = vinter_core::bottle::get(&paths, &bottle_id)?;
+        let program = b
+            .programs
+            .get(index as usize)
+            .ok_or(vinter_core::Error::ProgramNotFound(index as usize))?;
+        let on = vinter_core::shims::turned_on(&paths, &bottle_id, index as usize)?;
+        Ok(vinter_core::shims::for_program(program)
+            .into_iter()
+            .map(|shim| ShimView {
+                on: on.iter().any(|i| i == shim.id),
+                shim,
+            })
+            .collect())
+    })
+    .await
+}
+
+/// Turns a launcher fix on or off for a program.
+#[tauri::command]
+#[specta::specta]
+pub async fn program_shim_set(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+    id: String,
+    on: bool,
+) -> CommandResult<()> {
+    let paths = state.paths.clone();
+    blocking(move || {
+        vinter_core::shims::set(&paths, &bottle_id, index as usize, &id, on)?;
+        Ok(())
+    })
+    .await
+}
+
+/// Opens a launcher fix's documentation. Only the fixed URLs Vinter ships.
+#[tauri::command]
+#[specta::specta]
+pub fn shim_open_source(app: AppHandle, id: String) -> CommandResult<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let shim = vinter_core::shims::all()
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or_else(|| vinter_core::Error::InvalidSetting(format!("no fix {id}")))?;
+    app.opener().open_url(shim.source, None::<&str>)?;
+    Ok(())
+}

@@ -188,21 +188,8 @@ impl ExperimentalFlag {
     /// Whether turning it on does anything yet. Flags are registered before
     /// their feature is built, so their ids (and saved choices) stay stable.
     pub fn available(self) -> bool {
-        matches!(
-            self,
-            Self::SimulateMacos28
-                | Self::CompatNotes
-                | Self::RuntimeChannelNightly
-                | Self::Wow64LargeAddress
-                | Self::GraphicsDxvkArm64ec
-                | Self::EngineAbCompare
-                | Self::BottleMigrateArm64
-                | Self::GraphicsUserGptk
-                | Self::PerAppEngine
-                | Self::FexConfigEditor
-                | Self::Arm64FexLinux
-                | Self::RuntimeBuildFromSource
-        )
+        // Every flag registered today is built (M8.7 to M8.16).
+        true
     }
 }
 

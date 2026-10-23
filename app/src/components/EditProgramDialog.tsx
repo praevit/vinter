@@ -7,6 +7,7 @@ import { CompatNoteSection } from "./CompatNoteSection";
 import { Dialog } from "./Dialog";
 import { EngineSection } from "./EngineSection";
 import { FexSection } from "./FexSection";
+import { ShimsSection } from "./ShimsSection";
 import { ProgramIcon } from "./InstallDialog";
 import { Button, ErrorText, Label, field, subtle } from "./ui";
 
@@ -97,6 +98,7 @@ export function EditProgramDialog({
         <p className={`${subtle} -mt-2 select-text break-all`}>{program.exe}</p>
         <EngineSection bottleId={bottleId} program={program} />
         <FexSection bottleId={bottleId} program={program} />
+        <ShimsSection bottleId={bottleId} program={program} />
         <CompatNoteSection bottleId={bottleId} program={program} />
         {error && <ErrorText>{error}</ErrorText>}
         <div className="flex justify-end gap-2">

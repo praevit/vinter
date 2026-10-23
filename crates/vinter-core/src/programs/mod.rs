@@ -299,6 +299,8 @@ pub fn launch_with(
 
     // fex-config-editor: the program's own FEX settings, by its own path.
     let fex_env = crate::fex_config::launch_env(paths, &bottle, &rt, &program.exe);
+    // launcher-shims: documented workarounds turned on for this program.
+    let shims = crate::shims::for_launch(paths, bottle_id, &program);
     // per-app-engine: the app's own ARM64 build instead, natively.
     let (program, exe) = match native_build(paths, &rt, &prefix, &program) {
         Some((win, unix)) => (
@@ -316,7 +318,15 @@ pub fn launch_with(
     let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
     cmd.envs(fex_env);
     cmd.envs(extra_env.iter().copied());
-    let notes = wow64_notes(&rt, &exe, found);
+    let mut notes = wow64_notes(&rt, &exe, found);
+    for shim in &shims {
+        notes.push(format!(
+            "launcher-shims: {} ({}): added {}",
+            shim.id,
+            shim.title,
+            shim.args.join(" ")
+        ));
+    }
     crate::diag::write_launch_header(&log, &program.name, found, &rt, &bottle, &cmd, &notes)?;
     // Skip empty or NUL-containing arguments; programs added before the
     // shortcut fix may have a stray "\0" argument saved.
@@ -325,6 +335,7 @@ pub fn launch_with(
         .iter()
         .filter(|a| !a.is_empty() && !a.contains('\0'));
     cmd.arg(&program.exe).args(args);
+    cmd.args(shims.iter().flat_map(|s| s.args.iter().copied()));
     if let Some(folder) = exe.parent() {
         // Many programs expect to start in their own folder.
         cmd.current_dir(folder);
