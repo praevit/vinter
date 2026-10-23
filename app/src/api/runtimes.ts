@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { commands } from "./bindings";
+import { commands, type EngineKind } from "./bindings";
+
+/** What people see for an engine (matches `EngineKind::label` in Rust). */
+export const ENGINE_LABELS: Record<EngineKind, string> = {
+  "x86_64-rosetta": "Intel (Rosetta)",
+  "arm64-fex": "Apple Silicon",
+  "x86_64-native": "x86_64",
+  "arm64-fex-linux": "ARM64",
+};
 
 export function useAvailableRuntimes() {
   return useQuery({

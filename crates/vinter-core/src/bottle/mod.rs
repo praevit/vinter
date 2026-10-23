@@ -214,6 +214,7 @@ pub fn prepare_create(paths: &AppPaths, new: NewBottle) -> Result<Bottle> {
         id,
         name,
         runtime: rt.id.clone(),
+        engine: rt.engine,
         created_at: now(),
         windows_version: new.windows_version,
         graphics: new.graphics,
@@ -262,7 +263,7 @@ pub fn finish_create(
 fn boot_prefix(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
     let prefix = dir.join(PREFIX_DIR);
     let (log, _) = logs::create(dir, "wineboot")?;
-    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine");
+    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine")?;
     cmd.args(["wineboot", "--init"]);
     process::run_and_wait(cmd, &log, "Creating the Wine prefix", WINEBOOT_TIMEOUT)?;
     wait_for_wineserver(rt, &prefix, bottle, &log)
@@ -271,7 +272,7 @@ fn boot_prefix(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
 fn apply_windows_version(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
     let prefix = dir.join(PREFIX_DIR);
     let (log, _) = logs::create(dir, "winecfg")?;
-    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine");
+    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine")?;
     cmd.args(["winecfg", "/v", bottle.windows_version.winecfg_name()]);
     process::run_and_wait(cmd, &log, "Setting the Windows version", WINECFG_TIMEOUT)?;
     wait_for_wineserver(rt, &prefix, bottle, &log)
@@ -311,7 +312,7 @@ fn apply_options(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
     let reg = dir.join(".options.reg");
     std::fs::write(&reg, options_reg(&bottle.options)).at(&reg)?;
     let (log, _) = logs::create(dir, "options")?;
-    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine");
+    let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine")?;
     cmd.args(["regedit", "/S"]).arg(format!(
         "Z:{}",
         reg.display().to_string().replace('/', "\\")
@@ -365,7 +366,7 @@ pub fn keep_desktop_in_bottle(prefix: &Path) -> Result<()> {
 
 /// Waits until Wine has written the registry and its server has exited.
 fn wait_for_wineserver(rt: &Runtime, prefix: &Path, bottle: &Bottle, log: &Path) -> Result<()> {
-    let mut cmd = process::command(rt, prefix, bottle, &[], "wineserver");
+    let mut cmd = process::command(rt, prefix, bottle, &[], "wineserver")?;
     cmd.arg("-w");
     process::run_and_wait(cmd, log, "Waiting for Wine to finish", WINESERVER_TIMEOUT)
 }
@@ -378,9 +379,11 @@ pub fn rename(paths: &AppPaths, id: &str, name: &str) -> Result<Bottle> {
 }
 
 /// Switches the runtime. Wine updates the prefix on its next start.
+/// The new runtime must have the bottle's engine.
 pub fn set_runtime(paths: &AppPaths, id: &str, runtime_id: &str) -> Result<Bottle> {
     let mut bottle = get(paths, id)?;
-    runtime::get(paths, runtime_id)?;
+    let rt = runtime::get(paths, runtime_id)?;
+    crate::engine::check_bottle(&rt, &bottle)?;
     if bottle.runtime != runtime_id {
         snapshot::auto(paths, id, &format!("Before switching to {runtime_id}"))?;
     }
@@ -690,7 +693,7 @@ pub fn kill_all(paths: &AppPaths, id: &str) -> Result<()> {
     let dir = dir(paths, id)?;
     let prefix = dir.join(PREFIX_DIR);
     let (log, _) = logs::create(&dir, "wineserver-kill")?;
-    let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wineserver");
+    let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wineserver")?;
     cmd.arg("-k");
     // `wineserver -k` exits non-zero when no server is running; that is fine.
     let _ = process::run_and_wait(cmd, &log, "Stopping Wine", WINESERVER_TIMEOUT);
@@ -708,7 +711,7 @@ pub fn run_tool(paths: &AppPaths, id: &str, tool: Tool) -> Result<u32> {
     let dir = dir(paths, id)?;
     let (log, _) = logs::create(&dir, tool.program())?;
     domain::refresh_ticket(&rt, &dir, &bottle, &log);
-    let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine");
+    let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine")?;
     cmd.arg(tool.program());
     process::spawn_detached(cmd, &log, &format!("Opening {}", tool.program()))
 }

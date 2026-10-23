@@ -69,6 +69,19 @@ pub enum Error {
     #[error("{0} needs Rosetta 2, which is not installed")]
     RosettaRequired(String),
 
+    #[error("{runtime} cannot run here: {reason}")]
+    EngineUnavailable { runtime: String, reason: String },
+
+    #[error(
+        "bottle {bottle:?} was made for the {bottle_engine} engine and cannot run on {runtime} ({runtime_engine}); pick a runtime of its own engine"
+    )]
+    EngineMismatch {
+        bottle: String,
+        bottle_engine: String,
+        runtime: String,
+        runtime_engine: String,
+    },
+
     #[error("{what} failed: {message}")]
     ProcessFailed { what: String, message: String },
 

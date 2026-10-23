@@ -164,6 +164,7 @@ mod tests {
             id: "b".into(),
             name: "Games".into(),
             runtime: "missing-rt".into(),
+            engine: crate::engine::EngineKind::legacy(),
             created_at: "2026-10-15T00:00:00Z".into(),
             windows_version: WindowsVersion::Win7,
             graphics: Graphics::Dxvk,

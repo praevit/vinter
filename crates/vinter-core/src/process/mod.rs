@@ -101,18 +101,26 @@ pub fn dll_overrides_string(overrides: &BTreeMap<String, String>) -> String {
 }
 
 /// A command for `program` (e.g. `wine`, `wineserver`) from `runtime`,
-/// with the bottle's full environment.
+/// with the bottle's full environment, both from the runtime's engine.
+/// Fails if the bottle was made for a different engine.
 pub fn command(
     runtime: &Runtime,
     prefix: &Path,
     bottle: &Bottle,
     base_overrides: &[(&str, &str)],
     program: &str,
-) -> Command {
-    let mut cmd = runtime.command(program);
-    cmd.envs(wine_env(prefix, bottle, base_overrides));
+) -> Result<Command> {
+    crate::engine::check_bottle(runtime, bottle)?;
+    let engine = runtime.engine();
+    let program = match program {
+        "wine" => engine.wine(runtime),
+        "wineserver" => engine.wineserver(runtime),
+        other => other.into(),
+    };
+    let mut cmd = runtime.command(&program.to_string_lossy());
+    cmd.envs(engine.env(prefix, bottle, base_overrides));
     cmd.stdin(Stdio::null());
-    cmd
+    Ok(cmd)
 }
 
 /// Runs `cmd` to completion with output appended to `log`.
@@ -358,6 +366,7 @@ mod tests {
             id: "b".into(),
             name: "B".into(),
             runtime: "r".into(),
+            engine: crate::engine::EngineKind::legacy(),
             created_at: "2026-10-14T20:00:00Z".into(),
             windows_version: WindowsVersion::Win10,
             graphics: Graphics::Wined3d,
@@ -471,6 +480,107 @@ mod tests {
         assert_eq!(get(&env, "WINEPREFIX"), Some("/p"));
         assert_eq!(get(&env, "WINEESYNC"), Some("1"));
         assert_eq!(env.iter().filter(|(k, _)| k == "WINEDEBUG").count(), 1);
+    }
+
+    /// Files as Vinter 0.1.11 wrote them, before engines existed.
+    const OLD_RUNTIME_TOML: &str = r#"
+id = "vinter-wine-11.0-4-macos"
+name = "Vinter Wine 11.0"
+version = "11.0"
+flavor = "stable"
+url = "https://example.invalid/wine.tar.xz"
+sha256 = "1e07264ea20cdcef6d28155f71fe5c1720ffdd8d6035a49a99cfe37e61023eaa"
+installed_at = "2026-10-20T10:00:00Z"
+wine_bin = "vinter-wine-11.0-4/bin/wine"
+license = "LGPL-2.1-or-later"
+source_url = "https://example.invalid/src"
+arch = "x86_64"
+graphics = ["wined3d", "dxvk", "dxmt"]
+"#;
+    const OLD_BOTTLE_TOML: &str = r#"
+id = "8f2c"
+name = "Old"
+runtime = "vinter-wine-11.0-4-macos"
+created_at = "2026-10-20T10:05:00Z"
+windows_version = "win10"
+graphics = "dxvk"
+
+[env]
+WINEESYNC = "1"
+
+[dll_overrides]
+mscoree = "builtin"
+
+[options]
+retina_mode = true
+command_as_ctrl = true
+option_as_alt = true
+show_fps = true
+"#;
+
+    /// Regression test for M8.1: an existing x86_64 bottle launches through
+    /// its engine with exactly the program and environment it had before.
+    #[test]
+    fn existing_bottles_launch_exactly_as_before() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = crate::AppPaths::with_data_dir(tmp.path());
+        let rt_dir = paths.runtimes_dir().join("vinter-wine-11.0-4-macos");
+        let bin = rt_dir.join("vinter-wine-11.0-4/bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("wine"), "").unwrap();
+        std::fs::write(bin.join("wineserver"), "").unwrap();
+        std::fs::write(rt_dir.join(crate::runtime::RECORD_FILE), OLD_RUNTIME_TOML).unwrap();
+        let bottle_dir = paths.bottles_dir().join("8f2c");
+        std::fs::create_dir_all(&bottle_dir).unwrap();
+        std::fs::write(bottle_dir.join(crate::bottle::CONFIG_FILE), OLD_BOTTLE_TOML).unwrap();
+
+        let rt = crate::runtime::get(&paths, "vinter-wine-11.0-4-macos").unwrap();
+        let b = crate::bottle::get(&paths, "8f2c").unwrap();
+        assert_eq!(rt.engine, crate::engine::EngineKind::legacy());
+        assert_eq!(b.engine, rt.engine);
+
+        let prefix = bottle_dir.join("prefix");
+        let p = prefix.display().to_string();
+        let mut expected: Vec<(&str, String)> = vec![
+            ("WINEPREFIX", p.clone()),
+            ("WINEDEBUG", "-all".into()),
+            ("MVK_CONFIG_LOG_LEVEL", "1".into()),
+            (
+                "WINEDLLOVERRIDES",
+                "d3d10core=n,b;d3d11=n,b;mscoree=builtin;mshtml=;winemenubuilder.exe=d".into(),
+            ),
+            ("DXVK_LOG_PATH", "none".into()),
+            ("DXVK_HUD", "fps".into()),
+        ];
+        if cfg!(target_os = "macos") {
+            expected.push(("MTL_HUD_ENABLED", "1".into()));
+        }
+        expected.push(("WINEESYNC", "1".into()));
+
+        for (program, file) in [("wine", "wine"), ("wineserver", "wineserver")] {
+            let cmd = command(&rt, &prefix, &b, &[("mshtml", "")], program).unwrap();
+            assert_eq!(cmd.get_program(), bin.join(file).as_os_str());
+            let mut envs: Vec<(String, String)> = cmd
+                .get_envs()
+                .map(|(k, v)| {
+                    let v = v
+                        .map(|v| v.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    (k.to_string_lossy().into_owned(), v)
+                })
+                .collect();
+            let path = envs.iter().position(|(k, _)| k == "PATH").unwrap();
+            let path = envs.remove(path).1;
+            assert!(path.starts_with(&bin.display().to_string()), "{path}");
+            let mut want: Vec<(String, String)> = expected
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.clone()))
+                .collect();
+            // Command keeps its environment sorted by name.
+            want.sort();
+            envs.sort();
+            assert_eq!(envs, want);
+        }
     }
 
     #[cfg(unix)]

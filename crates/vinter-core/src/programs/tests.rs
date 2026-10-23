@@ -80,6 +80,7 @@ fn fake_bottle() -> (tempfile::TempDir, AppPaths, String, PathBuf) {
         id: id.clone(),
         name: "Test".into(),
         runtime: "fake".into(),
+        engine: crate::engine::EngineKind::legacy(),
         created_at: "2026-10-14T20:00:00Z".into(),
         windows_version: WindowsVersion::Win10,
         graphics: Graphics::Wined3d,
@@ -245,6 +246,7 @@ fn fake_runtime(paths: &AppPaths) {
         source_url: "https://example.invalid".into(),
         arch: std::env::consts::ARCH.into(),
         graphics: vec![crate::bottle::Graphics::Wined3d],
+        engine: Some(crate::engine::EngineKind::legacy()),
     };
     std::fs::write(dir.join("runtime.toml"), toml::to_string(&record).unwrap()).unwrap();
 }

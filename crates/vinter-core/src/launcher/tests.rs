@@ -8,6 +8,7 @@ fn bottle_with_programs(paths: &AppPaths, id: &str, name: &str, programs: &[&str
         id: id.into(),
         name: name.into(),
         runtime: "rt".into(),
+        engine: crate::engine::EngineKind::legacy(),
         created_at: "2026-10-15T00:00:00Z".into(),
         windows_version: WindowsVersion::Win10,
         graphics: Graphics::Wined3d,

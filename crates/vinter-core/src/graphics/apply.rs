@@ -151,6 +151,7 @@ mod tests {
             source_url: String::new(),
             arch: std::env::consts::ARCH.into(),
             graphics: vec![Graphics::Wined3d, Graphics::Dxvk],
+            engine: Some(crate::engine::EngineKind::legacy()),
         };
         std::fs::write(rt.join("runtime.toml"), toml::to_string(&record).unwrap()).unwrap();
 
@@ -162,6 +163,7 @@ mod tests {
             id: "b".into(),
             name: "B".into(),
             runtime: "rt".into(),
+            engine: crate::engine::EngineKind::legacy(),
             created_at: "2026-10-15T00:00:00Z".into(),
             windows_version: WindowsVersion::Win10,
             graphics: Graphics::Wined3d,

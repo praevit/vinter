@@ -20,7 +20,7 @@ import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useRecipeState } from "../api/recipes";
-import { formatBytes, useInstalledRuntimes } from "../api/runtimes";
+import { ENGINE_LABELS, formatBytes, useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
 import { BackupButton } from "../components/BackupControls";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
@@ -284,9 +284,15 @@ function Settings({
             ...(runtimes?.some((r) => r.id === bottle.runtime)
               ? []
               : [{ value: bottle.runtime, label: `${bottle.runtime} (not installed)` }]),
-            ...(runtimes?.map((r) => ({ value: r.id, label: r.name })) ?? []),
+            ...(runtimes
+              ?.filter((r) => r.engine === bottle.engine)
+              .map((r) => ({ value: r.id, label: r.name })) ?? []),
           ]}
         />
+        <span className={subtle}>
+          Made for the {ENGINE_LABELS[bottle.engine]} engine. A bottle keeps its engine, so only runtimes for it are
+          listed.
+        </span>
       </Label>
       {update.error && <ErrorText>{errorMessage(update.error)}</ErrorText>}
 

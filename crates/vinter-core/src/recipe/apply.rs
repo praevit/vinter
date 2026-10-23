@@ -306,7 +306,7 @@ fn run_step(
             let rt = runtime::get(paths, &bottle.runtime)?;
             rt.check_can_run()?;
             let (log, _) = logs::create(&dir, "regedit")?;
-            let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
+            let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
             cmd.args(["regedit", "/S"]).arg(z_path(&path));
             process::run_and_wait(
                 cmd,
@@ -341,7 +341,7 @@ fn run_step(
             let rt = runtime::get(paths, &bottle.runtime)?;
             rt.check_can_run()?;
             let (log, _) = logs::create(&dir, "recipe-run")?;
-            let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine");
+            let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
             cmd.arg(exe).args(args);
             if let Some(folder) = unix.parent() {
                 cmd.current_dir(folder);

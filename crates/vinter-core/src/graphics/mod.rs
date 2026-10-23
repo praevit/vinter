@@ -223,6 +223,7 @@ mod tests {
             arch: "x86_64".into(),
             needs_rosetta: false,
             graphics,
+            engine: crate::engine::EngineKind::legacy(),
             kerberos: false,
             domain_identity: false,
         }

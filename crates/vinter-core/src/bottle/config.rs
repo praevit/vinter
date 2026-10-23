@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::engine::EngineKind;
 use crate::error::IoResultExt;
 use crate::{Error, Result};
 
@@ -162,6 +163,8 @@ pub struct Bottle {
     pub name: String,
     /// Id of the runtime it runs with.
     pub runtime: String,
+    /// Engine it was created with. Fixed: it only runs on runtimes of this engine.
+    pub engine: EngineKind,
     /// RFC 3339 timestamp.
     pub created_at: String,
     pub windows_version: WindowsVersion,
@@ -186,6 +189,9 @@ struct BottleFile {
     name: String,
     runtime: String,
     created_at: String,
+    /// Bottles made before M8 lack it; they were all made with x86_64 Wine.
+    #[serde(default = "EngineKind::legacy")]
+    engine: EngineKind,
     #[serde(default)]
     windows_version: WindowsVersion,
     #[serde(default)]
@@ -210,6 +216,7 @@ impl From<BottleFile> for Bottle {
             id: f.id,
             name: f.name,
             runtime: f.runtime,
+            engine: f.engine,
             created_at: f.created_at,
             windows_version: f.windows_version,
             graphics: f.graphics,
@@ -319,6 +326,21 @@ dns_domain = "corp.example.com"
         assert_eq!(bottle.graphics, Graphics::Wined3d);
         assert!(bottle.programs.is_empty() && bottle.env.is_empty());
         assert!(bottle.domain.is_none());
+        // Made before engines existed, so with x86_64 Wine.
+        assert_eq!(bottle.engine, EngineKind::legacy());
+    }
+
+    #[test]
+    fn engine_is_kept() {
+        let bottle: Bottle = toml::from_str(
+            "id = \"a\"\nname = \"A\"\nruntime = \"r\"\nengine = \"arm64-fex\"\ncreated_at = \"2026-10-14T20:00:00Z\"\n",
+        )
+        .unwrap();
+        assert_eq!(bottle.engine, EngineKind::Arm64Fex);
+        let tmp = tempfile::tempdir().unwrap();
+        bottle.save(tmp.path()).unwrap();
+        let text = std::fs::read_to_string(tmp.path().join(CONFIG_FILE)).unwrap();
+        assert!(text.contains("engine = \"arm64-fex\""), "{text}");
     }
 
     #[test]

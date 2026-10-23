@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::bottle::Graphics;
 pub use crate::download::{InstallProgress, InstallStage};
+use crate::engine::{Engine, EngineKind};
 use crate::error::{IoResultExt, validate_id};
 use crate::{AppPaths, Error, Result};
 pub use install::{install, install_from_archive};
@@ -45,6 +46,10 @@ pub struct RuntimeRecord {
     /// lack it; every runtime offered then supported wined3d and DXVK.
     #[serde(default = "default_graphics")]
     pub graphics: Vec<Graphics>,
+    /// Engine that runs it. Records written before M8 lack it; their
+    /// engine follows from `arch`.
+    #[serde(default)]
+    pub engine: Option<EngineKind>,
 }
 
 fn default_graphics() -> Vec<Graphics> {
@@ -77,6 +82,7 @@ pub struct Runtime {
     pub size: u64,
     pub source_url: String,
     pub arch: String,
+    pub engine: EngineKind,
     /// x86_64 build on Apple Silicon: runs only with Rosetta 2.
     pub needs_rosetta: bool,
     /// Graphics backends it supports.
@@ -109,18 +115,25 @@ impl Runtime {
             installed_at: record.installed_at,
             source_url: record.source_url,
             needs_rosetta: arch_needs_rosetta(&record.arch),
+            engine: record.engine.unwrap_or_else(|| {
+                EngineKind::for_build(std::env::consts::OS, &record.arch)
+                    .unwrap_or_else(EngineKind::legacy)
+            }),
             arch: record.arch,
             graphics: record.graphics,
             path,
         }
     }
 
-    /// Fails with `RosettaRequired` if this runtime cannot run on this machine.
+    /// What runs this runtime's Wine.
+    pub fn engine(&self) -> &'static dyn Engine {
+        self.engine.engine()
+    }
+
+    /// Fails if this runtime cannot run on this machine (its engine's
+    /// requirements, e.g. `RosettaRequired`).
     pub fn check_can_run(&self) -> Result<()> {
-        if self.needs_rosetta && !crate::system::rosetta::is_installed() {
-            return Err(Error::RosettaRequired(self.name.clone()));
-        }
-        Ok(())
+        self.engine().check(self)
     }
 
     /// Folder holding `wine`, `wineserver` and friends.

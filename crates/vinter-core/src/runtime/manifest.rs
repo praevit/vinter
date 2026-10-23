@@ -50,6 +50,8 @@ pub struct RuntimeInfo {
     pub release_url: String,
     /// Graphics backends the build supports.
     pub graphics: Vec<crate::bottle::Graphics>,
+    /// Engine that runs it; must match `os` and `arch`.
+    pub engine: crate::engine::EngineKind,
     /// Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it).
     #[serde(default)]
     pub min_os_version: Option<String>,
@@ -149,6 +151,12 @@ mod tests {
             assert!(!r.wine_bin.starts_with('/') && !r.wine_bin.contains(".."));
             assert!(r.source_url.starts_with("https://"));
             assert!(matches!(r.os.as_str(), "macos" | "linux"));
+            assert_eq!(
+                Some(r.engine),
+                crate::engine::EngineKind::for_build(&r.os, &r.arch),
+                "{}: engine must match os and arch",
+                r.id
+            );
         }
     }
 

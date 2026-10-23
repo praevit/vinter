@@ -49,6 +49,7 @@ fn install_fake_runtime(paths: &AppPaths, id: &str, wine: &str) {
         source_url: "https://example.invalid".into(),
         arch: std::env::consts::ARCH.into(),
         graphics: vec![crate::bottle::Graphics::Wined3d],
+        engine: Some(crate::engine::EngineKind::legacy()),
     };
     std::fs::write(
         dir.join(runtime::RECORD_FILE),
@@ -260,6 +261,7 @@ fn interrupted_setup_is_reported() {
         id: "half".into(),
         name: "Half".into(),
         runtime: "fake".into(),
+        engine: crate::engine::EngineKind::legacy(),
         created_at: now(),
         windows_version: WindowsVersion::Win10,
         graphics: Graphics::Wined3d,
@@ -290,6 +292,7 @@ fn env_and_override_editors_validate_input() {
         id: "x".into(),
         name: "X".into(),
         runtime: "fake".into(),
+        engine: crate::engine::EngineKind::legacy(),
         created_at: now(),
         windows_version: WindowsVersion::Win10,
         graphics: Graphics::Wined3d,
@@ -494,4 +497,36 @@ fn switching_runtime_snapshots_first_where_clones_are_free() {
     let usage = crate::storage::usage(&paths).unwrap();
     let total = crate::storage::dir_size(&dir(&paths, &b.id).unwrap());
     assert!(snaps.is_empty() || usage.bottles[0].bytes < total);
+}
+
+/// Rewrites a fake runtime's record with another engine.
+fn set_fake_engine(paths: &AppPaths, id: &str, engine: crate::engine::EngineKind) {
+    let file = paths.runtimes_dir().join(id).join(runtime::RECORD_FILE);
+    let mut record: RuntimeRecord =
+        toml::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+    record.engine = Some(engine);
+    std::fs::write(&file, toml::to_string(&record).unwrap()).unwrap();
+}
+
+#[test]
+fn engine_is_fixed_after_creation() {
+    let (_tmp, paths) = setup();
+    let b = create(&paths, new_bottle("Base", "fake"), |_| {}).unwrap();
+    assert_eq!(b.engine, crate::engine::EngineKind::legacy());
+    assert_eq!(get(&paths, &b.id).unwrap().engine, b.engine);
+
+    // Switching to a runtime of another engine is refused and changes nothing.
+    install_fake_runtime(&paths, "arm", FAKE_WINE);
+    set_fake_engine(&paths, "arm", crate::engine::EngineKind::Arm64Fex);
+    let err = set_runtime(&paths, &b.id, "arm").unwrap_err();
+    assert!(matches!(err, Error::EngineMismatch { .. }), "{err}");
+    assert_eq!(get(&paths, &b.id).unwrap().runtime, "fake");
+    assert!(snapshot::list(&paths, &b.id).unwrap().is_empty());
+
+    // A runtime whose engine changed under the bottle does not launch it.
+    set_fake_engine(&paths, "fake", crate::engine::EngineKind::Arm64Fex);
+    let rt = runtime::get(&paths, "fake").unwrap();
+    let prefix = dir(&paths, &b.id).unwrap().join(PREFIX_DIR);
+    let err = process::command(&rt, &prefix, &b, &[], "wine").unwrap_err();
+    assert!(matches!(err, Error::EngineMismatch { .. }), "{err}");
 }

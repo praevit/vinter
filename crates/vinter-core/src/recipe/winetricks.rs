@@ -52,11 +52,11 @@ pub fn run(paths: &AppPaths, bottle_id: &str, script: &Path, verbs: &[String]) -
     let dir = bottle::dir(paths, bottle_id)?;
     let prefix = dir.join(PREFIX_DIR);
 
-    let mut cmd = rt.command("sh");
+    let mut cmd = process::command(&rt, &prefix, &bottle, &[], "sh")?;
+    let engine = rt.engine();
     cmd.arg(script).arg("-q").args(verbs);
-    cmd.envs(process::wine_env(&prefix, &bottle, &[]))
-        .env("WINE", &rt.wine_bin)
-        .env("WINESERVER", rt.bin_dir().join("wineserver"))
+    cmd.env("WINE", engine.wine(&rt))
+        .env("WINESERVER", engine.wineserver(&rt))
         // No "a newer winetricks exists" prompt; we pin a version on purpose.
         .env("WINETRICKS_LATEST_VERSION_CHECK", "disabled")
         // Keep winetricks' download cache inside Vinter's data folder.

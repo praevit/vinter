@@ -9,6 +9,7 @@ pub mod bottle;
 pub mod components;
 pub mod doctor;
 pub mod download;
+pub mod engine;
 pub mod error;
 pub mod experimental;
 pub mod graphics;

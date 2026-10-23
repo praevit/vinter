@@ -123,6 +123,8 @@ export const commands = {
 	name: string,
 	/**  Id of the runtime it runs with. */
 	runtime: string,
+	/**  Engine it was created with. Fixed: it only runs on runtimes of this engine. */
+	engine: EngineKind,
 	/**  RFC 3339 timestamp. */
 	created_at: string,
 	windows_version: WindowsVersion,
@@ -323,6 +325,8 @@ export type BottleFile_Deserialize = {
 	name: string,
 	runtime: string,
 	created_at: string,
+	/**  Bottles made before M8 lack it; they were all made with x86_64 Wine. */
+	engine?: EngineKind,
 	windows_version?: WindowsVersion,
 	graphics?: Graphics,
 	recipe?: string | null,
@@ -342,6 +346,8 @@ export type BottleFile_Serialize = {
 	name: string,
 	runtime: string,
 	created_at: string,
+	/**  Bottles made before M8 lack it; they were all made with x86_64 Wine. */
+	engine: EngineKind,
 	windows_version: WindowsVersion,
 	graphics: Graphics,
 	recipe: string | null,
@@ -439,6 +445,8 @@ export type Bottle_Serialize = {
 	name: string,
 	/**  Id of the runtime it runs with. */
 	runtime: string,
+	/**  Engine it was created with. Fixed: it only runs on runtimes of this engine. */
+	engine: EngineKind,
 	/**  RFC 3339 timestamp. */
 	created_at: string,
 	windows_version: WindowsVersion,
@@ -580,6 +588,16 @@ export type DomainStatus = {
 	/**  A password is saved in the keychain. */
 	has_password: boolean,
 };
+
+export type EngineKind = 
+/**  x86_64 Wine on macOS. Needs Rosetta 2 on Apple Silicon. */
+"x86_64-rosetta" | 
+/**  ARM64 Wine on macOS, with FEX translating x86 code in-process. */
+"arm64-fex" | 
+/**  x86_64 Wine on x86_64 Linux. */
+"x86_64-native" | 
+/**  ARM64 Wine on ARM64 Linux with FEX. Behind the `arm64-fex-linux` flag. */
+"arm64-fex-linux";
 
 /**  One experimental feature. */
 export type ExperimentalFlag = "per-app-engine" | "engine-ab-compare" | "simulate-macos28" | "bottle-migrate-arm64" | "fex-config-editor" | "wow64-large-address" | "graphics-dxvk-arm64ec" | "graphics-user-gptk" | "runtime-channel-nightly" | "runtime-build-from-source" | "arm64-fex-linux" | "compat-notes" | "launcher-shims";
@@ -810,6 +828,7 @@ export type Runtime = {
 	size: number,
 	source_url: string,
 	arch: string,
+	engine: EngineKind,
 	/**  x86_64 build on Apple Silicon: runs only with Rosetta 2. */
 	needs_rosetta: boolean,
 	/**  Graphics backends it supports. */
@@ -851,6 +870,8 @@ export type RuntimeInfo_Deserialize = {
 	release_url: string,
 	/**  Graphics backends the build supports. */
 	graphics: Graphics[],
+	/**  Engine that runs it; must match `os` and `arch`. */
+	engine: EngineKind,
 	/**  Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it). */
 	min_os_version?: string | null,
 };
@@ -880,6 +901,8 @@ export type RuntimeInfo_Serialize = {
 	release_url: string,
 	/**  Graphics backends the build supports. */
 	graphics: Graphics[],
+	/**  Engine that runs it; must match `os` and `arch`. */
+	engine: EngineKind,
 	/**  Oldest macOS it runs on, e.g. "15.0" (its libraries are built for it). */
 	min_os_version: string | null,
 	/**  Filled in for this machine: x86_64 build on Apple Silicon. */

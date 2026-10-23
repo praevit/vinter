@@ -55,7 +55,7 @@ pub fn test(paths: &AppPaths, bottle_id: &str) -> Result<GraphicsReport> {
     let probe = write_probe(paths)?;
 
     let (log, _) = logs::create(&dir, "graphics-test")?;
-    let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine");
+    let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine")?;
     cmd.arg(&probe)
         .env("WINEDEBUG", "+loaddll")
         // DXVK caches shaders in the working directory; a one-off probe has

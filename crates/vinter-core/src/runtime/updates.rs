@@ -83,7 +83,7 @@ pub(crate) fn find_in<'a>(
         let have = release(&rt.id, &rt.version);
         let newest = available
             .iter()
-            .filter(|a| a.flavor == rt.flavor && a.arch == rt.arch)
+            .filter(|a| a.flavor == rt.flavor && a.engine == rt.engine)
             .filter(|a| !installed.iter().any(|i| i.id == a.id))
             .filter(|a| match compare_versions(&a.version, &rt.version) {
                 Ordering::Greater => true,
@@ -101,7 +101,7 @@ pub(crate) fn find_in<'a>(
             // Two installed builds of one flavor: only offer it for the newest.
             let newest_installed = installed
                 .iter()
-                .filter(|i| i.flavor == rt.flavor && i.arch == rt.arch)
+                .filter(|i| i.flavor == rt.flavor && i.engine == rt.engine)
                 .all(|i| compare_releases(release(&i.id, &i.version), have) != Ordering::Greater);
             if newest_installed {
                 updates.push(RuntimeUpdate {
@@ -179,6 +179,7 @@ mod find_tests {
             arch: "x86_64".into(),
             needs_rosetta: false,
             graphics: vec![],
+            engine: crate::engine::EngineKind::legacy(),
             kerberos: false,
             domain_identity: false,
         }

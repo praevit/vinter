@@ -569,6 +569,7 @@ mod tests {
             id: "b".into(),
             name: "B".into(),
             runtime: "rt".into(),
+            engine: crate::engine::EngineKind::legacy(),
             created_at: "2026-10-19T00:00:00Z".into(),
             windows_version: crate::bottle::WindowsVersion::Win10,
             graphics: crate::bottle::Graphics::Wined3d,

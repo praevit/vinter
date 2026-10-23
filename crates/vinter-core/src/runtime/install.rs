@@ -93,6 +93,7 @@ where
         source_url: info.source_url.clone(),
         arch: info.arch.clone(),
         graphics: info.graphics.clone(),
+        engine: Some(info.engine),
     };
     let toml = toml::to_string_pretty(&record).expect("runtime record serializes");
     write(staging.join(RECORD_FILE), toml).await?;
@@ -168,6 +169,7 @@ mod tests {
             release_url: "https://example.invalid".into(),
             needs_rosetta: false,
             graphics: vec![crate::bottle::Graphics::Wined3d],
+            engine: crate::engine::EngineKind::legacy(),
             min_os_version: None,
         }
     }
