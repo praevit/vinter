@@ -133,6 +133,52 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
                 },
                 line,
             );
+        } else if is_missing_emulator(line) {
+            found.add(
+                "missing_emulator",
+                Severity::Error,
+                "x86 emulation is not set up",
+                "Wine could not load the emulator that runs Intel programs on Apple Silicon \
+                 (FEX). The runtime is missing its emulator files, or this bottle was not set \
+                 up for them. Reinstall the runtime, or make a new bottle on it.",
+                Fix::Manual,
+                line,
+            );
+        } else if line.contains("Invalid or Unknown instruction") {
+            // FEX-Emu's own message (FEXCore Core.cpp).
+            found.add(
+                "fex_unknown_instruction",
+                Severity::Error,
+                "The x86 emulator met an instruction it cannot run",
+                "FEX, which runs Intel code on Apple Silicon, does not support an instruction \
+                 this program uses (often a newer one, such as AVX-512). A newer Apple Silicon \
+                 runtime may support it; until then, run the program in an Intel (Rosetta) bottle.",
+                Fix::Manual,
+                line,
+            );
+        } else if line.contains("exception: illegal instruction") {
+            // winedbg: "Unhandled exception: illegal instruction in 64-bit code".
+            found.add(
+                "illegal_instruction",
+                Severity::Error,
+                "The program used an instruction this Mac cannot run",
+                "The program needs a processor feature that the emulator does not provide \
+                 (Rosetta and FEX lack some newer instructions, such as AVX-512). Look for a \
+                 version of the program for older processors, or a newer runtime.",
+                Fix::Manual,
+                line,
+            );
+        } else if line.contains("Bad CPU type in executable") {
+            found.add(
+                "rosetta_missing",
+                Severity::Error,
+                "Rosetta is not installed",
+                "This runtime is Intel Wine, which needs Rosetta 2 on Apple Silicon. Install \
+                 it from Vinter (it offers to when you open the bottle) or with \
+                 `vinter install-rosetta`, or use an Apple Silicon bottle instead.",
+                Fix::Manual,
+                line,
+            );
         } else if line.contains("could not load kernel32.dll")
             || line.contains("could not load ntdll.dll")
         {
@@ -170,6 +216,18 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
         }
     }
     found.finish()
+}
+
+/// Wine on ARM64 failing to load its x86 emulator. Without the registry key
+/// it falls back to Windows' own `xtajit64.dll` (x86-64) or `xtajit.dll`
+/// (32-bit), which Wine does not have (`dlls/ntdll/loader.c`,
+/// `dlls/wow64/syscall.c`).
+fn is_missing_emulator(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    (lower.contains("could not load") || lower.contains("failed to load"))
+        && ["xtajit64.dll", "xtajit.dll", "libarm64ecfex", "libwow64fex"]
+            .iter()
+            .any(|dll| lower.contains(dll))
 }
 
 /// `err:module:import_dll Library MSVCP140.dll (which is needed by …) not found`
@@ -429,6 +487,29 @@ wine: could not load kernel32.dll, status c0000135
         );
         assert_eq!(f[2].fix, Fix::RestoreSnapshot);
         assert_eq!(f[3].severity, Severity::Warning);
+    }
+
+    #[test]
+    fn apple_silicon_and_rosetta_problems() {
+        // Lines as Wine 11.10, FEX-2609, winedbg and macOS print them.
+        let log = r#"0024:err:module:load_arm64ec_module could not load L"C:\windows\system32\xtajit64.dll", status c0000135
+[ERROR] Invalid or Unknown instruction: UND 0x1f
+Unhandled exception: illegal instruction in 64-bit code (0x0000000140001000).
+Error: could not run wine: Bad CPU type in executable (os error 86)
+"#;
+        let f = diagnose(log);
+        assert_eq!(
+            ids(&f),
+            [
+                "missing_emulator",
+                "fex_unknown_instruction",
+                "illegal_instruction",
+                "rosetta_missing"
+            ]
+        );
+        assert!(f.iter().all(|x| x.severity == Severity::Error));
+        // The bottle-damaged rule is for Wine's core DLLs only.
+        assert!(!ids(&diagnose(log)).contains(&"broken_prefix"));
     }
 
     #[test]

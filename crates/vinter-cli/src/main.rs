@@ -68,6 +68,9 @@ enum Command {
     /// Experimental features: off by default, and may be rough.
     #[command(subcommand)]
     Experimental(ExperimentalCommand),
+    /// Diagnostics for bug reports.
+    #[command(subcommand)]
+    Diag(DiagCommand),
     /// Show which CPU a Windows program (.exe, .dll) or installer (.msi) is
     /// built for, and how it would run in a bottle.
     Arch {
@@ -75,6 +78,18 @@ enum Command {
         /// Say how it runs in this bottle.
         #[arg(long)]
         bottle: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum DiagCommand {
+    /// Zip a bottle's logs, settings and system checks (no documents from its
+    /// C: drive), with your home folder hidden.
+    Export {
+        bottle: String,
+        /// Where to write the zip: a folder (default: the current one) or a file name.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -216,6 +231,9 @@ enum BottleCommand {
         /// Frame rate overlay in games.
         #[arg(long)]
         fps: Option<bool>,
+        /// How much Wine logs: off, errors or verbose.
+        #[arg(long, value_parser = parse_wine_debug)]
+        wine_debug: Option<bottle::WineDebug>,
     },
     /// Set environment variables (KEY=VALUE), or remove them (KEY=).
     Env { bottle: String, vars: Vec<String> },
@@ -467,6 +485,10 @@ fn parse_flag(s: &str) -> Result<ExperimentalFlag, String> {
     })
 }
 
+fn parse_wine_debug(s: &str) -> Result<bottle::WineDebug, String> {
+    bottle::WineDebug::parse(s).ok_or_else(|| "expected off, errors or verbose".into())
+}
+
 fn parse_backend(s: &str) -> Result<Backend, String> {
     Backend::parse(s).ok_or_else(|| "expected wined3d, dxvk, dxmt or d3dmetal".into())
 }
@@ -524,6 +546,17 @@ async fn run(out: Out, command: Command) -> Result<()> {
         Command::Recipe(cmd) => recipe_command(&paths, out, cmd).await,
         Command::D3dmetal(cmd) => d3dmetal_command(&paths, out, cmd),
         Command::Experimental(cmd) => experimental_command(&paths, out, cmd),
+        Command::Diag(DiagCommand::Export {
+            bottle: key,
+            output,
+        }) => {
+            let b = bottle::resolve(&paths, &key)?;
+            let dest = output.unwrap_or_else(|| PathBuf::from("."));
+            let zip = vinter_core::diag::export(&paths, &b.id, &dest)?;
+            out.print(&json!({ "path": zip }), || {
+                println!("Wrote {}", zip.display())
+            })
+        }
         Command::Arch { file, bottle } => arch_command(&paths, out, &file, bottle.as_deref()),
         Command::Mcp => mcp::serve(paths).await,
         Command::InstallRosetta => {
@@ -958,6 +991,7 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
             command_as_ctrl,
             option_as_alt,
             fps,
+            wine_debug,
         } => {
             let id = id(&key)?;
             let mut options = bottle::get(paths, &id)?.options;
@@ -965,14 +999,16 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
             options.command_as_ctrl = command_as_ctrl.unwrap_or(options.command_as_ctrl);
             options.option_as_alt = option_as_alt.unwrap_or(options.option_as_alt);
             options.show_fps = fps.unwrap_or(options.show_fps);
+            options.wine_debug = wine_debug.unwrap_or(options.wine_debug);
             let b = bottle::set_options(paths, &id, options)?;
             out.print(&b.options, || {
                 println!(
-                    "Retina mode: {}\n⌘ as Ctrl: {}\n⌥ as Alt: {}\nFrame rate overlay: {}",
+                    "Retina mode: {}\n⌘ as Ctrl: {}\n⌥ as Alt: {}\nFrame rate overlay: {}\nWine logging: {}",
                     on_off(b.options.retina_mode),
                     on_off(b.options.command_as_ctrl),
                     on_off(b.options.option_as_alt),
-                    on_off(b.options.show_fps)
+                    on_off(b.options.show_fps),
+                    b.options.wine_debug.id()
                 )
             })
         }

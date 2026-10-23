@@ -183,6 +183,11 @@ export const commands = {
 	appOpenLink: (link: AppLink) => __TAURI_INVOKE<null>("app_open_link", { link }),
 	/**  Text for "Copy debug report". */
 	debugReport: (bottleId: string) => __TAURI_INVOKE<string>("debug_report", { bottleId }),
+	/**
+	 *  "Export diagnostics": asks where to save, then writes the zip there.
+	 *  Returns its path, or `None` if the dialog was cancelled.
+	 */
+	diagExport: (bottleId: string) => __TAURI_INVOKE<string | null>("diag_export", { bottleId }),
 	/**  Asks getvinter.app for a newer version. */
 	updateCheck: () => __TAURI_INVOKE<{
 	version: string,
@@ -379,6 +384,7 @@ export type BottleOptionsFile = {
 	command_as_ctrl?: boolean,
 	option_as_alt?: boolean | null,
 	show_fps?: boolean,
+	wine_debug?: WineDebug,
 };
 
 /**
@@ -403,6 +409,8 @@ export type BottleOptions_Serialize = {
 	option_as_alt: boolean,
 	/**  Show a frame rate overlay in games (DXVK's and Metal's HUD). */
 	show_fps: boolean,
+	/**  How much Wine writes to the log. */
+	wine_debug: WineDebug,
 };
 
 /**  Fields to change; missing (null) ones are left alone. */
@@ -1157,6 +1165,18 @@ export type WindowsComponent = {
 
 /**  Windows version reported to programs, set with `winecfg /v`. */
 export type WindowsVersion = "win11" | "win10" | "win81" | "win8" | "win7" | "winxp64";
+
+/**  How much Wine writes to a program's log (`WINEDEBUG`). */
+export type WineDebug = 
+/**  Nothing from Wine itself; the program's own output is still logged. */
+"off" | 
+/**  Wine's error messages. */
+"errors" | 
+/**
+ *  Errors, warnings and unimplemented functions, plus which DLLs load
+ *  and the exceptions raised. Logs get large; for troubleshooting.
+ */
+"verbose";
 
 /* Tauri Specta runtime */
 type EventEmit<T> = [T] extends [null] ? () => Promise<void> : (payload: T) => Promise<void>;

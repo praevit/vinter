@@ -83,6 +83,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app::app_info,
             commands::app::app_open_link,
             commands::app::debug_report,
+            commands::app::diag_export,
             commands::app::update_check,
             commands::app::update_status,
             commands::app::update_install,

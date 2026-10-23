@@ -1,7 +1,16 @@
-import type { BottleOptions_Serialize as BottleOptions } from "../api/bindings";
+import type { BottleOptions_Serialize as BottleOptions, WineDebug } from "../api/bindings";
+import { Select } from "./Select";
 import { subtle } from "./ui";
 
-const OPTIONS: { key: keyof BottleOptions; label: string; help: string; macOnly: boolean }[] = [
+type Switch = "retina_mode" | "command_as_ctrl" | "option_as_alt" | "show_fps";
+
+const WINE_DEBUG: { value: WineDebug; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "errors", label: "Errors" },
+  { value: "verbose", label: "Verbose (for troubleshooting)" },
+];
+
+const OPTIONS: { key: Switch; label: string; help: string; macOnly: boolean }[] = [
   {
     key: "retina_mode",
     label: "Retina mode",
@@ -57,6 +66,19 @@ export function BottleOptionsFields({
           </span>
         </label>
       ))}
+      <div className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium">Wine logging</span>
+        <Select
+          value={value.wine_debug}
+          disabled={disabled}
+          options={WINE_DEBUG}
+          onChange={(wine_debug) => onChange({ ...value, wine_debug })}
+        />
+        <span className={subtle}>
+          What Wine writes to each program's log. Turn on Errors or Verbose when something fails, then open the log.
+          Verbose logs get large.
+        </span>
+      </div>
     </div>
   );
 }

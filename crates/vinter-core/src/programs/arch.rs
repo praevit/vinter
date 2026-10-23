@@ -26,6 +26,17 @@ pub enum PeArch {
 }
 
 impl PeArch {
+    /// The serde name, e.g. "arm64ec".
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::I386 => "i386",
+            Self::Amd64 => "amd64",
+            Self::Arm64 => "arm64",
+            Self::Arm64ec => "arm64ec",
+            Self::Arm64x => "arm64x",
+        }
+    }
+
     /// The badge on a program's tile.
     pub fn label(self) -> &'static str {
         match self {

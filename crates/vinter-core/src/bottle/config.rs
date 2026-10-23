@@ -65,6 +65,46 @@ pub enum Graphics {
     D3dmetal,
 }
 
+/// How much Wine writes to a program's log (`WINEDEBUG`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum WineDebug {
+    /// Nothing from Wine itself; the program's own output is still logged.
+    #[default]
+    Off,
+    /// Wine's error messages.
+    Errors,
+    /// Errors, warnings and unimplemented functions, plus which DLLs load
+    /// and the exceptions raised. Logs get large; for troubleshooting.
+    Verbose,
+}
+
+impl WineDebug {
+    pub const ALL: [Self; 3] = [Self::Off, Self::Errors, Self::Verbose];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Errors => "errors",
+            Self::Verbose => "verbose",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|w| w.id() == s)
+    }
+
+    /// The `WINEDEBUG` value.
+    pub fn env_value(self) -> &'static str {
+        match self {
+            Self::Off => "-all",
+            Self::Errors => "-all,err+all",
+            Self::Verbose => "err+all,warn+all,fixme+all,+loaddll,+seh",
+        }
+    }
+}
+
 /// Per-bottle display, keyboard and performance switches. The default (all
 /// off) is what bottles made before these options existed had.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +120,8 @@ pub struct BottleOptions {
     pub option_as_alt: bool,
     /// Show a frame rate overlay in games (DXVK's and Metal's HUD).
     pub show_fps: bool,
+    /// How much Wine writes to the log.
+    pub wine_debug: WineDebug,
 }
 
 /// [`BottleOptions`] as read: missing switches are off, except
@@ -92,6 +134,7 @@ struct BottleOptionsFile {
     command_as_ctrl: bool,
     option_as_alt: Option<bool>,
     show_fps: bool,
+    wine_debug: WineDebug,
 }
 
 impl From<BottleOptionsFile> for BottleOptions {
@@ -101,6 +144,7 @@ impl From<BottleOptionsFile> for BottleOptions {
             command_as_ctrl: f.command_as_ctrl,
             option_as_alt: f.option_as_alt.unwrap_or(f.command_as_ctrl),
             show_fps: f.show_fps,
+            wine_debug: f.wine_debug,
         }
     }
 }
@@ -114,6 +158,7 @@ impl BottleOptions {
             command_as_ctrl: mac,
             option_as_alt: mac,
             show_fps: false,
+            wine_debug: WineDebug::Off,
         }
     }
 }

@@ -7,6 +7,7 @@
 pub mod approval;
 pub mod bottle;
 pub mod components;
+pub mod diag;
 pub mod doctor;
 pub mod download;
 pub mod engine;

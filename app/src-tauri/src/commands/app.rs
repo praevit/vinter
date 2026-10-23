@@ -86,6 +86,36 @@ pub async fn debug_report(state: State<'_, AppState>, bottle_id: String) -> Comm
     blocking(move || Ok(vinter_core::report::debug_report(&paths, &bottle_id)?)).await
 }
 
+/// "Export diagnostics": asks where to save, then writes the zip there.
+/// Returns its path, or `None` if the dialog was cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn diag_export(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    bottle_id: String,
+) -> CommandResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let paths = state.paths.clone();
+    blocking(move || {
+        let bottle = vinter_core::bottle::get(&paths, &bottle_id)?;
+        let picked = app
+            .dialog()
+            .file()
+            .set_title("Export diagnostics")
+            .set_file_name(vinter_core::diag::file_name(&bottle))
+            .add_filter("Zip archive", &["zip"])
+            .blocking_save_file()
+            .and_then(|p| p.into_path().ok());
+        let Some(dest) = picked else {
+            return Ok(None);
+        };
+        let zip = vinter_core::diag::export(&paths, &bottle_id, &dest)?;
+        Ok(Some(zip.display().to_string()))
+    })
+    .await
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, specta::Type)]
 pub struct UpdateInfo {
     pub version: String,

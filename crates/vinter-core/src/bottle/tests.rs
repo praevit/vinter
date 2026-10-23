@@ -345,6 +345,7 @@ fn options_reg_maps_switches_to_the_mac_driver_and_dpi() {
         command_as_ctrl: true,
         option_as_alt: false,
         show_fps: false,
+        wine_debug: WineDebug::Off,
     });
     assert!(on.starts_with("REGEDIT4\r\n"));
     assert!(on.contains("\"LeftOptionIsAlt\"=\"n\""));

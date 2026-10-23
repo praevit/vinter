@@ -12,6 +12,7 @@ use serde::Serialize;
 
 pub use config::{
     Bottle, BottleOptions, CONFIG_FILE, DomainAccount, Graphics, ProgramDef, WindowsVersion,
+    WineDebug,
 };
 
 use crate::error::{IoResultExt, validate_id};
@@ -783,6 +784,16 @@ pub fn run_tool(paths: &AppPaths, id: &str, tool: Tool) -> Result<u32> {
     domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine")?;
     cmd.arg(tool.program());
+    // Wine's own tools are built for the runtime's own architecture.
+    let exe = crate::engine::wine_lib_dir(&rt)
+        .join(rt.engine().pe_dir())
+        .join(format!("{}.exe", tool.program()));
+    let found = crate::programs::arch::detect(&exe).and_then(|pe| {
+        crate::programs::arch::run_path(pe, rt.engine)
+            .ok()
+            .map(|path| (pe, path))
+    });
+    crate::diag::write_launch_header(&log, tool.program(), found, &rt, &bottle, &cmd)?;
     process::spawn_detached(cmd, &log, &format!("Opening {}", tool.program()))
 }
 

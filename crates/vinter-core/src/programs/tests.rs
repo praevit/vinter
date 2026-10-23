@@ -386,3 +386,44 @@ fn update_renames_changes_args_and_icon() {
     assert!(update(&paths, &id, 0, bad_name).is_err());
     assert!(update(&paths, &id, 5, ProgramPatch::default()).is_err());
 }
+
+#[test]
+fn intel_programs_need_the_runtimes_fex_emulator() {
+    use crate::engine::EngineKind;
+    use crate::programs::arch::{PeArch, RunPath};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = AppPaths::with_data_dir(tmp.path());
+    let rt_dir = paths.runtimes_dir().join("arm");
+    std::fs::create_dir_all(rt_dir.join("bin")).unwrap();
+    std::fs::write(
+        rt_dir.join("runtime.toml"),
+        "id = \"arm\"\nname = \"Arm Wine\"\nversion = \"11.10\"\nflavor = \"devel\"\nurl = \"\"\n\
+         sha256 = \"\"\ninstalled_at = \"2026-10-23T00:00:00Z\"\nwine_bin = \"bin/wine\"\n\
+         license = \"\"\nsource_url = \"\"\narch = \"aarch64\"\ngraphics = [\"wined3d\"]\n\
+         engine = \"arm64-fex\"\n",
+    )
+    .unwrap();
+    let rt = crate::runtime::get(&paths, "arm").unwrap();
+    let bottle: Bottle = toml::from_str(
+        "id = \"b\"\nname = \"Arm bottle\"\nruntime = \"arm\"\nengine = \"arm64-fex\"\ncreated_at = \"2026-10-23T00:00:00Z\"\n",
+    )
+    .unwrap();
+    let exe = tmp.path().join("app.exe");
+    std::fs::write(&exe, crate::programs::arch::tests::pe(0x8664, true, false)).unwrap();
+
+    // No libarm64ecfex.dll in the runtime: refused, saying why.
+    let err = check_architecture("App", &exe, &bottle, &rt).unwrap_err();
+    assert!(matches!(err, Error::WrongArchitecture { .. }), "{err}");
+    assert!(err.to_string().contains("64-bit emulator"), "{err}");
+
+    // With it: x86-64 through FEX.
+    let pe = rt_dir.join("lib/wine/aarch64-windows");
+    std::fs::create_dir_all(&pe).unwrap();
+    std::fs::write(pe.join("libarm64ecfex.dll"), "").unwrap();
+    assert_eq!(
+        check_architecture("App", &exe, &bottle, &rt).unwrap(),
+        Some((PeArch::Amd64, RunPath::Fex64))
+    );
+    assert_eq!(rt.engine, EngineKind::Arm64Fex);
+}

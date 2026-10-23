@@ -42,7 +42,10 @@ pub fn wine_env(
 
     let mut env = vec![
         ("WINEPREFIX".to_string(), prefix.display().to_string()),
-        ("WINEDEBUG".to_string(), "-all".to_string()),
+        (
+            "WINEDEBUG".to_string(),
+            bottle.options.wine_debug.env_value().to_string(),
+        ),
         // MoltenVK (macOS Vulkan) prints ~150 info lines per start; keep errors only.
         ("MVK_CONFIG_LOG_LEVEL".to_string(), "1".to_string()),
     ];
@@ -467,6 +470,32 @@ mod tests {
         assert_eq!(get(&env, "KRB5CCNAME"), Some("FILE:/b/kerberos/ccache"));
         // The bottle's own variables still win.
         assert_eq!(get(&env, "USER"), Some("override"));
+    }
+
+    #[test]
+    fn wine_debug_presets() {
+        use crate::bottle::WineDebug;
+        let mut b = bottle();
+        for (preset, value) in [
+            (WineDebug::Off, "-all"),
+            (WineDebug::Errors, "-all,err+all"),
+            (
+                WineDebug::Verbose,
+                "err+all,warn+all,fixme+all,+loaddll,+seh",
+            ),
+        ] {
+            b.options.wine_debug = preset;
+            assert_eq!(
+                get(&wine_env(Path::new("/p"), &b, &[]), "WINEDEBUG"),
+                Some(value)
+            );
+        }
+        // The bottle's own WINEDEBUG still wins.
+        b.env.insert("WINEDEBUG".into(), "+relay".into());
+        assert_eq!(
+            get(&wine_env(Path::new("/p"), &b, &[]), "WINEDEBUG"),
+            Some("+relay")
+        );
     }
 
     #[test]

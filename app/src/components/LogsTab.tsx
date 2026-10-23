@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ClipboardCopy, RefreshCw } from "lucide-react";
+import { ClipboardCopy, FileArchive, RefreshCw } from "lucide-react";
 import { commands } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { useLog, useLogs } from "../api/programs";
@@ -34,6 +34,15 @@ export function LogsTab({ bottleId, initial }: { bottleId: string; initial?: str
     }
   };
 
+  const exportDiagnostics = async () => {
+    try {
+      const path = await commands.diagExport(bottleId);
+      if (path) setCopied(`Diagnostics saved to ${path}. Attach the file to a bug report.`);
+    } catch (e) {
+      setCopied(`Could not export: ${errorMessage(e)}`);
+    }
+  };
+
   const isLive = (id: string) =>
     runs.some((r) => r.info.bottle_id === bottleId && r.info.log_id === id && !r.exit);
 
@@ -41,6 +50,12 @@ export function LogsTab({ bottleId, initial }: { bottleId: string; initial?: str
     <div className="flex items-center gap-3">
       <Button onClick={copyReport}>
         <ClipboardCopy className="size-4" /> Copy debug report
+      </Button>
+      <Button
+        onClick={exportDiagnostics}
+        title="A zip of this bottle's logs, settings and system checks, with your home folder hidden. No documents from its C: drive."
+      >
+        <FileArchive className="size-4" /> Export diagnostics
       </Button>
       {copied && <span className={subtle}>{copied}</span>}
     </div>

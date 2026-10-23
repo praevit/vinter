@@ -135,7 +135,7 @@ fn os_description() -> String {
     }
 }
 
-fn redact_home(text: &str) -> String {
+pub(crate) fn redact_home(text: &str) -> String {
     match directories::BaseDirs::new() {
         Some(base) => {
             let home = base.home_dir().display().to_string();
