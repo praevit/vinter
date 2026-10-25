@@ -51,6 +51,7 @@
     "allow-program-choose-icon",
     "allow-programs-list",
     "allow-program-launch",
+    "allow-program-launch-logged",
     "allow-program-stop",
     "allow-program-show",
     "allow-runs-list",

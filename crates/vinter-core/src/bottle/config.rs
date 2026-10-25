@@ -71,9 +71,10 @@ pub enum Graphics {
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub enum WineDebug {
     /// Nothing from Wine itself; the program's own output is still logged.
-    #[default]
     Off,
-    /// Wine's error messages.
+    /// Wine's error messages. The default: the log doctor needs them (for
+    /// example to name a missing DLL), and they are few.
+    #[default]
     Errors,
     /// Errors, warnings and unimplemented functions, plus which DLLs load
     /// and the exceptions raised. Logs get large; for troubleshooting.
@@ -106,7 +107,7 @@ impl WineDebug {
 }
 
 /// Per-bottle display, keyboard and performance switches. The default (all
-/// off) is what bottles made before these options existed had.
+/// off, Wine errors logged) is what bottles made before these options existed get.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "BottleOptionsFile")]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -125,7 +126,8 @@ pub struct BottleOptions {
 }
 
 /// [`BottleOptions`] as read: missing switches are off, except
-/// `option_as_alt`, which follows `command_as_ctrl` (it was part of it).
+/// `option_as_alt`, which follows `command_as_ctrl` (it was part of it), and
+/// `wine_debug`, which logs errors.
 #[derive(Deserialize, Default)]
 #[serde(default)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
@@ -158,7 +160,7 @@ impl BottleOptions {
             command_as_ctrl: mac,
             option_as_alt: mac,
             show_fps: false,
-            wine_debug: WineDebug::Off,
+            wine_debug: WineDebug::Errors,
         }
     }
 }
@@ -369,6 +371,16 @@ dns_domain = "corp.example.com"
         let new: BottleOptions =
             toml::from_str("command_as_ctrl = true\noption_as_alt = false").unwrap();
         assert!(new.command_as_ctrl && !new.option_as_alt);
+    }
+
+    #[test]
+    fn wine_errors_are_logged_unless_turned_off() {
+        // Older files have no `wine_debug`: log errors, so the doctor can see them.
+        let old: BottleOptions = toml::from_str("show_fps = true").unwrap();
+        assert_eq!(old.wine_debug, WineDebug::Errors);
+        assert_eq!(BottleOptions::recommended().wine_debug, WineDebug::Errors);
+        let off: BottleOptions = toml::from_str("wine_debug = \"off\"").unwrap();
+        assert_eq!(off.wine_debug, WineDebug::Off);
     }
 
     #[test]

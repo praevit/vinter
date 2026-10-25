@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { commands, events, type RunInfo, type Stream } from "./bindings";
+import { logRoute, navigate } from "./navigate";
 import { useToasts } from "./toasts";
 
 /** Lines kept in memory per run; the full output is in the run's log file. */
@@ -15,8 +16,11 @@ export type Run = {
 
 type Runs = {
   runs: Run[];
-  /** Records a run (its events may already be arriving). Safe to call twice. */
-  add: (info: RunInfo) => void;
+  /**
+   * Records a run (its events may already be arriving). Safe to call twice.
+   * `quiet` runs get no toast when they fail (the "Fix it" steps show it themselves).
+   */
+  add: (info: RunInfo, options?: { quiet?: boolean }) => void;
 };
 
 const RunsContext = createContext<Runs | null>(null);
@@ -26,14 +30,19 @@ export function RunsProvider({ children }: { children: ReactNode }) {
   const [runs, setRuns] = useState<Record<string, Run>>({});
   const toasts = useToasts();
   const queryClient = useQueryClient();
+  // Read when a run exits, outside the state updater (which may run twice).
+  const infos = useRef(new Map<string, RunInfo>());
+  const quiet = useRef(new Set<string>());
 
-  const add = useCallback((info: RunInfo) => {
+  const add = useCallback((info: RunInfo, options?: { quiet?: boolean }) => {
+    infos.current.set(info.run_id, info);
+    if (options?.quiet) quiet.current.add(info.run_id);
     setRuns((r) => ({ ...r, [info.run_id]: { ...(r[info.run_id] ?? { lines: [] }), info } }));
   }, []);
 
   useEffect(() => {
     // Runs started before this window loaded (e.g. after a reload).
-    commands.runsList().then((list) => list.forEach(add));
+    commands.runsList().then((list) => list.forEach((info) => add(info)));
     // Runs started anywhere: here, the menu bar, a launcher or a link.
     const started = events.runStarted.listen(({ payload: { info } }) => {
       add(info);
@@ -47,16 +56,30 @@ export function RunsProvider({ children }: { children: ReactNode }) {
         return { ...r, [p.run_id]: { ...run, lines } };
       }),
     );
-    const exit = events.runExit.listen(({ payload: p }) =>
+    const exit = events.runExit.listen(({ payload: p }) => {
       setRuns((r) => {
         const run = r[p.run_id];
         if (!run) return r;
-        if (p.code !== null && p.code !== 0) {
-          toasts.show(`${run.info.name} exited with code ${p.code}. Its log is in the bottle's Logs tab.`);
-        }
         return { ...r, [p.run_id]: { ...run, exit: { code: p.code } } };
-      }),
-    );
+      });
+      const info = infos.current.get(p.run_id);
+      if (info && p.code !== null && p.code !== 0 && !quiet.current.has(p.run_id)) {
+        void exitToast(info, p.code);
+      }
+    });
+    // What the log doctor makes of a failed run, with a way to its log.
+    const exitToast = async (info: RunInfo, code: number) => {
+      const top = await commands.logDiagnose(info.bottle_id, info.log_id).then(
+        (f) => f[0],
+        () => undefined,
+      );
+      const open = () => navigate(logRoute(info.bottle_id, info.log_id));
+      toasts.show(
+        top ? `${info.name} quit: ${top.title}.` : `${info.name} exited with code ${code}.`,
+        "error",
+        { label: top ? "See how to fix it" : "Show log", onClick: open },
+      );
+    };
     return () => {
       started.then((u) => u());
       log.then((u) => u());

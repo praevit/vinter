@@ -152,6 +152,11 @@ export const commands = {
 	programsList: (bottleId: string) => __TAURI_INVOKE<ProgramView[]>("programs_list", { bottleId }),
 	/**  Starts a program. Output arrives as `run://log`, the end as `run://exit`. */
 	programLaunch: (bottleId: string, programIndex: number) => __TAURI_INVOKE<RunInfo>("program_launch", { bottleId, programIndex }),
+	/**
+	 *  Starts a program once with a different Wine logging level, without
+	 *  changing the bottle's setting (the "Fix it" steps run it with Verbose).
+	 */
+	programLaunchLogged: (bottleId: string, programIndex: number, wineDebug: WineDebug) => __TAURI_INVOKE<RunInfo>("program_launch_logged", { bottleId, programIndex, wineDebug }),
 	/**  Stops a running program. Other programs in the bottle keep running. */
 	programStop: (runId: string) => __TAURI_INVOKE<null>("program_stop", { runId }),
 	/**
@@ -439,13 +444,14 @@ export type BottleListItem = {
 
 /**
  *  Per-bottle display, keyboard and performance switches. The default (all
- *  off) is what bottles made before these options existed had.
+ *  off, Wine errors logged) is what bottles made before these options existed get.
  */
 export type BottleOptions = BottleOptions_Serialize | BottleOptions_Deserialize;
 
 /**
  *  [`BottleOptions`] as read: missing switches are off, except
- *  `option_as_alt`, which follows `command_as_ctrl` (it was part of it).
+ *  `option_as_alt`, which follows `command_as_ctrl` (it was part of it), and
+ *  `wine_debug`, which logs errors.
  */
 export type BottleOptionsFile = {
 	retina_mode?: boolean,
@@ -457,13 +463,13 @@ export type BottleOptionsFile = {
 
 /**
  *  Per-bottle display, keyboard and performance switches. The default (all
- *  off) is what bottles made before these options existed had.
+ *  off, Wine errors logged) is what bottles made before these options existed get.
  */
 export type BottleOptions_Deserialize = BottleOptionsFile;
 
 /**
  *  Per-bottle display, keyboard and performance switches. The default (all
- *  off) is what bottles made before these options existed had.
+ *  off, Wine errors logged) is what bottles made before these options existed get.
  */
 export type BottleOptions_Serialize = {
 	/**  macOS: draw at full Retina resolution (and at 192 DPI so text keeps its size). */
@@ -755,6 +761,15 @@ export type Fix =
 { kind: "graphics"; backend: Graphics } | 
 /**  Roll the bottle back to a snapshot from before it broke. */
 { kind: "restore_snapshot" } | 
+/**  Get a runtime that works: reinstall this one, or install a newer one. */
+{ kind: "open_runtimes" } | 
+/**  Install Rosetta 2, which Intel runtimes need on Apple Silicon. */
+{ kind: "install_rosetta" } | 
+/**
+ *  Try the program on the other engine (an Intel bottle on Apple
+ *  Silicon), or on a newer runtime.
+ */
+{ kind: "other_engine" } | 
 /**  Nothing Vinter can do for you; the finding's detail says what to try. */
 { kind: "manual" };
 
@@ -763,6 +778,10 @@ export type FlagState = {
 	flag: ExperimentalFlag,
 	title: string,
 	description: string,
+	/**  Where its controls show up, e.g. "Bottle → Programs → Edit". */
+	location: string,
+	/**  What it needs to show up, e.g. "Needs an Apple Silicon bottle". */
+	requirement: string | null,
 	risk: Risk,
 	/**  False while the feature behind it is not built yet. */
 	available: boolean,
@@ -1404,7 +1423,10 @@ export type WindowsVersion = "win11" | "win10" | "win81" | "win8" | "win7" | "wi
 export type WineDebug = 
 /**  Nothing from Wine itself; the program's own output is still logged. */
 "off" | 
-/**  Wine's error messages. */
+/**
+ *  Wine's error messages. The default: the log doctor needs them (for
+ *  example to name a missing DLL), and they are few.
+ */
 "errors" | 
 /**
  *  Errors, warnings and unimplemented functions, plus which DLLs load

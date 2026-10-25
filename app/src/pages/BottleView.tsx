@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Copy, Eraser, FolderOpen, Square, Trash2 } from "lucide-react";
 import { commands, type Readiness, type Tool } from "../api/bindings";
@@ -36,19 +36,39 @@ import { ProgramsTab } from "../components/ProgramsTab";
 import { ComponentsSection } from "../components/ComponentsSection";
 import { SnapshotsSection } from "../components/SnapshotsSection";
 import { ProgressBar } from "../components/ProgressBar";
-import type { Route } from "../components/Sidebar";
+import type { BottleFocus, Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field, subtle } from "../components/ui";
 import { Select } from "../components/Select";
 
 type Tab = "programs" | "tools" | "logs" | "settings";
 
-export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Route) => void }) {
+export function BottleView({
+  id,
+  focus,
+  onNavigate,
+}: {
+  id: string;
+  /** Opens a tab (and a log or section in it). Each new value applies once. */
+  focus?: BottleFocus;
+  onNavigate: (r: Route) => void;
+}) {
   const { data: bottle, error } = useBottle(id);
   const { data: list } = useBottles();
   const { data: runtimes } = useInstalledRuntimes();
   const jobs = useJobs();
-  const [tab, setTab] = useState<Tab>("programs");
-  const [logToShow, setLogToShow] = useState<string>();
+  const [tab, setTab] = useState<Tab>(focus?.tab ?? "programs");
+  const [logToShow, setLogToShow] = useState<string | undefined>(focus?.tab === "logs" ? focus.log : undefined);
+  const [settingsFocus, setSettingsFocus] = useState(focus?.tab === "settings" ? focus : undefined);
+  // A new focus (e.g. "Show log" in a toast) while this page is open.
+  const [seenFocus, setSeenFocus] = useState(focus);
+  if (focus !== seenFocus) {
+    setSeenFocus(focus);
+    if (focus) {
+      setTab(focus.tab);
+      if (focus.tab === "logs") setLogToShow(focus.log);
+      else setSettingsFocus(focus);
+    }
+  }
   const [migrating, setMigrating] = useState(false);
   const canMigrate = useExperimental("bottle-migrate-arm64");
 
@@ -136,6 +156,7 @@ export function BottleView({ id, onNavigate }: { id: string; onNavigate: (r: Rou
           {tab === "tools" && <Tools bottle={bottle} needsRosetta={runtime?.needs_rosetta ?? false} />}
           {tab === "settings" && (
             <Settings
+              focus={settingsFocus}
               bottle={bottle}
               needsRosetta={runtime?.needs_rosetta ?? false}
               onNavigate={onNavigate}
@@ -285,11 +306,13 @@ function Tools({ bottle, needsRosetta }: { bottle: BottleDetails; needsRosetta: 
 
 function Settings({
   bottle,
+  focus,
   needsRosetta,
   onNavigate,
   onShowLog,
 }: {
   bottle: BottleDetails;
+  focus?: BottleFocus & { tab: "settings" };
   needsRosetta: boolean;
   onNavigate: (r: Route) => void;
   onShowLog: (logId: string) => void;
@@ -310,6 +333,10 @@ function Settings({
   const optJob = jobs.job(optionsJobKey(bottle.id));
   const changingOptions = isRunning(optJob);
   const { data: app } = useAppInfo();
+  const snapshots = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focus?.section === "snapshots") snapshots.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focus]);
 
   const duplicate = async () => {
     setDupError(undefined);
@@ -403,7 +430,9 @@ function Settings({
         />
       </div>
 
-      <SnapshotsSection bottleId={bottle.id} />
+      <div ref={snapshots} className="scroll-mt-6">
+        <SnapshotsSection bottleId={bottle.id} />
+      </div>
 
       <BottleStorage bottleId={bottle.id} />
 

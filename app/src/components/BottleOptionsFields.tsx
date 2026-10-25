@@ -6,7 +6,7 @@ type Switch = "retina_mode" | "command_as_ctrl" | "option_as_alt" | "show_fps";
 
 const WINE_DEBUG: { value: WineDebug; label: string }[] = [
   { value: "off", label: "Off" },
-  { value: "errors", label: "Errors" },
+  { value: "errors", label: "Errors (recommended)" },
   { value: "verbose", label: "Verbose (for troubleshooting)" },
 ];
 
@@ -75,8 +75,8 @@ export function BottleOptionsFields({
           onChange={(wine_debug) => onChange({ ...value, wine_debug })}
         />
         <span className={subtle}>
-          What Wine writes to each program's log. Turn on Errors or Verbose when something fails, then open the log.
-          Verbose logs get large.
+          What Wine writes to each program's log. Errors lets the log doctor find problems. Turn on Verbose when
+          something fails, then open the log. Verbose logs get large.
         </span>
       </div>
     </div>

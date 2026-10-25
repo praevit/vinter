@@ -260,20 +260,24 @@ function ExperimentalGroup() {
         <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
         <p>
           These features are unfinished. They may not work, and can change or go away in any update. Back up bottles
-          you care about before trying them. Features marked "Not built yet" do nothing for now.
+          you care about before trying them.
         </p>
       </div>
       <div className="divide-y divide-frost-200 rounded-2xl border border-frost-200 bg-white dark:divide-slate-deep-700 dark:border-slate-deep-700 dark:bg-slate-deep-900">
         {flags?.map((f) => (
-          <label key={f.flag} className="flex cursor-pointer items-center gap-4 px-5 py-3.5">
+          <label key={f.flag} title={f.flag} className="flex cursor-pointer items-center gap-4 px-5 py-3.5">
             <span className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="flex flex-wrap items-center gap-1.5">
                 <span className="text-sm font-medium">{f.title}</span>
                 <RiskBadge risk={f.risk} />
-                {!f.available && <span className={subtle}>Not built yet</span>}
+                {f.requirement && (
+                  <span className="rounded bg-frost-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300">
+                    {f.requirement}
+                  </span>
+                )}
               </span>
               <span className={subtle}>{f.description}</span>
-              <code className={`${subtle} font-mono`}>{f.flag}</code>
+              <span className={subtle}>Where to find it: {f.location}</span>
             </span>
             <Switch checked={f.enabled} onChange={(on) => toggle(f, on)} />
           </label>

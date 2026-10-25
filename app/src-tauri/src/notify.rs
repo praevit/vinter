@@ -8,11 +8,14 @@ use tauri_specta::Event;
 use crate::events::Notice;
 use crate::state::AppState;
 
+/// Vinter's main window is visible and focused.
+pub fn main_window_in_front(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .is_some_and(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false))
+}
+
 pub fn send(app: &AppHandle, title: &str, body: &str) {
-    let focused = app
-        .get_webview_window("main")
-        .is_some_and(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false));
-    if focused {
+    if main_window_in_front(app) {
         let _ = Notice {
             message: format!("{title}. {body}"),
         }

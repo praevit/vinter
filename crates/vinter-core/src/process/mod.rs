@@ -407,7 +407,7 @@ mod tests {
     fn defaults() {
         let env = wine_env(Path::new("/b/prefix"), &bottle(), &[]);
         assert_eq!(get(&env, "WINEPREFIX"), Some("/b/prefix"));
-        assert_eq!(get(&env, "WINEDEBUG"), Some("-all"));
+        assert_eq!(get(&env, "WINEDEBUG"), Some("-all,err+all"));
         assert_eq!(get(&env, "WINEDLLOVERRIDES"), Some("winemenubuilder.exe=d"));
         assert_eq!(get(&env, "MVK_CONFIG_LOG_LEVEL"), Some("1"));
     }
@@ -572,7 +572,8 @@ show_fps = true
         let p = prefix.display().to_string();
         let mut expected: Vec<(&str, String)> = vec![
             ("WINEPREFIX", p.clone()),
-            ("WINEDEBUG", "-all".into()),
+            // Wine errors are logged since the default changed (for the log doctor).
+            ("WINEDEBUG", "-all,err+all".into()),
             ("MVK_CONFIG_LOG_LEVEL", "1".into()),
             (
                 "WINEDLLOVERRIDES",

@@ -169,6 +169,42 @@ impl ExperimentalFlag {
         }
     }
 
+    /// Where its controls show up once it is on.
+    pub fn location(self) -> &'static str {
+        use ExperimentalFlag::*;
+        match self {
+            PerAppEngine | FexConfigEditor | LauncherShims => "Bottle → Programs → Edit",
+            CompatNotes => "Bottle → Programs → Edit, and a dot on the program",
+            EngineAbCompare => "Bottle → Programs → Compare engines, on a program",
+            SimulateMacos28 => "Runtimes, and New bottle",
+            BottleMigrateArm64 => "The bottle's page: Recreate for Apple Silicon",
+            Wow64LargeAddress => {
+                "Bottle → Programs: the memory badge on 32-bit apps, and their logs"
+            }
+            GraphicsDxvkArm64ec => "Bottle → Settings → Graphics",
+            GraphicsUserGptk => "Settings → D3DMetal",
+            RuntimeChannelNightly | Arm64FexLinux => "Runtimes",
+            RuntimeBuildFromSource => "Runtimes → Install a runtime you built",
+        }
+    }
+
+    /// What it needs before it shows up, when not every setup has it.
+    pub fn requirement(self) -> Option<&'static str> {
+        use ExperimentalFlag::*;
+        match self {
+            PerAppEngine | FexConfigEditor | GraphicsDxvkArm64ec => {
+                Some("Needs an Apple Silicon bottle")
+            }
+            Wow64LargeAddress => Some("For 32-bit apps"),
+            EngineAbCompare => Some("Needs two bottles with the app"),
+            BottleMigrateArm64 => Some("Needs an Intel (Rosetta) bottle"),
+            GraphicsUserGptk => Some("Needs the Game Porting Toolkit installed"),
+            Arm64FexLinux => Some("Needs an ARM64 Linux computer"),
+            LauncherShims => Some("Only for known game launchers"),
+            SimulateMacos28 | CompatNotes | RuntimeChannelNightly | RuntimeBuildFromSource => None,
+        }
+    }
+
     pub fn risk(self) -> Risk {
         use ExperimentalFlag::*;
         match self {
@@ -295,6 +331,10 @@ pub struct FlagState {
     pub flag: ExperimentalFlag,
     pub title: &'static str,
     pub description: &'static str,
+    /// Where its controls show up, e.g. "Bottle → Programs → Edit".
+    pub location: &'static str,
+    /// What it needs to show up, e.g. "Needs an Apple Silicon bottle".
+    pub requirement: Option<&'static str>,
     pub risk: Risk,
     /// False while the feature behind it is not built yet.
     pub available: bool,
@@ -314,6 +354,8 @@ pub fn list(paths: &AppPaths) -> Vec<FlagState> {
             flag,
             title: flag.title(),
             description: flag.description(),
+            location: flag.location(),
+            requirement: flag.requirement(),
             risk: flag.risk(),
             available: flag.available(),
             enabled: flags.is_enabled(flag),
@@ -342,6 +384,18 @@ mod tests {
             assert_eq!(ExperimentalFlag::parse(f.id()), Some(f));
         }
         assert_eq!(ExperimentalFlag::parse("nope"), None);
+    }
+
+    #[test]
+    fn every_flag_says_where_to_find_it() {
+        for &f in all() {
+            assert!(!f.location().is_empty(), "{f}");
+            assert!(f.requirement().is_none_or(|r| !r.is_empty()), "{f}");
+        }
+        assert_eq!(
+            ExperimentalFlag::FexConfigEditor.requirement(),
+            Some("Needs an Apple Silicon bottle")
+        );
     }
 
     #[test]

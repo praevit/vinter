@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-program-launch-logged"
+description = "Enables the program_launch_logged command without any pre-configured scope."
+commands.allow = ["program_launch_logged"]
+
+[[permission]]
+identifier = "deny-program-launch-logged"
+description = "Denies the program_launch_logged command without any pre-configured scope."
+commands.deny = ["program_launch_logged"]

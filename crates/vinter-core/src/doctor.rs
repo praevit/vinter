@@ -38,6 +38,13 @@ pub enum Fix {
     Graphics { backend: Graphics },
     /// Roll the bottle back to a snapshot from before it broke.
     RestoreSnapshot,
+    /// Get a runtime that works: reinstall this one, or install a newer one.
+    OpenRuntimes,
+    /// Install Rosetta 2, which Intel runtimes need on Apple Silicon.
+    InstallRosetta,
+    /// Try the program on the other engine (an Intel bottle on Apple
+    /// Silicon), or on a newer runtime.
+    OtherEngine,
     /// Nothing Vinter can do for you; the finding's detail says what to try.
     Manual,
 }
@@ -56,10 +63,37 @@ pub struct Finding {
     pub evidence: Vec<String>,
 }
 
-/// Diagnoses one of a bottle's logs.
+/// Diagnoses one of a bottle's logs. Unlike [`diagnose`], it knows the
+/// bottle, so a crash can suggest another graphics backend it can use.
 pub fn diagnose_log(paths: &AppPaths, bottle_id: &str, log_id: &str) -> Result<Vec<Finding>> {
     let dir = bottle::dir(paths, bottle_id)?;
-    Ok(diagnose(&logs::read(&dir, log_id)?))
+    let mut findings = diagnose(&logs::read(&dir, log_id)?);
+    if findings.iter().any(|f| f.id == "crash") {
+        let suggested = bottle::get(paths, bottle_id).ok().and_then(|b| {
+            let rt = crate::runtime::get(paths, &b.runtime).ok()?;
+            let usable: Vec<Graphics> = crate::graphics::backends(paths, &rt)
+                .into_iter()
+                .filter(|i| i.available)
+                .map(|i| i.backend)
+                .collect();
+            other_backend(b.graphics, &usable)
+        });
+        if let Some(backend) = suggested {
+            for f in findings.iter_mut().filter(|f| f.id == "crash") {
+                f.fix = Fix::Graphics { backend };
+            }
+        }
+    }
+    Ok(findings)
+}
+
+/// A graphics backend to try after a crash: WineD3D, the one that always
+/// works, unless the bottle already uses it; then the first other usable one.
+fn other_backend(current: Graphics, usable: &[Graphics]) -> Option<Graphics> {
+    if current != Graphics::Wined3d && usable.contains(&Graphics::Wined3d) {
+        return Some(Graphics::Wined3d);
+    }
+    usable.iter().copied().find(|b| *b != current)
 }
 
 /// Known problems in a log, most serious first.
@@ -164,7 +198,7 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
                 "Wine could not load the emulator that runs Intel programs on Apple Silicon \
                  (FEX). The runtime is missing its emulator files, or this bottle was not set \
                  up for them. Reinstall the runtime, or make a new bottle on it.",
-                Fix::Manual,
+                Fix::OpenRuntimes,
                 line,
             );
         } else if line.contains("Invalid or Unknown instruction") {
@@ -176,7 +210,7 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
                 "FEX, which runs Intel code on Apple Silicon, does not support an instruction \
                  this program uses (often a newer one, such as AVX-512). A newer Apple Silicon \
                  runtime may support it; until then, run the program in an Intel (Rosetta) bottle.",
-                Fix::Manual,
+                Fix::OtherEngine,
                 line,
             );
         } else if line.contains("exception: illegal instruction") {
@@ -188,7 +222,7 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
                 "The program needs a processor feature that the emulator does not provide \
                  (Rosetta and FEX lack some newer instructions, such as AVX-512). Look for a \
                  version of the program for older processors, or a newer runtime.",
-                Fix::Manual,
+                Fix::OtherEngine,
                 line,
             );
         } else if line.contains("Bad CPU type in executable") {
@@ -199,7 +233,7 @@ pub fn diagnose(text: &str) -> Vec<Finding> {
                 "This runtime is Intel Wine, which needs Rosetta 2 on Apple Silicon. Install \
                  it from Vinter (it offers to when you open the bottle) or with \
                  `vinter install-rosetta`, or use an Apple Silicon bottle instead.",
-                Fix::Manual,
+                Fix::InstallRosetta,
                 line,
             );
         } else if line.contains("could not load kernel32.dll")
@@ -516,6 +550,17 @@ wine: could not load kernel32.dll, status c0000135
         );
         assert_eq!(f[2].fix, Fix::RestoreSnapshot);
         assert_eq!(f[3].severity, Severity::Warning);
+        // Without the bottle there is no backend to suggest for the crash.
+        assert_eq!(f[1].fix, Fix::Manual);
+    }
+
+    #[test]
+    fn a_crash_suggests_another_usable_backend() {
+        use Graphics::*;
+        assert_eq!(other_backend(Dxvk, &[Wined3d, Dxvk]), Some(Wined3d));
+        assert_eq!(other_backend(Wined3d, &[Wined3d, Dxmt, Dxvk]), Some(Dxmt));
+        assert_eq!(other_backend(Wined3d, &[Wined3d]), None);
+        assert_eq!(other_backend(D3dmetal, &[Dxvk, D3dmetal]), Some(Dxvk));
     }
 
     #[test]
@@ -537,6 +582,16 @@ Error: could not run wine: Bad CPU type in executable (os error 86)
             ]
         );
         assert!(f.iter().all(|x| x.severity == Severity::Error));
+        let fixes: Vec<_> = f.iter().map(|x| x.fix.clone()).collect();
+        assert_eq!(
+            fixes,
+            [
+                Fix::OpenRuntimes,
+                Fix::OtherEngine,
+                Fix::OtherEngine,
+                Fix::InstallRosetta
+            ]
+        );
         // The bottle-damaged rule is for Wine's core DLLs only.
         assert!(!ids(&diagnose(log)).contains(&"broken_prefix"));
     }

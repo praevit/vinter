@@ -2,8 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { X } from "lucide-react";
 import { events } from "./bindings";
 
-type Toast = { id: number; message: string; tone: "error" | "info" };
-type Toasts = { show: (message: string, tone?: Toast["tone"]) => void };
+/** A button on a toast. Clicking it also dismisses the toast. */
+export type ToastAction = { label: string; onClick: () => void };
+type Toast = { id: number; message: string; tone: "error" | "info"; action?: ToastAction };
+type Toasts = { show: (message: string, tone?: Toast["tone"], action?: ToastAction) => void };
 
 const ToastContext = createContext<Toasts | null>(null);
 let nextId = 1;
@@ -16,10 +18,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const show = useCallback(
-    (message: string, tone: Toast["tone"] = "error") => {
+    (message: string, tone: Toast["tone"] = "error", action?: ToastAction) => {
       const id = nextId++;
-      setToasts((t) => [...t.slice(-3), { id, message, tone }]);
-      setTimeout(() => dismiss(id), 8000);
+      setToasts((t) => [...t.slice(-3), { id, message, tone, action }]);
+      // An error with something to do about it stays until dismissed.
+      if (!(action && tone === "error")) setTimeout(() => dismiss(id), 8000);
     },
     [dismiss],
   );
@@ -52,7 +55,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 : "border-frost-200 bg-white dark:border-slate-deep-700 dark:bg-slate-deep-800"
             }`}
           >
-            <p className="line-clamp-4 min-w-0 flex-1 select-text">{t.message}</p>
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+              <p className="line-clamp-4 select-text">{t.message}</p>
+              {t.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    dismiss(t.id);
+                    t.action?.onClick();
+                  }}
+                  className="rounded-md border border-frost-300 px-2.5 py-1 text-xs font-medium hover:bg-frost-100 dark:border-slate-deep-700 dark:hover:bg-slate-deep-700"
+                >
+                  {t.action.label}
+                </button>
+              )}
+            </div>
             <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="text-frost-400 hover:text-current">
               <X className="size-4" />
             </button>

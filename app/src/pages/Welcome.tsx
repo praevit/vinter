@@ -3,6 +3,7 @@ import { PackagePlus, Plus, Search, Wine } from "lucide-react";
 import { useBottles } from "../api/bottles";
 import type { BottleListItem } from "../api/bindings";
 import { usePrograms } from "../api/programs";
+import { logRoute, navigate } from "../api/navigate";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { NowRunning } from "../components/NowRunning";
 import { ProgramTile } from "../components/ProgramsTab";
@@ -113,8 +114,7 @@ function BottleApps({
         bottleId={bottle.id}
         program={p}
         needsRosetta={needsRosetta}
-        // The log is in the bottle's Logs tab.
-        onShowLog={onOpen}
+        onShowLog={(log) => navigate(logRoute(bottle.id, log))}
         bottle={{ name: bottle.name, open: onOpen }}
       />
     ));

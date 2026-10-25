@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
-use vinter_core::bottle::{self, Bottle, ProgramDef};
+use vinter_core::bottle::{self, Bottle, ProgramDef, WineDebug};
 use vinter_core::process::logs::{self, LogEntry};
 use vinter_core::programs::{self, DiscoveredProgram};
 use vinter_core::runtime;
@@ -287,6 +287,22 @@ pub async fn program_launch(
     .await?
 }
 
+/// Starts a program once with a different Wine logging level, without
+/// changing the bottle's setting (the "Fix it" steps run it with Verbose).
+#[tauri::command]
+#[specta::specta]
+pub async fn program_launch_logged(
+    app: AppHandle,
+    bottle_id: String,
+    program_index: u32,
+    wine_debug: WineDebug,
+) -> CommandResult<RunInfo> {
+    tauri::async_runtime::spawn_blocking(move || {
+        launch_program_with(&app, bottle_id, program_index, false, Some(wine_debug))
+    })
+    .await?
+}
+
 /// Starts a program and tracks it (shared by the UI, deep links and `--run`).
 /// Blocks briefly while the process starts. With `splash`, a small "Opening
 /// …" window shows until the program's window appears (for launches from
@@ -297,11 +313,24 @@ pub(crate) fn launch_program(
     program_index: u32,
     splash: bool,
 ) -> CommandResult<RunInfo> {
+    launch_program_with(app, bottle_id, program_index, splash, None)
+}
+
+/// [`launch_program`], optionally with another Wine logging level for this run.
+fn launch_program_with(
+    app: &AppHandle,
+    bottle_id: String,
+    program_index: u32,
+    splash: bool,
+    wine_debug: Option<WineDebug>,
+) -> CommandResult<RunInfo> {
     let paths = app.state::<AppState>().paths.clone();
     let bottle = bottle::get(&paths, &bottle_id)?;
     let runtime = runtime::get(&paths, &bottle.runtime)?;
     let run_id = uuid::Uuid::new_v4().to_string();
     let watch = focus::Watch::start(app, &runtime.path);
+    // Started from Vinter's window, which shows its own message when it is in front.
+    let from_window = !splash;
     let splash = splash.then(|| {
         let program = bottle.programs.get(program_index as usize);
         let icon = program
@@ -322,10 +351,16 @@ pub(crate) fn launch_program(
 
     let (log_app, exit_app) = (app.clone(), app.clone());
     let (log_run, exit_run) = (run_id.clone(), run_id.clone());
-    let launched = programs::launch(
+    let exit_paths = paths.clone();
+    let extra_env: Vec<(&str, &str)> = wine_debug
+        .map(|w| ("WINEDEBUG", w.env_value()))
+        .into_iter()
+        .collect();
+    let launched = programs::launch_with(
         &paths,
         &bottle_id,
         program_index as usize,
+        &extra_env,
         move |stream, line| {
             let _ = RunLog {
                 run_id: log_run.clone(),
@@ -349,13 +384,26 @@ pub(crate) fn launch_program(
                     .ok()
                     .and_then(|t| t.elapsed().ok())
                     .is_some_and(|d| d < CRASH_WINDOW);
-                if code != 0 && quick {
+                let window_shows_it = from_window && crate::notify::main_window_in_front(&exit_app);
+                if code != 0 && quick && !window_shows_it {
+                    // The log doctor's best guess, so the message says what to fix.
+                    let top =
+                        vinter_core::doctor::diagnose_log(&exit_paths, &run.bottle_id, &run.log_id)
+                            .ok()
+                            .and_then(|f| f.into_iter().next());
+                    let body = match top {
+                        Some(finding) => format!(
+                            "{}. Open its log in Vinter to see how to fix it.",
+                            finding.title
+                        ),
+                        None => format!(
+                            "It exited with code {code}. The bottle's Logs tab has the details."
+                        ),
+                    };
                     crate::notify::send(
                         &exit_app,
                         &format!("{} quit unexpectedly", run.name),
-                        &format!(
-                            "It exited with code {code}. The bottle's Logs tab has the details."
-                        ),
+                        &body,
                     );
                 }
             }

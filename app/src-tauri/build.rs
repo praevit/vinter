@@ -43,6 +43,7 @@ fn main() {
             "program_choose_icon",
             "programs_list",
             "program_launch",
+            "program_launch_logged",
             "program_stop",
             "program_show",
             "runs_list",

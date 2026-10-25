@@ -13,6 +13,7 @@ import { latestRun, useRuns } from "../api/runs";
 import { CompareDialog } from "./CompareDialog";
 import { CompatNoteDot } from "./CompatNoteSection";
 import { EditProgramDialog } from "./EditProgramDialog";
+import { FixItButton } from "./FixItDialog";
 import { InstallDialog, ProgramIcon } from "./InstallDialog";
 import { Button, ErrorText, subtle } from "./ui";
 
@@ -238,6 +239,7 @@ export function ProgramTile({
           Exited with code {run.exit?.code}. See log
         </button>
       )}
+      {failed && <FixItButton bottleId={bottleId} program={program} />}
       {(error || remove.error) && <ErrorText>{error ?? errorMessage(remove.error)}</ErrorText>}
       {editing && <EditProgramDialog bottleId={bottleId} program={program} onClose={() => setEditing(false)} />}
       {comparing && <CompareDialog bottleId={bottleId} program={program} onClose={() => setComparing(false)} />}

@@ -5,6 +5,7 @@ import { ApprovalDialog } from "./components/ApprovalDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import { OpenFileDialog } from "./components/OpenFileDialog";
 import { useBottles } from "./api/bottles";
+import { onNavigate } from "./api/navigate";
 import { Sidebar, type Route } from "./components/Sidebar";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { BottleView } from "./pages/BottleView";
@@ -29,6 +30,7 @@ export function App() {
     const opened = events.appOpenFiles.listen(() => void take());
     // The palette opens itself (see CommandPalette).
     const navigate = events.appNavigate.listen(({ payload }) => payload.to !== "palette" && setRoute({ page: payload.to }));
+    const stopNavigating = onNavigate(setRoute);
     const dropped = getCurrentWebview().onDragDropEvent(({ payload }) => {
       if (payload.type !== "drop") return;
       const files = payload.paths.filter((p) => /\.(exe|msi|msix|msixbundle|appx|appxbundle|vinterbottle)$/i.test(p));
@@ -37,6 +39,7 @@ export function App() {
     return () => {
       opened.then((u) => u());
       navigate.then((u) => u());
+      stopNavigating();
       dropped.then((u) => u());
     };
   }, []);
@@ -53,7 +56,7 @@ export function App() {
       <main className="min-w-0 flex-1 overflow-y-auto">
         <UpdateBanner route={current} onNavigate={setRoute} />
         {current.page === "bottle" ? (
-          <BottleView key={current.id} id={current.id} onNavigate={setRoute} />
+          <BottleView key={current.id} id={current.id} focus={current.focus} onNavigate={setRoute} />
         ) : current.page === "new-bottle" ? (
           <NewBottle onNavigate={setRoute} />
         ) : current.page === "install-app" ? (

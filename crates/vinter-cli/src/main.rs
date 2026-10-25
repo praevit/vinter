@@ -1486,6 +1486,13 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
                         Fix::RestoreSnapshot => {
                             println!("        Fix: vinter snapshot list {key}, then restore one")
                         }
+                        Fix::OpenRuntimes => {
+                            println!("        Fix: vinter runtime list, then reinstall or update")
+                        }
+                        Fix::InstallRosetta => println!("        Fix: vinter install-rosetta"),
+                        Fix::OtherEngine => {
+                            println!("        Fix: try it in a bottle on the other engine")
+                        }
                         Fix::Manual => {}
                     }
                     for line in &f.evidence {

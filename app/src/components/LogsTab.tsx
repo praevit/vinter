@@ -105,7 +105,13 @@ export function LogsTab({ bottleId, initial }: { bottleId: string; initial?: str
           )}
         </div>
         {file.error && !liveRun && <ErrorText>{errorMessage(file.error)}</ErrorText>}
-        {current && !liveRun && <DoctorPanel bottleId={bottleId} logId={current} />}
+        {current && !liveRun && (
+          <DoctorPanel
+            bottleId={bottleId}
+            logId={current}
+            exitCode={runs.find((r) => r.info.bottle_id === bottleId && r.info.log_id === current)?.exit?.code}
+          />
+        )}
         <pre
           ref={view}
           className="min-h-0 flex-1 overflow-auto rounded-lg border border-frost-200 bg-frost-50 p-3 font-mono text-xs whitespace-pre-wrap select-text dark:border-slate-deep-700 dark:bg-slate-deep-950"

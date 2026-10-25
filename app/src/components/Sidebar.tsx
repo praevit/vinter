@@ -14,13 +14,16 @@ import { Button, ErrorText } from "./ui";
 
 export type Route =
   | { page: "home" }
-  | { page: "bottle"; id: string }
+  | { page: "bottle"; id: string; focus?: BottleFocus }
   | { page: "new-bottle" }
   | { page: "install-app" }
   | { page: "runtimes" }
   | { page: "system" }
   | { page: "settings" }
   | { page: "about" };
+
+/** Where a bottle's page opens: a log in the Logs tab, or a Settings section. */
+export type BottleFocus = { tab: "logs"; log?: string } | { tab: "settings"; section?: "snapshots" };
 
 const item = (active: boolean) =>
   `flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
