@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { FileUp, LoaderCircle, RefreshCw } from "lucide-react";
+import { FileUp, LoaderCircle, RefreshCw, Square } from "lucide-react";
+import { useAppInfo } from "../api/app";
 import { commands, type DiscoveredProgram } from "../api/bindings";
 import { errorMessage } from "../api/errors";
-import { isRunning, useJobs } from "../api/jobs";
-import { installerJobKey, useAddPrograms } from "../api/programs";
+import { isRunning, useJobs, useQuietJob } from "../api/jobs";
+import { installerJobKey, programPlace, useAddPrograms } from "../api/programs";
 import { useEnsureRosetta } from "../api/rosetta";
+import { AppReady } from "./AppReady";
 import { Dialog } from "./Dialog";
 import { Button, ErrorText, Label, field, subtle } from "./ui";
 
-type Step = "choose" | "running" | "pick";
+type Step = "choose" | "running" | "pick" | "ready";
 
 /**
  * Installs a program into a bottle: choose an installer, run it, then pick
@@ -35,11 +37,31 @@ export function InstallDialog({
   const [path, setPath] = useState<string | undefined>(initialPath);
   const [args, setArgs] = useState("");
   const [error, setError] = useState<string>();
+  const [stopping, setStopping] = useState(false);
+  // The first program added, for the "is ready" step.
+  const [added, setAdded] = useState<number>();
+  const { data: app } = useAppInfo();
+  // This dialog shows the installer's problems itself.
+  useQuietJob(installerJobKey(bottleId));
 
-  // When the installer exits, move on to picking programs.
+  // When the installer exits, move on to picking programs; if it was
+  // stopped from here, just close.
   useEffect(() => {
-    if (step === "running" && job?.done) setStep("pick");
-  }, [step, job?.done]);
+    if (step !== "running" || !job?.done) return;
+    if (stopping) onClose();
+    else setStep("pick");
+  }, [step, job?.done, stopping, onClose]);
+
+  const stop = async () => {
+    setStopping(true);
+    setError(undefined);
+    try {
+      await commands.bottleKillAll(bottleId);
+    } catch (e) {
+      setStopping(false);
+      setError(errorMessage(e));
+    }
+  };
 
   const choose = async () => {
     setError(undefined);
@@ -61,7 +83,8 @@ export function InstallDialog({
   const fileName = path?.split(/[\\/]/).pop();
 
   return (
-    <Dialog onClose={step === "running" ? undefined : onClose}>
+    // While the installer runs, closing just hides this; it keeps running.
+    <Dialog onClose={onClose}>
       {step === "choose" && (
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold">Install a program</h2>
@@ -110,6 +133,16 @@ export function InstallDialog({
             Follow the steps in its window. When it finishes, Vinter looks for the programs it
             installed.
           </p>
+          <p className={subtle}>
+            Don't see its window? {app?.os === "macos" ? "Check the Dock." : "Check your taskbar."}
+          </p>
+          {error && <ErrorText>{error}</ErrorText>}
+          <div className="mt-2 flex gap-2">
+            <Button variant="danger" disabled={stopping} onClick={stop}>
+              <Square className="size-4" /> {stopping ? "Stopping…" : "Stop installer"}
+            </Button>
+            <Button onClick={onClose}>Hide</Button>
+          </div>
         </div>
       )}
 
@@ -117,8 +150,16 @@ export function InstallDialog({
         <PickPrograms
           bottleId={bottleId}
           installerError={job?.done && !job.done.ok ? job.done.error : null}
+          onAdded={(index) => {
+            setAdded(index);
+            setStep("ready");
+          }}
           onClose={onClose}
         />
+      )}
+
+      {step === "ready" && (
+        <AppReady bottleId={bottleId} index={added} needsRosetta={needsRosetta} onDone={onClose} />
       )}
     </Dialog>
   );
@@ -127,10 +168,13 @@ export function InstallDialog({
 function PickPrograms({
   bottleId,
   installerError,
+  onAdded,
   onClose,
 }: {
   bottleId: string;
   installerError: string | null;
+  /** Called with the index of the first program added. */
+  onAdded: (index: number) => void;
   onClose: () => void;
 }) {
   const add = useAddPrograms(bottleId);
@@ -171,7 +215,9 @@ function PickPrograms({
 
   const submit = () => {
     const chosen = found?.filter((p) => selected.has(p.exe) && !p.already_added) ?? [];
-    add.mutate(chosen, { onSuccess: onClose });
+    add.mutate(chosen, {
+      onSuccess: (bottle) => onAdded(bottle.programs.length - chosen.length),
+    });
   };
 
   return (
@@ -208,7 +254,7 @@ function PickPrograms({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{p.name}</span>
                   <span className={`block truncate ${subtle}`} title={p.exe}>
-                    {p.already_added ? "Already added" : p.exe}
+                    {p.already_added ? "Already added" : programPlace(p.exe)}
                   </span>
                 </span>
               </label>

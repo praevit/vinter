@@ -6,6 +6,7 @@
 //! recipes in `recipes/` are examples.
 
 pub mod apply;
+pub mod installers;
 pub mod winetricks;
 
 use std::collections::BTreeMap;
@@ -13,7 +14,10 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-pub use apply::{ApplyOptions, RecipeProgress, RecipeState, apply, resume, state};
+pub use apply::{
+    ApplyOptions, RecipeProgress, RecipeState, apply, create_for_installer, resume, state,
+};
+pub use installers::{bottle_name_for, downloads_folder, match_installer, recent_downloads};
 
 use crate::bottle::{self, Graphics, WindowsVersion};
 use crate::error::validate_id;
@@ -44,6 +48,14 @@ pub struct Recipe {
     pub description: String,
     #[serde(default)]
     pub homepage: Option<String>,
+    /// Where to download a `user_provided` installer, if not the homepage.
+    #[serde(default)]
+    pub download_page: Option<String>,
+    /// File names of the app's official installer, as patterns (`*` and `?`,
+    /// any case), e.g. `["SteamSetup*.exe"]`. A file opened with Vinter that
+    /// matches is offered this recipe.
+    #[serde(default)]
+    pub installer_names: Vec<String>,
     /// License of the app itself.
     #[serde(default)]
     pub license: Option<String>,
@@ -192,6 +204,10 @@ pub struct RecipeSummary {
     pub name: String,
     pub description: String,
     pub homepage: Option<String>,
+    /// Page to get a `user_provided` installer from (the homepage if not set).
+    pub download_page: Option<String>,
+    /// Patterns for the official installer's file name.
+    pub installer_names: Vec<String>,
     pub license: Option<String>,
     pub builtin: bool,
     /// "download", "user_provided" or "none".
@@ -203,6 +219,8 @@ pub struct RecipeSummary {
     pub download_size: Option<u64>,
     /// Winetricks verbs that need the user's consent.
     pub winetricks_verbs: Vec<String>,
+    /// The same verbs as plain names, e.g. "Windows core fonts".
+    pub winetricks_names: Vec<String>,
     pub graphics: Graphics,
     pub step_count: u32,
 }
@@ -228,12 +246,19 @@ impl LoadedRecipe {
             name: r.name.clone(),
             description: r.description.clone(),
             homepage: r.homepage.clone(),
+            download_page: r.download_page.clone().or_else(|| r.homepage.clone()),
+            installer_names: r.installer_names.clone(),
             license: r.license.clone(),
             builtin: self.origin == Origin::Builtin,
             installer_kind: installer_kind.into(),
             installer_hint,
             download_size,
             winetricks_verbs: self.winetricks_verbs(),
+            winetricks_names: self
+                .winetricks_verbs()
+                .iter()
+                .map(|v| winetricks::verb_name(v))
+                .collect(),
             graphics: r.graphics,
             step_count: r.steps.len() as u32,
         }
@@ -276,6 +301,18 @@ fn validate(loaded: &LoadedRecipe) -> Result<()> {
         check(
             !hint.trim().is_empty(),
             "user_provided installer needs a hint".into(),
+        );
+    }
+    if let Some(link) = &r.download_page {
+        check(
+            link.starts_with("https://"),
+            format!("download_page must start with https://: {link}"),
+        );
+    }
+    for name in &r.installer_names {
+        check(
+            installers::valid_pattern(name),
+            format!("installer_names: {name:?} is not a file name pattern"),
         );
     }
     let windows_path_ok = |p: &str| {

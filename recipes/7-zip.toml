@@ -2,6 +2,7 @@ id = "7-zip"
 name = "7-Zip"
 description = "File archiver for 7z, ZIP, RAR and many more formats."
 homepage = "https://www.7-zip.org"
+installer_names = ["7z*-x64*.exe"]
 license = "LGPL-2.1-or-later"
 runtime_flavor = "stable"
 windows_version = "win10"

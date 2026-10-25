@@ -2,6 +2,7 @@ id = "winrar"
 name = "WinRAR"
 description = "Archive manager for RAR, ZIP and other formats. Shareware: free to try for 40 days."
 homepage = "https://www.rarlab.com"
+installer_names = ["winrar-x64-*.exe"]
 license = "Proprietary (shareware)"
 runtime_flavor = "stable"
 windows_version = "win10"

@@ -5,6 +5,23 @@ import { useToasts } from "./toasts";
 
 export const installerJobKey = (bottleId: string) => `installer:${bottleId}`;
 
+/** Folders that say nothing about which app a program belongs to. */
+const GENERIC_FOLDERS =
+  /^(c:|program files|program files \(x86\)|programdata|users|appdata|local|roaming|programs|public|bin|x64|x86)$/i;
+
+/**
+ * Where a program is, in words people know: its folder in Program Files
+ * (usually the app's or publisher's name), e.g. "Notepad++" for
+ * C:\Program Files\Notepad++\notepad++.exe.
+ */
+export function programPlace(exe: string): string {
+  const folders = exe.split(/[\\/]/).filter(Boolean).slice(0, -1);
+  // A user's folder name (C:\users\<name>\...) is not a place either.
+  const user = folders.findIndex((f) => /^users$/i.test(f));
+  const rest = user >= 0 ? folders.filter((_, i) => i !== user + 1) : folders;
+  return rest.find((f) => !GENERIC_FOLDERS.test(f)) ?? folders.at(-1) ?? exe;
+}
+
 export function usePrograms(bottleId: string) {
   return useQuery({
     queryKey: ["bottles", bottleId, "programs"],

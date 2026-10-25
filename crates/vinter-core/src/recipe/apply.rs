@@ -146,6 +146,45 @@ where
     .await
 }
 
+/// Creates an empty bottle to run an installer in, for someone who opened
+/// one with Vinter and has no bottle yet. It uses the default runtime for new
+/// bottles; with none installed, it installs the one recipes would.
+pub async fn create_for_installer<P>(
+    paths: &AppPaths,
+    bottle_id: Option<String>,
+    name: String,
+    mut on_progress: P,
+) -> Result<Bottle>
+where
+    P: FnMut(RecipeProgress) + Send,
+{
+    let runtime_choice = match runtime::default_for_new_bottles(paths)? {
+        Some(rt) => RuntimeChoice::Installed(rt),
+        None => pick_runtime(paths, None)?,
+    };
+    let mut tasks = Tasks::new(&mut on_progress);
+    tasks.total = 1 + usize::from(matches!(runtime_choice, RuntimeChoice::Install(_)));
+    let rt = match runtime_choice {
+        RuntimeChoice::Installed(rt) => rt,
+        RuntimeChoice::Install(info) => {
+            tasks.start(&format!("Getting {}", info.name));
+            runtime::install(paths, &info, |p| tasks.download(p)).await?
+        }
+    };
+    tasks.start("Creating the bottle");
+    let new = NewBottle {
+        id: bottle_id,
+        name,
+        runtime: rt.id.clone(),
+        windows_version: Default::default(),
+        graphics: None,
+    };
+    let bottle = bottle::prepare_create(paths, new)?;
+    let (paths, created) = (paths.clone(), bottle.clone());
+    blocking(move || bottle::finish_create(&paths, &created, |_| {})).await?;
+    Ok(bottle)
+}
+
 /// Continues an unfinished recipe in a bottle from the first step not done.
 pub async fn resume<P>(
     paths: &AppPaths,

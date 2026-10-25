@@ -2,6 +2,7 @@ id = "notepad-plus-plus"
 name = "Notepad++"
 description = "Free source code and text editor."
 homepage = "https://notepad-plus-plus.org"
+installer_names = ["npp.*.Installer.x64*.exe"]
 license = "GPL-3.0"
 runtime_flavor = "stable"
 windows_version = "win10"

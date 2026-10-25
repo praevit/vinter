@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recipe-for-installer"
+description = "Enables the recipe_for_installer command without any pre-configured scope."
+commands.allow = ["recipe_for_installer"]
+
+[[permission]]
+identifier = "deny-recipe-for-installer"
+description = "Denies the recipe_for_installer command without any pre-configured scope."
+commands.deny = ["recipe_for_installer"]

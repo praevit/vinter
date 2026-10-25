@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { events } from "./bindings";
+import { isQuietJob } from "./jobs";
 
 /** A button on a toast. Clicking it also dismisses the toast. */
 export type ToastAction = { label: string; onClick: () => void };
@@ -32,7 +33,7 @@ export function ToastProvider({ children, background = true }: { children: React
     if (!background) return;
     const notice = events.appNotice.listen(({ payload }) => show(payload.message));
     const done = events.jobDone.listen(({ payload }) => {
-      if (!payload.ok && payload.error) show(payload.error);
+      if (!payload.ok && payload.error && !isQuietJob(payload.job_id)) show(payload.error);
     });
     return () => {
       notice.then((u) => u());

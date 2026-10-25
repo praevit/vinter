@@ -70,11 +70,6 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
         </p>
       </header>
 
-      <div className="flex flex-col gap-2 rounded-xl border border-dashed border-frost-300 p-4 dark:border-slate-deep-700">
-        <p className="text-sm">Have a backup? Restore it as a new bottle.</p>
-        <RestoreButton />
-      </div>
-
       <SimulatedMacos28Notice />
 
       <Label title="Name">
@@ -89,24 +84,34 @@ export function NewBottle({ onNavigate }: { onNavigate: (r: Route) => void }) {
         />
       </Label>
 
-      <Label title="Runtime">
-        <Select
-          value={runtime?.id ?? ""}
-          options={runtimes?.map((r) => ({ value: r.id, label: runtimeLabel(r) })) ?? []}
-          onChange={setRuntimeId}
-        />
-        {runtime && (
-          <span className="text-xs text-slate-deep-700/60 dark:text-frost-300/60">
-            {runtime.engine === "arm64-fex"
-              ? "Apple Silicon engine: runs Windows apps without Rosetta. A bottle keeps its engine."
-              : `${ENGINE_LABELS[runtime.engine]} engine. A bottle keeps its engine.`}
-          </span>
-        )}
-      </Label>
+      <details className="text-sm">
+        <summary className="cursor-pointer text-frost-400">Advanced</summary>
+        <div className="mt-3 flex flex-col gap-5">
+          <Label title="Runtime">
+            <Select
+              value={runtime?.id ?? ""}
+              options={runtimes?.map((r) => ({ value: r.id, label: runtimeLabel(r) })) ?? []}
+              onChange={setRuntimeId}
+            />
+            {runtime && (
+              <span className="text-xs text-slate-deep-700/60 dark:text-frost-300/60">
+                {runtime.engine === "arm64-fex"
+                  ? "Apple Silicon engine: runs Windows apps without Rosetta. A bottle keeps its engine."
+                  : `${ENGINE_LABELS[runtime.engine]} engine. A bottle keeps its engine.`}
+              </span>
+            )}
+          </Label>
 
-      <Label title="Windows version">
-        <Select value={windows} options={WINDOWS_VERSIONS} onChange={setWindows} />
-      </Label>
+          <Label title="Windows version">
+            <Select value={windows} options={WINDOWS_VERSIONS} onChange={setWindows} />
+          </Label>
+
+          <div className="flex flex-col gap-2 rounded-xl border border-dashed border-frost-300 p-4 dark:border-slate-deep-700">
+            <p className="text-sm">Have a backup? Restore it as a new bottle.</p>
+            <RestoreButton />
+          </div>
+        </div>
+      </details>
 
       {error && <ErrorText>{error}</ErrorText>}
 

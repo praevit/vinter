@@ -150,7 +150,7 @@ export function BottleView({
       {settingUp ? (
         <SetupProgress step={setup?.step} message={setup?.message} />
       ) : recipeState ? (
-        <RecipeResume bottleId={bottle.id} state={recipeState} />
+        <RecipeResume bottleId={bottle.id} state={recipeState} onShowLog={() => setTab("logs")} />
       ) : setup?.done && !setup.done.ok ? (
         <Notice>
           <p className="font-medium">Setting up this bottle failed.</p>

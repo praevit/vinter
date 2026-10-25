@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-installer-setup-bottle"
+description = "Enables the installer_setup_bottle command without any pre-configured scope."
+commands.allow = ["installer_setup_bottle"]
+
+[[permission]]
+identifier = "deny-installer-setup-bottle"
+description = "Denies the installer_setup_bottle command without any pre-configured scope."
+commands.deny = ["installer_setup_bottle"]

@@ -272,3 +272,23 @@ async fn falls_back_to_shortcuts_when_listed_programs_are_missing() {
         "{err}"
     );
 }
+
+#[tokio::test]
+async fn creates_a_bottle_for_an_installer() {
+    let f = fixture();
+    let mut progress = Vec::new();
+    let bottle = create_for_installer(
+        &f.paths,
+        Some("for-installer".into()),
+        "Steam".into(),
+        |p| progress.push(p.label),
+    )
+    .await
+    .unwrap();
+    assert_eq!(bottle.id, "for-installer");
+    assert_eq!(bottle.name, "Steam");
+    assert_eq!(bottle.runtime, "fake-stable");
+    // The runtime is installed already, so creating the bottle is the only task.
+    assert_eq!(progress, ["Creating the bottle"]);
+    assert!(bottle::list(&f.paths).unwrap()[0].setup_complete);
+}

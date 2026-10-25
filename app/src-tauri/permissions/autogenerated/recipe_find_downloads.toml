@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recipe-find-downloads"
+description = "Enables the recipe_find_downloads command without any pre-configured scope."
+commands.allow = ["recipe_find_downloads"]
+
+[[permission]]
+identifier = "deny-recipe-find-downloads"
+description = "Denies the recipe_find_downloads command without any pre-configured scope."
+commands.deny = ["recipe_find_downloads"]

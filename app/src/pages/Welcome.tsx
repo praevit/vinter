@@ -1,11 +1,14 @@
-import { useState } from "react";
-import { PackagePlus, Plus, Search, Wine } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { FileDown, PackagePlus, Plus, Search, Wine } from "lucide-react";
+import { commands } from "../api/bindings";
 import { useBottles } from "../api/bottles";
 import type { BottleListItem } from "../api/bindings";
 import { usePrograms } from "../api/programs";
 import { logRoute, navigate } from "../api/navigate";
 import { useInstalledRuntimes } from "../api/runtimes";
 import { NowRunning } from "../components/NowRunning";
+import { OpenFileDialog } from "../components/OpenFileDialog";
 import { ProgramTile } from "../components/ProgramsTab";
 import { RecentApps } from "../components/RecentApps";
 import type { Route } from "../components/Sidebar";
@@ -69,23 +72,75 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
     );
   }
 
+  return <FirstRun onNavigate={onNavigate} noRuntime={noRuntime} hasBottles={!!bottles?.length} />;
+}
+
+/** Home page before any app is installed: one clear way in, and a drop target. */
+function FirstRun({
+  onNavigate,
+  noRuntime,
+  hasBottles,
+}: {
+  onNavigate: (r: Route) => void;
+  noRuntime: boolean;
+  hasBottles: boolean;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const [picked, setPicked] = useState<string>();
+
+  // Dropped files are handled for the whole window (see App); this only
+  // highlights the drop target.
+  useEffect(() => {
+    const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) =>
+      setDragging(payload.type === "enter" || payload.type === "over"),
+    );
+    return () => void unlisten.then((u) => u());
+  }, []);
+
+  const choose = async () => {
+    const path = await commands.installerChoose().catch(() => null);
+    if (path) setPicked(path);
+  };
+
+  const link = "text-sm text-slate-deep-700/70 underline-offset-2 hover:underline dark:text-frost-300/70";
+
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-8 text-center">
       <img src="/vinter.svg" alt="" className="size-20" draggable={false} />
       <h1 className="text-2xl font-semibold tracking-tight">Welcome to Vinter</h1>
       <p className="max-w-md text-slate-deep-700/80 dark:text-frost-300/80">
-        {noRuntime
-          ? "Start by installing a Wine runtime. Then create a bottle: a self-contained Windows environment for your programs."
-          : bottles?.length
-            ? "Pick a bottle in the sidebar, or create a new one."
-            : "Create a bottle: a self-contained Windows environment for your programs."}
+        Pick an app and Vinter sets up everything it needs.
+        {hasBottles ? " Your bottles are in the sidebar." : ""}
       </p>
-      {noRuntime ? (
-        <Button variant="primary" onClick={() => onNavigate({ page: "runtimes" })}>
-          <Wine className="size-4" /> Install a runtime
-        </Button>
-      ) : (
-        actions
+      <Button variant="primary" onClick={() => onNavigate({ page: "install-app" })}>
+        <PackagePlus className="size-4" /> Install an App
+      </Button>
+      <button
+        type="button"
+        onClick={choose}
+        className={`flex w-full max-w-sm flex-col items-center gap-1 rounded-xl border-2 border-dashed px-6 py-5 transition-colors ${
+          dragging
+            ? "border-wine-500 bg-wine-500/5"
+            : "border-frost-300 hover:border-wine-500/60 dark:border-slate-deep-700"
+        }`}
+      >
+        <FileDown className="size-5 text-frost-400" />
+        <span className="text-sm font-medium">Drop a Windows installer here</span>
+        <span className={subtle}>Or click to choose an .exe or .msi file.</span>
+      </button>
+      <div className="flex gap-4">
+        {noRuntime ? (
+          <button type="button" className={`${link} flex items-center gap-1`} onClick={() => onNavigate({ page: "runtimes" })}>
+            <Wine className="size-3.5" /> Install a Wine runtime
+          </button>
+        ) : (
+          <button type="button" className={`${link} flex items-center gap-1`} onClick={() => onNavigate({ page: "new-bottle" })}>
+            <Plus className="size-3.5" /> New empty bottle
+          </button>
+        )}
+      </div>
+      {picked && (
+        <OpenFileDialog key={picked} path={picked} onNavigate={onNavigate} onClose={() => setPicked(undefined)} />
       )}
     </div>
   );

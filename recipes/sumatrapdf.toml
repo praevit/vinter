@@ -2,6 +2,7 @@ id = "sumatrapdf"
 name = "SumatraPDF"
 description = "Fast, small reader for PDF, ePub, comic books and more."
 homepage = "https://www.sumatrapdfreader.org"
+installer_names = ["SumatraPDF-*-64-install*.exe"]
 license = "GPL-3.0"
 runtime_flavor = "stable"
 windows_version = "win10"

@@ -196,6 +196,47 @@ export const commands = {
 	recipeResume: (bottleId: string, installerPath: string | null, acceptDownloads: boolean) => __TAURI_INVOKE<string>("recipe_resume", { bottleId, installerPath, acceptDownloads }),
 	/**  Opens the folder for your own recipes (creating it if needed). */
 	recipesOpenFolder: () => __TAURI_INVOKE<null>("recipes_open_folder"),
+	/**
+	 *  The recipe made for this installer file, if its name matches one (e.g.
+	 *  SteamSetup.exe and the Steam recipe).
+	 */
+	recipeForInstaller: (path: string) => __TAURI_INVOKE<{
+	id: string,
+	name: string,
+	description: string,
+	homepage: string | null,
+	/**  Page to get a `user_provided` installer from (the homepage if not set). */
+	download_page: string | null,
+	/**  Patterns for the official installer's file name. */
+	installer_names: string[],
+	license: string | null,
+	builtin: boolean,
+	/**  "download", "user_provided" or "none". */
+	installer_kind: string,
+	/**  For user-provided installers: what to download. */
+	installer_hint: string | null,
+	/**  Download size of the installer, if known. */
+	download_size: number | null,
+	/**  Winetricks verbs that need the user's consent. */
+	winetricks_verbs: string[],
+	/**  The same verbs as plain names, e.g. "Windows core fonts". */
+	winetricks_names: string[],
+	graphics: Graphics,
+	step_count: number,
+} | null>("recipe_for_installer", { path }),
+	/**  Opens the page to download a recipe's installer from (or its homepage). */
+	recipeOpenDownloadPage: (recipeId: string) => __TAURI_INVOKE<null>("recipe_open_download_page", { recipeId }),
+	/**
+	 *  Installers for a recipe that arrived in ~/Downloads since `since_ms`
+	 *  (milliseconds since 1970), newest first.
+	 */
+	recipeFindDownloads: (recipeId: string, sinceMs: number | null) => __TAURI_INVOKE<string[]>("recipe_find_downloads", { recipeId, sinceMs }),
+	/**
+	 *  Sets up a new bottle for an installer opened with Vinter, named after the
+	 *  file. Installs a runtime first if none is installed. The bottle id is
+	 *  returned right away; the job ends when the bottle is ready.
+	 */
+	installerSetupBottle: (path: string) => __TAURI_INVOKE<StartedBottle>("installer_setup_bottle", { path }),
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	appOpenLink: (link: AppLink) => __TAURI_INVOKE<null>("app_open_link", { link }),
 	/**  Text for "Copy debug report". */
@@ -1012,6 +1053,10 @@ export type RecipeSummary = {
 	name: string,
 	description: string,
 	homepage: string | null,
+	/**  Page to get a `user_provided` installer from (the homepage if not set). */
+	download_page: string | null,
+	/**  Patterns for the official installer's file name. */
+	installer_names: string[],
 	license: string | null,
 	builtin: boolean,
 	/**  "download", "user_provided" or "none". */
@@ -1022,6 +1067,8 @@ export type RecipeSummary = {
 	download_size: number | null,
 	/**  Winetricks verbs that need the user's consent. */
 	winetricks_verbs: string[],
+	/**  The same verbs as plain names, e.g. "Windows core fonts". */
+	winetricks_names: string[],
 	graphics: Graphics,
 	step_count: number,
 };

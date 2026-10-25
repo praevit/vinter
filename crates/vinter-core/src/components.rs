@@ -208,6 +208,14 @@ pub fn is_known(verb: &str) -> bool {
     CATALOG.iter().any(|&(v, ..)| v == verb)
 }
 
+/// The catalog's name for a verb, e.g. ".NET Framework 4.8".
+pub fn name(verb: &str) -> Option<&'static str> {
+    CATALOG
+        .iter()
+        .find(|&&(v, ..)| v == verb)
+        .map(|&(_, name, ..)| name)
+}
+
 /// Installs components into a bottle. Winetricks may download software
 /// from Microsoft and others, so `accepted` must say the user agreed.
 /// Snapshots the bottle first where that is free. Blocks for minutes:

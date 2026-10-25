@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recipe-open-download-page"
+description = "Enables the recipe_open_download_page command without any pre-configured scope."
+commands.allow = ["recipe_open_download_page"]
+
+[[permission]]
+identifier = "deny-recipe-open-download-page"
+description = "Denies the recipe_open_download_page command without any pre-configured scope."
+commands.deny = ["recipe_open_download_page"]

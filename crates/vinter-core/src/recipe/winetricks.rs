@@ -78,6 +78,21 @@ pub fn run(paths: &AppPaths, bottle_id: &str, script: &Path, verbs: &[String]) -
     })
 }
 
+/// A verb as people know it, e.g. "Microsoft Visual C++ 2019 runtime" for
+/// `vcrun2019`: the components catalog's name if it has one, else the verb.
+pub fn verb_name(verb: &str) -> String {
+    if let Some(version) = verb.strip_prefix("vcrun")
+        && !version.is_empty()
+        && version.chars().all(|c| c.is_ascii_digit())
+    {
+        return format!("Microsoft Visual C++ {version} runtime");
+    }
+    match verb {
+        "corefonts" => "Windows core fonts".into(),
+        _ => crate::components::name(verb).map_or_else(|| verb.to_string(), String::from),
+    }
+}
+
 /// Tools winetricks commonly needs that may be missing on a Mac.
 fn missing_tool(log: &str) -> Option<&'static str> {
     ["cabextract", "7z", "unzip", "wget"]
@@ -107,5 +122,14 @@ mod tests {
             Some("cabextract")
         );
         assert_eq!(missing_tool("Executing w_do_call corefonts"), None);
+    }
+
+    #[test]
+    fn plain_verb_names() {
+        assert_eq!(verb_name("vcrun2019"), "Microsoft Visual C++ 2019 runtime");
+        assert_eq!(verb_name("corefonts"), "Windows core fonts");
+        assert_eq!(verb_name("dotnet48"), ".NET Framework 4.8");
+        assert_eq!(verb_name("vcrun"), "vcrun");
+        assert_eq!(verb_name("something_new"), "something_new");
     }
 }

@@ -8,8 +8,8 @@ use vinter_core::recipe::{
     self, ApplyOptions, BrokenRecipe, RecipeProgress, RecipeState, RecipeSummary,
 };
 
-use super::CommandResult;
 use super::bottles::StartedBottle;
+use super::{CommandResult, blocking};
 use crate::jobs::{self, JobId, JobReporter};
 use crate::state::AppState;
 
@@ -187,6 +187,91 @@ pub fn recipe_resume(
             finish(&app, result)
         }
     }))
+}
+
+/// The recipe made for this installer file, if its name matches one (e.g.
+/// SteamSetup.exe and the Steam recipe).
+#[tauri::command]
+#[specta::specta]
+pub fn recipe_for_installer(state: State<'_, AppState>, path: String) -> Option<RecipeSummary> {
+    let name = std::path::Path::new(&path).file_name()?.to_string_lossy();
+    recipe::match_installer(&state.paths, &name).map(|r| r.summary())
+}
+
+/// Opens the page to download a recipe's installer from (or its homepage).
+#[tauri::command]
+#[specta::specta]
+pub fn recipe_open_download_page(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    recipe_id: String,
+) -> CommandResult<()> {
+    let summary = recipe::find(&state.paths, &recipe_id)?.summary();
+    let url = summary
+        .download_page
+        .filter(|u| u.starts_with("https://"))
+        .ok_or("This recipe has no download page.")?;
+    app.opener().open_url(url, None::<&str>)?;
+    Ok(())
+}
+
+/// Installers for a recipe that arrived in ~/Downloads since `since_ms`
+/// (milliseconds since 1970), newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn recipe_find_downloads(
+    state: State<'_, AppState>,
+    recipe_id: String,
+    since_ms: f64,
+) -> CommandResult<Vec<String>> {
+    let loaded = recipe::find(&state.paths, &recipe_id)?;
+    blocking(move || {
+        let Some(dir) = recipe::downloads_folder() else {
+            return Ok(Vec::new());
+        };
+        // A little slack: some browsers keep the time the download started.
+        let since = std::time::UNIX_EPOCH
+            + std::time::Duration::from_millis(since_ms.max(0.0) as u64)
+                .saturating_sub(std::time::Duration::from_secs(5));
+        Ok(recipe::recent_downloads(&dir, &loaded, since)
+            .into_iter()
+            .map(|p| p.display().to_string())
+            .collect())
+    })
+    .await
+}
+
+/// Sets up a new bottle for an installer opened with Vinter, named after the
+/// file. Installs a runtime first if none is installed. The bottle id is
+/// returned right away; the job ends when the bottle is ready.
+#[tauri::command]
+#[specta::specta]
+pub fn installer_setup_bottle(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> CommandResult<StartedBottle> {
+    let file = std::path::Path::new(&path)
+        .file_name()
+        .ok_or("This is not a file.")?
+        .to_string_lossy()
+        .into_owned();
+    let name = recipe::bottle_name_for(&file);
+    let bottle_id = uuid::Uuid::new_v4().to_string();
+    state.mark_busy(&bottle_id);
+    let paths = state.paths.clone();
+    let id = bottle_id.clone();
+    let job_id = jobs::spawn(&app, |job| {
+        let app = app.clone();
+        async move {
+            let result =
+                recipe::create_for_installer(&paths, Some(id.clone()), name, |p| report(&job, p))
+                    .await;
+            app.state::<AppState>().clear_busy(&id);
+            result.map(|_| ()).map_err(|e| e.to_string())
+        }
+    });
+    Ok(StartedBottle { bottle_id, job_id })
 }
 
 /// Opens the folder for your own recipes (creating it if needed).

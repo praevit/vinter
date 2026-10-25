@@ -2,6 +2,7 @@ id = "putty"
 name = "PuTTY"
 description = "SSH and Telnet client."
 homepage = "https://www.chiark.greenend.org.uk/~sgtatham/putty/"
+installer_names = ["putty-64bit-*-installer*.msi"]
 license = "MIT"
 runtime_flavor = "stable"
 windows_version = "win10"

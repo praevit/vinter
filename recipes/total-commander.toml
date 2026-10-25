@@ -2,6 +2,7 @@ id = "total-commander"
 name = "Total Commander"
 description = "Two-pane file manager. Shareware: free to try for 30 days."
 homepage = "https://www.ghisler.com"
+installer_names = ["tcmd*x64*.exe"]
 license = "Proprietary (shareware)"
 runtime_flavor = "stable"
 windows_version = "win10"
