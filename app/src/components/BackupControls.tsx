@@ -26,20 +26,31 @@ function JobStatus({ jobKey, done }: { jobKey: string; done: string }) {
   return job.done?.ok ? <p className={subtle}>{done}</p> : <ErrorText>{job.done?.error}</ErrorText>;
 }
 
-/** "Back up…" for a bottle's Settings tab. */
+/** The job key of a bottle's backup, for its progress. */
+export const backupJobKey = (bottleId: string) => `bottle-backup:${bottleId}`;
+
+/** Asks where to save a backup of the bottle, then starts it. Resolves to an error message, if any. */
+export async function startBackup(
+  jobs: ReturnType<typeof useJobs>,
+  bottleId: string,
+): Promise<string | undefined> {
+  try {
+    const jobId = await commands.bottleExport(bottleId);
+    if (jobId) await jobs.start(backupJobKey(bottleId), async () => jobId);
+  } catch (e) {
+    return errorMessage(e);
+  }
+}
+
+/** "Back up…" for a bottle's Snapshots & backups tab. */
 export function BackupButton({ bottleId }: { bottleId: string }) {
   const jobs = useJobs();
-  const key = `bottle-backup:${bottleId}`;
+  const key = backupJobKey(bottleId);
   const [error, setError] = useState<string>();
 
   const start = async () => {
     setError(undefined);
-    try {
-      const jobId = await commands.bottleExport(bottleId);
-      if (jobId) await jobs.start(key, async () => jobId);
-    } catch (e) {
-      setError(errorMessage(e));
-    }
+    setError(await startBackup(jobs, bottleId));
   };
 
   return (

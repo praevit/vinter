@@ -1,9 +1,12 @@
-//! Small windows opened from the menus: About and Software Update. They use
-//! the same frontend bundle; `main.tsx` picks what to render.
+//! Windows opened from the menus: About, Software Update and (macOS)
+//! Settings. They use the same frontend bundle; `main.tsx` picks what to
+//! render.
 
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Theme, WebviewUrl, WebviewWindowBuilder};
+use vinter_core::settings::Appearance;
 
 use crate::startup;
+use crate::state::AppState;
 
 /// A small About window, like a Mac app's About panel but in Vinter's colors.
 pub fn show_about(app: &AppHandle) {
@@ -15,8 +18,30 @@ pub fn show_updates(app: &AppHandle) {
     show_small(app, "updates", "Software Update", (440.0, 190.0));
 }
 
+/// Settings in its own window, like a Mac app's (⌘,).
+pub fn show_settings(app: &AppHandle) {
+    show(app, "settings", "Settings", (720.0, 680.0), true);
+}
+
+/// Light, dark or the system's appearance for every window, now and later.
+pub fn apply_appearance(app: &AppHandle, appearance: Appearance) {
+    app.set_theme(theme(appearance));
+}
+
+fn theme(appearance: Appearance) -> Option<Theme> {
+    match appearance {
+        Appearance::System => None,
+        Appearance::Light => Some(Theme::Light),
+        Appearance::Dark => Some(Theme::Dark),
+    }
+}
+
+fn show_small(app: &AppHandle, label: &str, title: &str, size: (f64, f64)) {
+    show(app, label, title, size, false);
+}
+
 /// Shows the window `label` (`kind` for the frontend), creating it if needed.
-fn show_small(app: &AppHandle, label: &str, title: &str, (width, height): (f64, f64)) {
+fn show(app: &AppHandle, label: &str, title: &str, (width, height): (f64, f64), resizable: bool) {
     // Bring Vinter forward, also while it only lives in the menu bar.
     #[cfg(target_os = "macos")]
     let _ = app.run_on_main_thread(macos::activate);
@@ -30,10 +55,18 @@ fn show_small(app: &AppHandle, label: &str, title: &str, (width, height): (f64, 
         .initialization_script(format!("window.__VINTER_WINDOW__ = '{label}';"))
         .title(title)
         .inner_size(width, height)
-        .resizable(false)
+        .resizable(resizable)
         .maximizable(false)
-        .minimizable(false)
+        .minimizable(resizable)
+        .theme(theme(
+            vinter_core::settings::load(&app.state::<AppState>().paths).appearance,
+        ))
         .center();
+    let builder = if resizable {
+        builder.min_inner_size(width * 0.75, height * 0.6)
+    } else {
+        builder
+    };
     // Like Apple's panels: no title bar, the traffic lights over the content.
     #[cfg(target_os = "macos")]
     let builder = builder

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Copy, Eraser, FolderOpen, Square, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, Eraser, FolderOpen, HardDriveDownload, MoreHorizontal, Square, Trash2 } from "lucide-react";
 import { commands, type Readiness, type Tool } from "../api/bindings";
 import { READINESS_LABELS, ReadinessDot } from "../components/ReadinessDot";
 import { ExperimentalBadge } from "../components/ExperimentalBadge";
@@ -22,11 +22,14 @@ import {
 import { useAppInfo } from "../api/app";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
+import { useRuns } from "../api/runs";
 import { useEnsureRosetta } from "../api/rosetta";
 import { useRecipeState } from "../api/recipes";
 import { ENGINE_LABELS, formatBytes, runtimeLabel, useInstalledRuntimes } from "../api/runtimes";
 import { RecipeResume } from "../components/RecipeResume";
-import { BackupButton } from "../components/BackupControls";
+import { BackupButton, startBackup } from "../components/BackupControls";
+import { Dialog } from "../components/Dialog";
+import { Menu } from "../components/Menu";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { DomainSection } from "../components/DomainSection";
 import { GraphicsSection } from "../components/GraphicsSection";
@@ -40,37 +43,75 @@ import type { BottleFocus, Route } from "../components/Sidebar";
 import { Button, ErrorText, Label, field, subtle } from "../components/ui";
 import { Select } from "../components/Select";
 
-type Tab = "programs" | "tools" | "logs" | "settings";
+const TABS = ["programs", "tools", "logs", "settings", "backups"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_LABELS: Record<Tab, string> = {
+  programs: "Programs",
+  tools: "Tools",
+  logs: "Logs",
+  settings: "Settings",
+  backups: "Snapshots & backups",
+};
+const isTab = (t: string | null | undefined): t is Tab => TABS.includes(t as Tab);
+/** The tab a focus opens: snapshots live with the backups. */
+const focusTab = (focus: BottleFocus): Tab =>
+  focus.tab === "logs" ? "logs" : focus.section === "snapshots" ? "backups" : "settings";
+
+/** The tab last shown for a bottle (kept in this window's storage). */
+const tabKey = (id: string) => `vinter.bottle-tab.${id}`;
+function savedTab(id: string): Tab | undefined {
+  try {
+    const t = localStorage.getItem(tabKey(id));
+    return isTab(t) ? t : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function saveTab(id: string, tab: Tab) {
+  try {
+    localStorage.setItem(tabKey(id), tab);
+  } catch {
+    // Not remembered; that is fine.
+  }
+}
 
 export function BottleView({
   id,
   focus,
   onNavigate,
+  initialTab,
 }: {
   id: string;
-  /** Opens a tab (and a log or section in it). Each new value applies once. */
+  /** Opens a tab (and a log in it). Each new value applies once. */
   focus?: BottleFocus;
   onNavigate: (r: Route) => void;
+  /** A tab to open on (e.g. "logs"), instead of the one shown last. */
+  initialTab?: string;
 }) {
   const { data: bottle, error } = useBottle(id);
   const { data: list } = useBottles();
   const { data: runtimes } = useInstalledRuntimes();
   const jobs = useJobs();
-  const [tab, setTab] = useState<Tab>(focus?.tab ?? "programs");
+  const [tab, setTabState] = useState<Tab>(() =>
+    focus ? focusTab(focus) : isTab(initialTab) ? initialTab : (savedTab(id) ?? "programs"),
+  );
   const [logToShow, setLogToShow] = useState<string | undefined>(focus?.tab === "logs" ? focus.log : undefined);
-  const [settingsFocus, setSettingsFocus] = useState(focus?.tab === "settings" ? focus : undefined);
   // A new focus (e.g. "Show log" in a toast) while this page is open.
   const [seenFocus, setSeenFocus] = useState(focus);
   if (focus !== seenFocus) {
     setSeenFocus(focus);
     if (focus) {
-      setTab(focus.tab);
+      setTabState(focusTab(focus));
       if (focus.tab === "logs") setLogToShow(focus.log);
-      else setSettingsFocus(focus);
     }
   }
   const [migrating, setMigrating] = useState(false);
   const canMigrate = useExperimental("bottle-migrate-arm64");
+
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    saveTab(id, t);
+  };
 
   const listed = list?.find((b) => b.id === id);
   const status = listed?.status;
@@ -82,16 +123,31 @@ export function BottleView({
   if (error) return <Page><ErrorText>{errorMessage(error)}</ErrorText></Page>;
   if (!bottle) return null;
 
+  const settingUp = status === "setting_up" || (setup && isRunning(setup));
+  const usable = !settingUp && !recipeState && !(setup?.done && !setup.done.ok) && status !== "incomplete";
+  const showLog = (logId?: string) => {
+    setLogToShow(logId);
+    setTab("logs");
+  };
+
   return (
     <Page>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{bottle.name}</h1>
-        <p className={subtle}>
-          {runtime ? runtimeLabel(runtime) : bottle.runtime} · {windowsLabel(bottle.windows_version)}
-        </p>
+      <header className="flex items-start gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">{bottle.name}</h1>
+          <p className={subtle}>
+            {runtime ? runtimeLabel(runtime) : bottle.runtime} · {windowsLabel(bottle.windows_version)}
+          </p>
+        </div>
+        {usable && (
+          <>
+            <RunningChip bottleId={bottle.id} />
+            <BottleMenu bottle={bottle} onNavigate={onNavigate} onShowTab={setTab} />
+          </>
+        )}
       </header>
 
-      {status === "setting_up" || (setup && isRunning(setup)) ? (
+      {settingUp ? (
         <SetupProgress step={setup?.step} message={setup?.message} />
       ) : recipeState ? (
         <RecipeResume bottleId={bottle.id} state={recipeState} />
@@ -126,46 +182,22 @@ export function BottleView({
               Settings, or install it again.
             </Notice>
           )}
-          <nav className="flex gap-1 border-b border-frost-200 dark:border-slate-deep-700">
-            {(["programs", "tools", "logs", "settings"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTab(t)}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm capitalize ${
-                  tab === t
-                    ? "border-wine-500 font-medium"
-                    : "border-transparent text-slate-deep-700/70 hover:text-slate-deep-900 dark:text-frost-300/70 dark:hover:text-frost-100"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </nav>
-          {tab === "programs" && (
-            <ProgramsTab
-              bottleId={bottle.id}
-              needsRosetta={runtime?.needs_rosetta ?? false}
-              onShowLog={(id) => {
-                setLogToShow(id);
-                setTab("logs");
-              }}
-            />
-          )}
-          {tab === "logs" && <LogsTab key={logToShow} bottleId={bottle.id} initial={logToShow} />}
-          {tab === "tools" && <Tools bottle={bottle} needsRosetta={runtime?.needs_rosetta ?? false} />}
-          {tab === "settings" && (
-            <Settings
-              focus={settingsFocus}
-              bottle={bottle}
-              needsRosetta={runtime?.needs_rosetta ?? false}
-              onNavigate={onNavigate}
-              onShowLog={(id) => {
-                setLogToShow(id);
-                setTab("logs");
-              }}
-            />
-          )}
+          <Tabs tab={tab} onChange={setTab} />
+          <div role="tabpanel" id={`bottle-panel-${tab}`} aria-labelledby={`bottle-tab-${tab}`}>
+            {tab === "programs" && (
+              <ProgramsTab
+                bottleId={bottle.id}
+                needsRosetta={runtime?.needs_rosetta ?? false}
+                onShowLog={showLog}
+              />
+            )}
+            {tab === "logs" && <LogsTab key={logToShow} bottleId={bottle.id} initial={logToShow} />}
+            {tab === "tools" && <Tools bottle={bottle} needsRosetta={runtime?.needs_rosetta ?? false} />}
+            {tab === "settings" && (
+              <Settings bottle={bottle} needsRosetta={runtime?.needs_rosetta ?? false} onShowLog={showLog} />
+            )}
+            {tab === "backups" && <Backups bottle={bottle} onNavigate={onNavigate} />}
+          </div>
         </>
       )}
       {migrating && (
@@ -181,6 +213,273 @@ export function BottleView({
       )}
     </Page>
   );
+}
+
+/** The bottle's tabs; arrow keys move between them. */
+function Tabs({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+  const onKeyDown = (e: KeyboardEvent) => {
+    const at = TABS.indexOf(tab);
+    const next =
+      e.key === "ArrowRight"
+        ? TABS[(at + 1) % TABS.length]
+        : e.key === "ArrowLeft"
+          ? TABS[(at - 1 + TABS.length) % TABS.length]
+          : e.key === "Home"
+            ? TABS[0]
+            : e.key === "End"
+              ? TABS[TABS.length - 1]
+              : undefined;
+    if (!next) return;
+    e.preventDefault();
+    onChange(next);
+    document.getElementById(`bottle-tab-${next}`)?.focus();
+  };
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Bottle"
+      onKeyDown={onKeyDown}
+      className="flex gap-1 overflow-x-auto border-b border-frost-200 dark:border-slate-deep-700"
+    >
+      {TABS.map((t) => (
+        <button
+          key={t}
+          id={`bottle-tab-${t}`}
+          type="button"
+          role="tab"
+          aria-selected={tab === t}
+          aria-controls={`bottle-panel-${t}`}
+          tabIndex={tab === t ? 0 : -1}
+          onClick={() => onChange(t)}
+          className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm whitespace-nowrap ${
+            tab === t
+              ? "border-wine-500 font-medium"
+              : "border-transparent text-secondary hover:text-slate-deep-900 dark:hover:text-frost-100"
+          }`}
+        >
+          {TAB_LABELS[t]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** "2 running · Stop all", while programs started from Vinter run in this bottle. */
+function RunningChip({ bottleId }: { bottleId: string }) {
+  const { runs } = useRuns();
+  const [stopping, setStopping] = useState(false);
+  const [error, setError] = useState<string>();
+  const count = runs.filter((r) => r.info.bottle_id === bottleId && !r.exit).length;
+  if (count === 0) return null;
+
+  const stopAll = async () => {
+    setStopping(true);
+    setError(undefined);
+    try {
+      await commands.bottleKillAll(bottleId);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setStopping(false);
+    }
+  };
+
+  return (
+    <div
+      className="flex shrink-0 items-center gap-2 rounded-full border border-frost-300 py-1 pr-1 pl-3 text-sm dark:border-slate-deep-700"
+      title={error}
+    >
+      <span className="size-2 rounded-full bg-emerald-500" aria-hidden />
+      <span>{count} running</span>
+      <span className="text-tertiary" aria-hidden>
+        ·
+      </span>
+      <button
+        type="button"
+        disabled={stopping}
+        onClick={stopAll}
+        className="flex items-center gap-1 rounded-full px-2 py-0.5 hover:bg-frost-100 disabled:opacity-50 dark:hover:bg-slate-deep-800"
+      >
+        <Square className="size-3" aria-hidden /> {stopping ? "Stopping…" : "Stop all"}
+      </button>
+      {error && <span className="sr-only">{error}</span>}
+    </div>
+  );
+}
+
+/** The "…" menu next to the bottle's name. */
+function BottleMenu({
+  bottle,
+  onNavigate,
+  onShowTab,
+}: {
+  bottle: BottleDetails;
+  onNavigate: (r: Route) => void;
+  onShowTab: (t: Tab) => void;
+}) {
+  const jobs = useJobs();
+  const [dialog, setDialog] = useState<"duplicate" | "delete">();
+  const [error, setError] = useState<string>();
+
+  const backUp = async () => {
+    setError(undefined);
+    // Its progress shows on the Snapshots & backups tab.
+    onShowTab("backups");
+    setError(await startBackup(jobs, bottle.id));
+  };
+  const openDrive = () => {
+    setError(undefined);
+    commands.bottleOpenDriveC(bottle.id).catch((e) => setError(errorMessage(e)));
+  };
+
+  return (
+    <>
+      <Menu
+        label="More actions"
+        items={[
+          { label: "Duplicate…", icon: <Copy className="size-4" aria-hidden />, onSelect: () => setDialog("duplicate") },
+          { label: "Back up…", icon: <HardDriveDownload className="size-4" aria-hidden />, onSelect: backUp },
+          { label: "Show C: drive", icon: <FolderOpen className="size-4" aria-hidden />, onSelect: openDrive },
+          {
+            label: "Move to Trash…",
+            icon: <Trash2 className="size-4" aria-hidden />,
+            onSelect: () => setDialog("delete"),
+            danger: true,
+            separatorBefore: true,
+          },
+        ]}
+      >
+        <MoreHorizontal className="size-4" />
+      </Menu>
+      {error && (
+        <Dialog
+          onClose={() => setError(undefined)}
+          title="That did not work"
+          actions={<Button onClick={() => setError(undefined)}>OK</Button>}
+        >
+          <ErrorText>{error}</ErrorText>
+        </Dialog>
+      )}
+      {dialog === "duplicate" && (
+        <DuplicateDialog bottle={bottle} onNavigate={onNavigate} onClose={() => setDialog(undefined)} />
+      )}
+      {dialog === "delete" && (
+        <DeleteDialog
+          bottle={bottle}
+          onDeleted={() => onNavigate({ page: "home" })}
+          onClose={() => setDialog(undefined)}
+        />
+      )}
+    </>
+  );
+}
+
+function DeleteDialog({
+  bottle,
+  onDeleted,
+  onClose,
+}: {
+  bottle: BottleDetails;
+  onDeleted: () => void;
+  onClose: () => void;
+}) {
+  const remove = useDeleteBottle();
+  return (
+    <Dialog
+      onClose={remove.isPending ? undefined : onClose}
+      title={`Move “${bottle.name}” to the Trash?`}
+      actions={
+        <>
+          <Button disabled={remove.isPending} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={remove.isPending}
+            onClick={() => remove.mutate(bottle.id, { onSuccess: onDeleted })}
+          >
+            <Trash2 className="size-4" aria-hidden />
+            {remove.isPending ? "Moving to Trash…" : "Move to Trash"}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm">
+        Stops its programs and moves the bottle, with everything installed in it, to the Trash. You can still get it
+        back from there.
+      </p>
+      {remove.error && <ErrorText>{errorMessage(remove.error)}</ErrorText>}
+    </Dialog>
+  );
+}
+
+function DuplicateDialog({
+  bottle,
+  onNavigate,
+  onClose,
+}: {
+  bottle: BottleDetails;
+  onNavigate: (r: Route) => void;
+  onClose: () => void;
+}) {
+  const duplicate = useDuplicate(bottle, onNavigate);
+  const [name, setName] = useState(`${bottle.name} copy`);
+  const busy = duplicate.busy;
+  const go = () => name.trim() && !busy && void duplicate.run(name);
+
+  return (
+    <Dialog
+      onClose={busy ? undefined : onClose}
+      title={`Duplicate “${bottle.name}”`}
+      actions={
+        <>
+          <Button disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" disabled={busy || !name.trim()} onClick={go}>
+            <Copy className="size-4" aria-hidden /> Duplicate
+          </Button>
+        </>
+      }
+    >
+      <p className={subtle}>Copies the whole bottle, including installed programs. Close its programs first.</p>
+      <Label title="Name of the copy">
+        <input
+          className={field}
+          value={name}
+          maxLength={64}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && go()}
+        />
+      </Label>
+      {duplicate.error && <ErrorText>{duplicate.error}</ErrorText>}
+    </Dialog>
+  );
+}
+
+/** Copies a bottle, then shows the copy (which sets itself up). */
+function useDuplicate(bottle: BottleDetails, onNavigate: (r: Route) => void) {
+  const jobs = useJobs();
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+
+  const run = async (name: string) => {
+    setBusy(true);
+    setError(undefined);
+    try {
+      const started = await commands.bottleDuplicate(bottle.id, name);
+      jobs.start(bottleJobKey(started.bottle_id), async () => started.job_id);
+      await queryClient.invalidateQueries({ queryKey: ["bottles"] });
+      onNavigate({ page: "bottle", id: started.bottle_id });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { run, error, busy };
 }
 
 function Page({ children }: { children: React.ReactNode }) {
@@ -306,15 +605,11 @@ function Tools({ bottle, needsRosetta }: { bottle: BottleDetails; needsRosetta: 
 
 function Settings({
   bottle,
-  focus,
   needsRosetta,
-  onNavigate,
   onShowLog,
 }: {
   bottle: BottleDetails;
-  focus?: BottleFocus & { tab: "settings" };
   needsRosetta: boolean;
-  onNavigate: (r: Route) => void;
   onShowLog: (logId: string) => void;
 }) {
   const { data: runtimes } = useInstalledRuntimes();
@@ -323,32 +618,13 @@ function Settings({
   const updateEnv = useUpdateBottle(bottle.id);
   const none = { name: null, runtime: null, env: null, dll_overrides: null };
   const jobs = useJobs();
-  const queryClient = useQueryClient();
   const [name, setName] = useState(bottle.name);
-  const [copyName, setCopyName] = useState(`${bottle.name} copy`);
-  const [dupError, setDupError] = useState<string>();
 
   const winJob = jobs.job(windowsJobKey(bottle.id));
   const changingWindows = isRunning(winJob);
   const optJob = jobs.job(optionsJobKey(bottle.id));
   const changingOptions = isRunning(optJob);
   const { data: app } = useAppInfo();
-  const snapshots = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (focus?.section === "snapshots") snapshots.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [focus]);
-
-  const duplicate = async () => {
-    setDupError(undefined);
-    try {
-      const started = await commands.bottleDuplicate(bottle.id, copyName);
-      jobs.start(bottleJobKey(started.bottle_id), async () => started.job_id);
-      await queryClient.invalidateQueries({ queryKey: ["bottles"] });
-      onNavigate({ page: "bottle", id: started.bottle_id });
-    } catch (e) {
-      setDupError(errorMessage(e));
-    }
-  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -414,13 +690,6 @@ function Settings({
         {optJob?.done && !optJob.done.ok && <ErrorText>{optJob.done.error}</ErrorText>}
       </section>
 
-      <DomainSection
-        key={bottle.id}
-        bottle={bottle}
-        runtime={runtimes?.find((r) => r.id === bottle.runtime)}
-        os={app?.os}
-      />
-
       <div className="border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <GraphicsSection
           bottleId={bottle.id}
@@ -430,11 +699,12 @@ function Settings({
         />
       </div>
 
-      <div ref={snapshots} className="scroll-mt-6">
-        <SnapshotsSection bottleId={bottle.id} />
-      </div>
-
-      <BottleStorage bottleId={bottle.id} />
+      <DomainSection
+        key={bottle.id}
+        bottle={bottle}
+        runtime={runtimes?.find((r) => r.id === bottle.runtime)}
+        os={app?.os}
+      />
 
       <details className="flex flex-col gap-5 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <summary className="cursor-pointer text-sm font-medium">Advanced</summary>
@@ -461,6 +731,20 @@ function Settings({
           />
         </div>
       </details>
+    </div>
+  );
+}
+
+/** Snapshots, backups, copies and disk space. */
+function Backups({ bottle, onNavigate }: { bottle: BottleDetails; onNavigate: (r: Route) => void }) {
+  const duplicate = useDuplicate(bottle, onNavigate);
+  const [copyName, setCopyName] = useState(`${bottle.name} copy`);
+
+  return (
+    <div className="flex flex-col gap-6 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+      <SnapshotsSection bottleId={bottle.id} />
+
+      <BackupButton bottleId={bottle.id} />
 
       <section className="flex flex-col gap-2 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
         <h2 className="text-sm font-medium">Duplicate</h2>
@@ -468,23 +752,21 @@ function Settings({
           Copies the whole bottle, including installed programs. Close its programs first.
         </p>
         <div className="flex gap-2">
-          <input className={field} value={copyName} maxLength={64} onChange={(e) => setCopyName(e.target.value)} />
-          <Button disabled={!copyName.trim()} onClick={duplicate}>
+          <input
+            className={field}
+            value={copyName}
+            maxLength={64}
+            aria-label="Name of the copy"
+            onChange={(e) => setCopyName(e.target.value)}
+          />
+          <Button disabled={!copyName.trim() || duplicate.busy} onClick={() => duplicate.run(copyName)}>
             <Copy className="size-4" /> Duplicate
           </Button>
         </div>
-        {dupError && <ErrorText>{dupError}</ErrorText>}
+        {duplicate.error && <ErrorText>{duplicate.error}</ErrorText>}
       </section>
 
-      <BackupButton bottleId={bottle.id} />
-
-      <section className="flex flex-col items-start gap-2 border-t border-frost-200 pt-5 dark:border-slate-deep-700">
-        <h2 className="text-sm font-medium">Delete</h2>
-        <p className={subtle}>
-          Stops its programs and moves the bottle to the Trash, so you can still get it back.
-        </p>
-        <DeleteButton bottle={bottle} onDeleted={() => onNavigate({ page: "home" })} />
-      </section>
+      <BottleStorage bottleId={bottle.id} />
     </div>
   );
 }

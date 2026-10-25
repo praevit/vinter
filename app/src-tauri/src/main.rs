@@ -113,6 +113,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::settings_get,
             commands::settings::settings_set,
             commands::settings::settings_set_launch_at_login,
+            commands::settings::settings_window_show,
             commands::settings::experimental_list,
             commands::settings::experimental_set,
             commands::settings::storage_usage,
@@ -190,6 +191,10 @@ fn main() {
                     event.urls().iter().map(|u| u.to_string()).collect(),
                 );
             });
+            windows::apply_appearance(
+                app.handle(),
+                vinter_core::settings::load(&app.state::<AppState>().paths).appearance,
+            );
             tray::create(app.handle());
             updates::start(app.handle());
             startup::on_start(app.handle(), std::env::args().collect());

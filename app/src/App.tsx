@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { commands, events } from "./api/bindings";
 import { ApprovalDialog } from "./components/ApprovalDialog";
@@ -6,6 +6,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { OpenFileDialog } from "./components/OpenFileDialog";
 import { useBottles } from "./api/bottles";
 import { onNavigate } from "./api/navigate";
+import { isMac, useAppearance } from "./api/theme";
 import { Sidebar, type Route } from "./components/Sidebar";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { BottleView } from "./pages/BottleView";
@@ -18,7 +19,13 @@ import { System } from "./pages/System";
 import { Welcome } from "./pages/Welcome";
 
 export function App() {
-  const [route, setRoute] = useState<Route>({ page: "home" });
+  const [route, setPage] = useState<Route>({ page: "home" });
+  // macOS: Settings has its own window, like other Mac apps.
+  const setRoute = useCallback((r: Route) => {
+    if (isMac && r.page === "settings") void commands.settingsWindowShow();
+    else setPage(r);
+  }, []);
+  useAppearance();
   const bottles = useBottles();
   // .exe/.msi files opened with Vinter or dropped on the window, one at a time.
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -42,7 +49,7 @@ export function App() {
       stopNavigating();
       dropped.then((u) => u());
     };
-  }, []);
+  }, [setRoute]);
 
   // A deleted bottle's page falls back to home.
   const current =
@@ -53,10 +60,15 @@ export function App() {
   return (
     <div className="flex h-screen">
       <Sidebar route={current} onNavigate={setRoute} />
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto vibrancy:bg-frost-50 vibrancy:dark:bg-slate-deep-950">
+        {/* macOS: the window has no title bar; drag it from here. */}
+        <div
+          data-tauri-drag-region
+          className="sticky top-0 z-10 hidden h-7 bg-frost-50 macos:block dark:bg-slate-deep-950"
+        />
         <UpdateBanner route={current} onNavigate={setRoute} />
         {current.page === "bottle" ? (
-          <BottleView key={current.id} id={current.id} focus={current.focus} onNavigate={setRoute} />
+          <BottleView key={current.id} id={current.id} focus={current.focus} initialTab={current.tab} onNavigate={setRoute} />
         ) : current.page === "new-bottle" ? (
           <NewBottle onNavigate={setRoute} />
         ) : current.page === "install-app" ? (

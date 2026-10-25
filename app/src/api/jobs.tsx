@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { announce } from "./announce";
 import { events } from "./bindings";
 import { errorMessage } from "./errors";
 
@@ -44,6 +45,8 @@ export function JobsProvider({ children }: { children: ReactNode }) {
           done: { ok: d.ok, error: d.error },
         },
       }));
+      // Failures show a toast, which screen readers already read out.
+      if (d.ok) announce("Done.");
       // Any finished job may have changed what is installed.
       queryClient.invalidateQueries();
     });

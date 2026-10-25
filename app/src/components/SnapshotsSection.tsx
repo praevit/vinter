@@ -5,7 +5,7 @@ import { commands, type Snapshot } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { Button, ErrorText, field, subtle } from "./ui";
 
-/** Snapshots of a bottle, to roll back to. For a bottle's Settings tab. */
+/** Snapshots of a bottle, to roll back to. For a bottle's Snapshots & backups tab. */
 export function SnapshotsSection({ bottleId }: { bottleId: string }) {
   const queryClient = useQueryClient();
   const { data: snapshots } = useQuery({
@@ -13,8 +13,9 @@ export function SnapshotsSection({ bottleId }: { bottleId: string }) {
     queryFn: () => commands.snapshotsList(bottleId),
   });
   const [label, setLabel] = useState("");
-  // Restoring replaces the bottle's files, so it asks first.
+  // Restoring replaces the bottle's files and deleting cannot be undone, so both ask first.
   const [confirming, setConfirming] = useState<string>();
+  const [confirmingDelete, setConfirmingDelete] = useState<string>();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["bottles"] });
 
   const create = useMutation({
@@ -31,7 +32,10 @@ export function SnapshotsSection({ bottleId }: { bottleId: string }) {
   });
   const remove = useMutation({
     mutationFn: (id: string) => commands.snapshotDelete(bottleId, id),
-    onSettled: refresh,
+    onSettled: () => {
+      setConfirmingDelete(undefined);
+      return refresh();
+    },
   });
   const busy = create.isPending || restore.isPending || remove.isPending;
   const error = create.error ?? restore.error ?? remove.error;
@@ -64,10 +68,22 @@ export function SnapshotsSection({ bottleId }: { bottleId: string }) {
               snapshot={s}
               busy={busy}
               confirming={confirming === s.id}
+              confirmingDelete={confirmingDelete === s.id}
               restoring={restore.isPending && restore.variables === s.id}
-              onRestore={() => (confirming === s.id ? restore.mutate(s.id) : setConfirming(s.id))}
-              onCancel={() => setConfirming(undefined)}
-              onDelete={() => remove.mutate(s.id)}
+              onRestore={() => {
+                setConfirmingDelete(undefined);
+                if (confirming === s.id) restore.mutate(s.id);
+                else setConfirming(s.id);
+              }}
+              onCancel={() => {
+                setConfirming(undefined);
+                setConfirmingDelete(undefined);
+              }}
+              onDelete={() => {
+                setConfirming(undefined);
+                if (confirmingDelete === s.id) remove.mutate(s.id);
+                else setConfirmingDelete(s.id);
+              }}
             />
           ))}
         </ul>
@@ -81,6 +97,7 @@ function SnapshotRow({
   snapshot,
   busy,
   confirming,
+  confirmingDelete,
   restoring,
   onRestore,
   onCancel,
@@ -89,6 +106,7 @@ function SnapshotRow({
   snapshot: Snapshot;
   busy: boolean;
   confirming: boolean;
+  confirmingDelete: boolean;
   restoring: boolean;
   onRestore: () => void;
   onCancel: () => void;
@@ -113,12 +131,21 @@ function SnapshotRow({
             Cancel
           </Button>
         </>
+      ) : confirmingDelete ? (
+        <>
+          <Button variant="primary" disabled={busy} onClick={onDelete}>
+            <Trash2 className="size-4" aria-hidden /> Delete snapshot
+          </Button>
+          <Button disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+        </>
       ) : (
         <>
           <Button disabled={busy} onClick={onRestore} title="Put the bottle back as it was">
             <RotateCcw className="size-4" /> Restore
           </Button>
-          <Button variant="danger" disabled={busy} onClick={onDelete} title="Delete snapshot">
+          <Button variant="danger" disabled={busy} onClick={onDelete} title="Delete snapshot" aria-label="Delete snapshot">
             <Trash2 className="size-4" />
           </Button>
         </>

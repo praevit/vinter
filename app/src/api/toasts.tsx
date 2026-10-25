@@ -12,9 +12,10 @@ let nextId = 1;
 
 /**
  * Small notices in the corner: background errors (e.g. a launcher that
- * failed), failed jobs, and programs that exited with an error.
+ * failed), failed jobs, and programs that exited with an error. With
+ * `background={false}` (a second window) only this window's own toasts show.
  */
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children, background = true }: { children: ReactNode; background?: boolean }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const show = useCallback(
@@ -28,6 +29,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    if (!background) return;
     const notice = events.appNotice.listen(({ payload }) => show(payload.message));
     const done = events.jobDone.listen(({ payload }) => {
       if (!payload.ok && payload.error) show(payload.error);
@@ -36,7 +38,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       notice.then((u) => u());
       done.then((u) => u());
     };
-  }, [show]);
+  }, [show, background]);
 
   return (
     <ToastContext value={{ show }}>
@@ -70,7 +72,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </button>
               )}
             </div>
-            <button type="button" aria-label="Dismiss" onClick={() => dismiss(t.id)} className="text-frost-400 hover:text-current">
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              title="Dismiss"
+              onClick={() => dismiss(t.id)}
+              className="rounded text-tertiary hover:text-current"
+            >
               <X className="size-4" />
             </button>
           </div>

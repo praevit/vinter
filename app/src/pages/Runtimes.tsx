@@ -125,7 +125,7 @@ function Updates() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-xs font-semibold tracking-wide text-frost-400 uppercase">{title}</h2>
+      <h2 className="text-xs font-semibold tracking-wide text-tertiary uppercase">{title}</h2>
       <ul className="divide-y divide-frost-200 rounded-xl border border-frost-200 bg-white dark:divide-slate-deep-700 dark:border-slate-deep-700 dark:bg-slate-deep-900">
         {children}
       </ul>
@@ -134,7 +134,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <li className="px-4 py-6 text-center text-sm text-frost-400">{children}</li>;
+  return <li className="px-4 py-6 text-center text-sm text-tertiary">{children}</li>;
 }
 
 function Title({ name, flavor, engine }: { name: string; flavor: Flavor; engine: EngineKind }) {

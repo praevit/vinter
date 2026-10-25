@@ -1,4 +1,4 @@
-/** A thin bar; indeterminate (pulsing) when `percent` is null. */
+/** A thin bar; indeterminate (a sliding bar) when `percent` is null. */
 export function ProgressBar({ percent }: { percent: number | null }) {
   return (
     <div
@@ -6,10 +6,10 @@ export function ProgressBar({ percent }: { percent: number | null }) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={percent ?? undefined}
-      className="h-1.5 w-full overflow-hidden rounded-full bg-frost-200 dark:bg-slate-deep-700"
+      className="relative h-1.5 w-full overflow-hidden rounded-full bg-frost-200 dark:bg-slate-deep-700"
     >
       {percent === null ? (
-        <div className="h-full w-1/3 animate-pulse rounded-full bg-wine-500" />
+        <div className="progress-indeterminate rounded-full bg-wine-500" />
       ) : (
         <progress
           value={percent}

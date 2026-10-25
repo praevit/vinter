@@ -4,6 +4,7 @@ import { TriangleAlert, Trash2 } from "lucide-react";
 import { useAppInfo } from "../api/app";
 import {
   commands,
+  type Appearance,
   type D3dMetalSource,
   type FlagState,
   type Settings_Serialize as SettingsData,
@@ -110,6 +111,8 @@ export function Settings() {
       <StorageGroup />
 
       <ExperimentalGroup />
+
+      <AppearanceGroup />
     </div>
   );
 }
@@ -438,5 +441,34 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: (checked: b
         className="relative h-5 w-9 shrink-0 rounded-full bg-frost-300 transition-colors peer-checked:bg-wine-500 peer-focus-visible:ring-2 peer-focus-visible:ring-wine-500/50 after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-4 dark:bg-slate-deep-700"
       />
     </>
+  );
+}
+
+/** Light or dark windows, or the system's choice. */
+function AppearanceGroup() {
+  const { data: view } = useSettings();
+  const save = useSaveSettings();
+  if (!view) return null;
+  const { launch_at_login, ...settings } = view;
+  return (
+    <Group title="Appearance">
+      <div className="flex items-center gap-4 px-5 py-3.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm font-medium">Light or dark</span>
+          <span className={subtle}>System follows your computer's setting.</span>
+        </span>
+        <div className="w-36">
+          <Select<Appearance>
+            value={settings.appearance}
+            onChange={(appearance) => save.mutate({ ...settings, appearance })}
+            options={[
+              { value: "system", label: "System" },
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+            ]}
+          />
+        </div>
+      </div>
+    </Group>
   );
 }

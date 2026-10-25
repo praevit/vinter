@@ -71,6 +71,7 @@ fn main() {
             "settings_get",
             "settings_set",
             "settings_set_launch_at_login",
+            "settings_window_show",
             "storage_usage",
             "storage_clear_downloads",
             "bottle_disk_usage",

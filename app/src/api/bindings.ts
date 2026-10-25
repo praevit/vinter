@@ -282,6 +282,8 @@ export const commands = {
 	settingsSet: (settings: Settings_Deserialize) => __TAURI_INVOKE<null>("settings_set", { settings }),
 	/**  Starts Vinter at login (in the menu bar, without its window), or stops that. */
 	settingsSetLaunchAtLogin: (enabled: boolean) => __TAURI_INVOKE<null>("settings_set_launch_at_login", { enabled }),
+	/**  Opens Settings in its own window (macOS). */
+	settingsWindowShow: () => __TAURI_INVOKE<void>("settings_window_show"),
 	/**  Every experimental flag and whether it is on. */
 	experimentalList: () => __TAURI_INVOKE<FlagState[]>("experimental_list"),
 	/**  Turns an experimental flag on or off. */
@@ -346,6 +348,11 @@ export type AppLink = "website" | "source" | "issues" |
 "support" | "data_folder" | "launchers_folder" | "wine_license" | 
 /**  Apple's download page for the Game Porting Toolkit (D3DMetal). */
 "game_porting_toolkit";
+
+/**  How Vinter's windows look. */
+export type Appearance = 
+/**  Follows the system's light or dark mode. */
+"system" | "light" | "dark";
 
 export type ApprovalRequest = {
 	id: string,
@@ -1242,6 +1249,7 @@ export type SettingsFile_Deserialize = {
 	notifications?: boolean,
 	check_for_updates?: boolean,
 	experimental?: ExperimentalSettings,
+	appearance?: Appearance,
 };
 
 /**
@@ -1255,6 +1263,7 @@ export type SettingsFile_Serialize = {
 	notifications: boolean,
 	check_for_updates: boolean,
 	experimental: ExperimentalSettings,
+	appearance: Appearance,
 };
 
 export type SettingsView = SettingsView_Serialize | SettingsView_Deserialize;
@@ -1284,6 +1293,8 @@ export type Settings_Serialize = {
 	check_for_updates: boolean,
 	/**  Experimental features turned on (see [`crate::experimental`]). */
 	experimental: ExperimentalSettings,
+	/**  Light or dark windows, or the system's choice. */
+	appearance: Appearance,
 };
 
 export type Severity = 

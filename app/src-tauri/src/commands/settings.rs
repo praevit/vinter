@@ -38,18 +38,27 @@ pub async fn settings_set(
 ) -> CommandResult<()> {
     let paths = state.paths.clone();
     let show_icon = settings.menu_bar_icon;
+    let appearance = settings.appearance;
     let check_updates = settings.check_for_updates;
     let saved = settings::load(&paths);
     let was_checking = saved.check_for_updates;
     settings.experimental = saved.experimental;
     blocking(move || Ok(settings::save(&paths, &settings)?)).await?;
     crate::tray::set_visible(&app, show_icon);
+    crate::windows::apply_appearance(&app, appearance);
     if check_updates != was_checking {
         // Turned on: look now rather than in a few hours. Off: forget the result.
         let app = app.clone();
         tauri::async_runtime::spawn(async move { crate::updates::check(&app).await });
     }
     Ok(())
+}
+
+/// Opens Settings in its own window (macOS).
+#[tauri::command]
+#[specta::specta]
+pub fn settings_window_show(app: AppHandle) {
+    crate::windows::show_settings(&app);
 }
 
 /// Every experimental flag and whether it is on.

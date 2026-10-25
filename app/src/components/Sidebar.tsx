@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, Info, LoaderCircle, PackagePlus, Plus, Settings, Trash2, Wine, type LucideIcon } from "lucide-react";
+import { Activity, AlertTriangle, LoaderCircle, PackagePlus, Plus, Settings, Trash2, Wine, type LucideIcon } from "lucide-react";
 import { commands, type BottleListItem } from "../api/bindings";
 import { bottleJobKey, useBottles, useDeleteBottle } from "../api/bottles";
 import { showContextMenu } from "../api/contextMenu";
@@ -14,7 +14,7 @@ import { Button, ErrorText } from "./ui";
 
 export type Route =
   | { page: "home" }
-  | { page: "bottle"; id: string; focus?: BottleFocus }
+  | { page: "bottle"; id: string; focus?: BottleFocus; tab?: string }
   | { page: "new-bottle" }
   | { page: "install-app" }
   | { page: "runtimes" }
@@ -28,8 +28,8 @@ export type BottleFocus = { tab: "logs"; log?: string } | { tab: "settings"; sec
 const item = (active: boolean) =>
   `flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
     active
-      ? "bg-frost-200 font-medium dark:bg-slate-deep-800"
-      : "text-slate-deep-700 hover:bg-frost-200/60 dark:text-frost-300 dark:hover:bg-slate-deep-800/60"
+      ? "bg-frost-200 font-medium dark:bg-slate-deep-800 vibrancy:bg-slate-deep-900/10 vibrancy:dark:bg-white/10"
+      : "text-slate-deep-700 hover:bg-frost-200/60 dark:text-frost-300 dark:hover:bg-slate-deep-800/60 vibrancy:hover:bg-slate-deep-900/5 vibrancy:dark:hover:bg-white/5"
   }`;
 
 export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: Route) => void }) {
@@ -46,17 +46,22 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
       aria-current={route.page === to.page ? "page" : undefined}
       className={item(route.page === to.page)}
     >
-      <Icon className="size-4" />
+      <Icon className="size-4" aria-hidden />
       {label}
     </button>
   );
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col gap-4 border-r border-frost-200 bg-frost-100/60 p-3 dark:border-slate-deep-800 dark:bg-slate-deep-900/60">
+    <nav
+      aria-label="Vinter"
+      className="flex w-56 shrink-0 flex-col gap-4 border-r border-frost-200 bg-frost-100/60 p-3 dark:border-slate-deep-800 dark:bg-slate-deep-900/60 vibrancy:border-slate-deep-900/10 vibrancy:bg-transparent vibrancy:dark:border-black/40 vibrancy:dark:bg-transparent"
+    >
+      {/* macOS: room for the window buttons, and a place to drag the window by. */}
+      <div data-tauri-drag-region className="-mx-3 -mt-3 hidden h-9 shrink-0 macos:block" />
       <button
         type="button"
         onClick={() => onNavigate({ page: "home" })}
-        className="flex items-center gap-2 px-2 pt-1"
+        className="flex items-center gap-2 rounded-md px-2 pt-1 macos:-mt-4"
       >
         <img src="/vinter.svg" alt="" className="size-7" draggable={false} />
         <span className="font-semibold tracking-tight">Vinter</span>
@@ -66,29 +71,28 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
 
       <div className="flex min-h-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between px-2">
-          <span className="text-xs font-semibold tracking-wide text-frost-400 uppercase">Bottles</span>
+          <h2 className="text-xs font-semibold tracking-wide text-tertiary uppercase">Bottles</h2>
           <button
             type="button"
             title="New bottle"
+            aria-label="New bottle"
             onClick={() => onNavigate({ page: "new-bottle" })}
-            className="rounded p-0.5 text-frost-400 hover:bg-frost-200 hover:text-slate-deep-900 dark:hover:bg-slate-deep-800 dark:hover:text-frost-100"
+            className="rounded p-0.5 text-tertiary hover:bg-frost-200 hover:text-slate-deep-900 dark:hover:bg-slate-deep-800 dark:hover:text-frost-100"
           >
             <Plus className="size-4" />
           </button>
         </div>
         {(allBottles?.length ?? 0) > 6 && (
           <input
-            className="mx-1 rounded-md border border-frost-300 bg-white px-2 py-1 text-xs outline-none focus:border-wine-500 dark:border-slate-deep-700 dark:bg-slate-deep-950"
+            className="mx-1 rounded-md border border-frost-300 bg-white px-2 py-1 text-xs focus:border-wine-500 dark:border-slate-deep-700 dark:bg-slate-deep-950"
             placeholder="Filter bottles"
             aria-label="Filter bottles"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
         )}
-        <div className="flex flex-col gap-0.5 overflow-y-auto">
-          {allBottles?.length === 0 && (
-            <p className="px-2 py-1 text-xs text-frost-400">No bottles yet.</p>
-          )}
+        <div className="flex flex-col gap-0.5 overflow-y-auto p-0.5">
+          {allBottles?.length === 0 && <p className="px-2 py-1 text-xs text-tertiary">No bottles yet.</p>}
           {bottles?.map((b) => {
             const active = route.page === "bottle" && route.id === b.id;
             const runCount = running.filter((r) => r.info.bottle_id === b.id).length;
@@ -104,7 +108,7 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
                 aria-current={active ? "page" : undefined}
                 className={item(active)}
               >
-                <Wine className="size-4 shrink-0 text-wine-500 dark:text-rose-300" />
+                <Wine className="size-4 shrink-0 text-wine-500 dark:text-rose-300" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{b.name}</span>
                 {runCount > 0 && (
                   <span
@@ -117,10 +121,18 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
                 )}
                 {b.status === "ready" && <ReadinessDot readiness={b.readiness} />}
                 {b.status === "setting_up" && (
-                  <LoaderCircle className="size-3.5 shrink-0 animate-spin text-frost-400" />
+                  <LoaderCircle
+                    className="size-3.5 shrink-0 animate-spin text-tertiary"
+                    role="img"
+                    aria-label="Setting up"
+                  />
                 )}
                 {b.status === "incomplete" && (
-                  <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+                  <AlertTriangle
+                    className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400"
+                    role="img"
+                    aria-label="Setup did not finish"
+                  />
                 )}
               </button>
             );
@@ -128,11 +140,10 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
         </div>
       </div>
 
-      <div className="flex flex-col gap-0.5 border-t border-frost-200 pt-3 dark:border-slate-deep-800">
+      <div className="flex flex-col gap-0.5 border-t border-frost-200 pt-3 dark:border-slate-deep-800 vibrancy:border-slate-deep-900/10 vibrancy:dark:border-white/10">
         <NavItem to={{ page: "runtimes" }} label="Runtimes" Icon={Wine} />
         <NavItem to={{ page: "system" }} label="System" Icon={Activity} />
         <NavItem to={{ page: "settings" }} label="Settings" Icon={Settings} />
-        <NavItem to={{ page: "about" }} label="About" Icon={Info} />
       </div>
       {bottleMenu.dialog}
     </nav>

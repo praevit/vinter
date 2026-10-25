@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window. Only Vinter's own commands, job/run events and right-click menus; no shell or fs access. Links, the installer file dialog, deep links and updates are handled in Rust, so the opener, dialog, deep-link and updater plugins grant nothing to the frontend.",
+  "description": "Permissions for the main and Settings windows. Only Vinter's own commands, job/run events and right-click menus; no shell or fs access. Links, the installer file dialog, deep links and updates are handled in Rust, so the opener, dialog, deep-link and updater plugins grant nothing to the frontend.",
   "windows": [
-    "main"
+    "main",
+    "settings"
   ],
   "permissions": [
     "core:event:allow-listen",
@@ -11,6 +12,8 @@
     "core:menu:allow-new",
     "core:menu:allow-popup",
     "core:resources:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize",
     "allow-system-checks",
     "allow-rosetta-install",
     "allow-runtimes-available",
@@ -79,6 +82,7 @@
     "allow-settings-get",
     "allow-settings-set",
     "allow-settings-set-launch-at-login",
+    "allow-settings-window-show",
     "allow-storage-usage",
     "allow-storage-clear-downloads",
     "allow-bottle-disk-usage",

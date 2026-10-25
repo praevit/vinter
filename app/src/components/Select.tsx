@@ -76,14 +76,14 @@ export function Select<T extends string>({
         aria-controls={listId}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : show())}
-        className={`flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm outline-none disabled:opacity-50 ${
+        className={`flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm disabled:opacity-50 ${
           open
             ? "border-wine-500"
             : "border-frost-300 focus-visible:border-wine-500 dark:border-slate-deep-700"
         } bg-white dark:bg-slate-deep-950`}
       >
         <span className="min-w-0 flex-1 truncate">{current?.label ?? value}</span>
-        <ChevronsUpDown className="size-3.5 shrink-0 text-frost-400" />
+        <ChevronsUpDown className="size-3.5 shrink-0 text-tertiary" aria-hidden />
       </button>
       {open && (
         <ul

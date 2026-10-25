@@ -23,6 +23,20 @@ pub struct Settings {
     pub check_for_updates: bool,
     /// Experimental features turned on (see [`crate::experimental`]).
     pub experimental: ExperimentalSettings,
+    /// Light or dark windows, or the system's choice.
+    pub appearance: Appearance,
+}
+
+/// How Vinter's windows look.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub enum Appearance {
+    /// Follows the system's light or dark mode.
+    #[default]
+    System,
+    Light,
+    Dark,
 }
 
 impl Default for Settings {
@@ -34,6 +48,7 @@ impl Default for Settings {
             notifications: true,
             check_for_updates: true,
             experimental: ExperimentalSettings::default(),
+            appearance: Appearance::System,
         }
     }
 }
@@ -50,6 +65,7 @@ struct SettingsFile {
     notifications: bool,
     check_for_updates: bool,
     experimental: ExperimentalSettings,
+    appearance: Appearance,
 }
 
 impl Default for SettingsFile {
@@ -62,6 +78,7 @@ impl Default for SettingsFile {
             notifications: d.notifications,
             check_for_updates: d.check_for_updates,
             experimental: d.experimental,
+            appearance: d.appearance,
         }
     }
 }
@@ -75,6 +92,7 @@ impl From<SettingsFile> for Settings {
             notifications: f.notifications,
             check_for_updates: f.check_for_updates,
             experimental: f.experimental,
+            appearance: f.appearance,
         }
     }
 }
@@ -118,6 +136,7 @@ mod tests {
         experimental.set(crate::experimental::ExperimentalFlag::CompatNotes, true);
         let s = Settings {
             menu_bar_icon: false,
+            appearance: Appearance::Dark,
             experimental,
             new_bottle_options: BottleOptions {
                 show_fps: true,
@@ -145,5 +164,6 @@ mod tests {
         let s: Settings = toml::from_str("notifications = false").unwrap();
         assert!(!s.notifications);
         assert!(s.menu_bar_icon);
+        assert_eq!(s.appearance, Appearance::System);
     }
 }

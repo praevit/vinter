@@ -364,7 +364,7 @@ mod app_menu {
             HIDE if super::is_shown(app) => crate::startup::hide_main_window(app),
             HIDE => app.exit(0),
             UPDATES => crate::windows::show_updates(app),
-            SETTINGS => navigate(app, NavigateTo::Settings),
+            SETTINGS => crate::windows::show_settings(app),
             NEW_BOTTLE => navigate(app, NavigateTo::NewBottle),
             PALETTE => navigate(app, NavigateTo::Palette),
             QUIT => app.exit(0),

@@ -1,9 +1,9 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 /** Shared look for buttons and form fields. */
-export const subtle = "text-xs text-slate-deep-700/60 dark:text-frost-300/60";
+export const subtle = "text-xs text-secondary";
 export const field =
-  "w-full rounded-md border border-frost-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-wine-500 dark:border-slate-deep-700 dark:bg-slate-deep-950";
+  "w-full rounded-md border border-frost-300 bg-white px-2.5 py-1.5 text-sm focus:border-wine-500 dark:border-slate-deep-700 dark:bg-slate-deep-950";
 
 type Variant = "primary" | "plain" | "danger";
 const variants: Record<Variant, string> = {
