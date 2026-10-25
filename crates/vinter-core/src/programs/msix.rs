@@ -445,8 +445,7 @@ fn install_package(
             icon,
             pinned: true,
             arm64_build: None,
-            last_launched: None,
-            launch_count: 0,
+            ..Default::default()
         });
     }
     if programs.is_empty() {
@@ -582,6 +581,8 @@ mod tests {
             options: Default::default(),
             programs: vec![],
             domain: None,
+            drives: Vec::new(),
+            hide_root_drive: false,
         }
         .save(&dir)
         .unwrap();

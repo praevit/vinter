@@ -3,6 +3,7 @@
 pub mod arch;
 pub mod icons;
 pub mod msix;
+pub mod steam;
 pub mod winpath;
 
 use std::collections::HashSet;
@@ -54,6 +55,8 @@ pub enum Source {
     Shortcut,
     /// An `.exe` in Program Files without a shortcut.
     Executable,
+    /// A game in the bottle's Steam library, started through Steam.
+    Steam,
 }
 
 /// A program found in a bottle, offered to the user as a checkbox.
@@ -82,8 +85,7 @@ impl DiscoveredProgram {
             icon: self.icon.clone(),
             pinned: false,
             arm64_build: None,
-            last_launched: None,
-            launch_count: 0,
+            ..Default::default()
         }
     }
 }
@@ -129,11 +131,6 @@ pub fn discover(paths: &AppPaths, bottle_id: &str) -> Result<Vec<DiscoveredProgr
         }
     }
 
-    let added: HashSet<String> = bottle
-        .programs
-        .iter()
-        .map(|p| p.exe.to_lowercase())
-        .collect();
     let mut programs = Vec::new();
     for (name, exe, args, source) in found {
         let Some(windows) = winpath::to_windows(&prefix, &exe) else {
@@ -141,7 +138,10 @@ pub fn discover(paths: &AppPaths, bottle_id: &str) -> Result<Vec<DiscoveredProgr
         };
         let (icon, icon_data_url) = save_icon(&dir, &exe).unwrap_or((None, None));
         programs.push(DiscoveredProgram {
-            already_added: added.contains(&windows.to_lowercase()),
+            already_added: bottle
+                .programs
+                .iter()
+                .any(|p| same_program(&p.exe, &p.args, &windows, &args)),
             name,
             exe: windows,
             args,
@@ -150,11 +150,55 @@ pub fn discover(paths: &AppPaths, bottle_id: &str) -> Result<Vec<DiscoveredProgr
             source,
         });
     }
+
+    // Games in Steam's library, each started through Steam.
+    for game in steam::games(&prefix) {
+        let Some(exe) = winpath::to_windows(&prefix, &game.steam_exe) else {
+            continue;
+        };
+        let args = vec!["-applaunch".to_string(), game.app_id.clone()];
+        let (icon, icon_data_url) = game
+            .image
+            .as_deref()
+            .and_then(|image| save_picture(&dir, image).ok())
+            .unwrap_or((None, None));
+        programs.push(DiscoveredProgram {
+            already_added: bottle
+                .programs
+                .iter()
+                .any(|p| same_program(&p.exe, &p.args, &exe, &args)),
+            name: game.name,
+            exe,
+            args,
+            icon,
+            icon_data_url,
+            source: Source::Steam,
+        });
+    }
+
+    let rank = |s: Source| match s {
+        Source::Shortcut => 0,
+        Source::Steam => 1,
+        Source::Executable => 2,
+    };
     programs.sort_by(|a, b| {
-        (a.source != Source::Shortcut, a.name.to_lowercase())
-            .cmp(&(b.source != Source::Shortcut, b.name.to_lowercase()))
+        (rank(a.source), a.name.to_lowercase()).cmp(&(rank(b.source), b.name.to_lowercase()))
     });
     Ok(programs)
+}
+
+/// The Steam app a program starts (`steam.exe -applaunch <appid>`), if any.
+fn steam_app(args: &[String]) -> Option<&str> {
+    let pos = args
+        .iter()
+        .position(|a| a.eq_ignore_ascii_case("-applaunch"))?;
+    args.get(pos + 1).map(String::as_str)
+}
+
+/// Whether two programs are the same one: the same exe, and for Steam
+/// games, the same game (they all share `steam.exe`).
+fn same_program(exe_a: &str, args_a: &[String], exe_b: &str, args_b: &[String]) -> bool {
+    exe_a.eq_ignore_ascii_case(exe_b) && steam_app(args_a) == steam_app(args_b)
 }
 
 /// Adds programs to a bottle, skipping ones whose exe is already there.
@@ -180,11 +224,17 @@ pub fn add(paths: &AppPaths, bottle_id: &str, programs: Vec<ProgramDef>) -> Resu
         let exists = bottle
             .programs
             .iter()
-            .any(|p| p.exe.eq_ignore_ascii_case(&program.exe));
+            .any(|p| same_program(&p.exe, &p.args, &program.exe, &program.args));
         if !exists {
-            bottle.programs.push(program);
+            bottle.programs.push(ProgramDef {
+                // Ids are Vinter's to give.
+                id: String::new(),
+                file_types: crate::launcher::normalize_file_types(&program.file_types),
+                ..program
+            });
         }
     }
+    bottle.assign_program_ids();
     bottle.save(&bottle::dir(paths, bottle_id)?)?;
     Ok(bottle)
 }
@@ -197,10 +247,14 @@ pub struct ProgramPatch {
     pub args: Option<Vec<String>>,
     /// An image (`.png`, `.jpg`, `.ico`) or `.exe` to take the icon from.
     pub icon_from: Option<String>,
+    /// File extensions it opens, as typed (normalized here).
+    #[serde(default)]
+    pub file_types: Option<Vec<String>>,
 }
 
-/// Renames a program, changes its arguments or its icon. Launchers are not
-/// rebuilt here; callers sync them (they depend on name and icon).
+/// Renames a program, changes its arguments, icon or file types. Launchers
+/// are not rebuilt here; callers sync them (they depend on name, icon and
+/// file types).
 pub fn update(
     paths: &AppPaths,
     bottle_id: &str,
@@ -225,6 +279,9 @@ pub fn update(
             return Err(Error::InvalidProgram(program.name.clone()));
         }
         program.args = args;
+    }
+    if let Some(types) = patch.file_types {
+        program.file_types = crate::launcher::normalize_file_types(&types);
     }
     if let Some(from) = patch.icon_from {
         let from = Path::new(&from);
@@ -302,6 +359,54 @@ pub fn launch_with(
     on_line: impl Fn(Stream, &str) + Send + Sync + 'static,
     on_exit: impl FnOnce(Option<i32>) + Send + 'static,
 ) -> Result<Launched> {
+    launch_inner(paths, bottle_id, index, extra_env, &[], on_line, on_exit)
+}
+
+/// [`launch`] that opens files: each is passed to the program as its
+/// Windows path (through the bottle's drives, see [`winpath::host_to_windows`]).
+pub fn launch_opening(
+    paths: &AppPaths,
+    bottle_id: &str,
+    index: usize,
+    files: &[PathBuf],
+    on_line: impl Fn(Stream, &str) + Send + Sync + 'static,
+    on_exit: impl FnOnce(Option<i32>) + Send + 'static,
+) -> Result<Launched> {
+    launch_inner(paths, bottle_id, index, &[], files, on_line, on_exit)
+}
+
+/// Windows paths of files to open in a bottle. Fails for a file no drive
+/// shows, e.g. outside the folders chosen when `Z:` is hidden.
+pub fn windows_paths(prefix: &Path, files: &[PathBuf]) -> Result<Vec<String>> {
+    files
+        .iter()
+        .map(|file| {
+            if !file.exists() {
+                return Err(Error::InvalidSetting(format!(
+                    "{} no longer exists",
+                    file.display()
+                )));
+            }
+            winpath::host_to_windows(prefix, file).ok_or_else(|| {
+                Error::InvalidSetting(format!(
+                    "{} is not in a folder this bottle can see. Add its folder as a drive in the bottle's settings.",
+                    file.display()
+                ))
+            })
+        })
+        .collect()
+}
+
+/// [`launch`] with both extra environment variables and files to open.
+pub fn launch_inner(
+    paths: &AppPaths,
+    bottle_id: &str,
+    index: usize,
+    extra_env: &[(&str, &str)],
+    files: &[PathBuf],
+    on_line: impl Fn(Stream, &str) + Send + Sync + 'static,
+    on_exit: impl FnOnce(Option<i32>) + Send + 'static,
+) -> Result<Launched> {
     let bottle = ready_bottle(paths, bottle_id)?;
     let program = bottle
         .programs
@@ -317,6 +422,8 @@ pub fn launch_with(
         name: program.name.clone(),
         exe: program.exe.clone(),
     })?;
+    bottle::drives::ensure(&prefix, &bottle);
+    let file_args = windows_paths(&prefix, files)?;
 
     // fex-config-editor: the program's own FEX settings, by its own path.
     let fex_env = crate::fex_config::launch_env(paths, &bottle, &rt, &program.exe);
@@ -357,6 +464,7 @@ pub fn launch_with(
         .filter(|a| !a.is_empty() && !a.contains('\0'));
     cmd.arg(&program.exe).args(args);
     cmd.args(shims.iter().flat_map(|s| s.args.iter().copied()));
+    cmd.args(&file_args);
     if let Some(folder) = exe.parent() {
         // Many programs expect to start in their own folder.
         cmd.current_dir(folder);
@@ -703,6 +811,22 @@ fn save_icon(dir: &Path, exe: &Path) -> Result<(Option<String>, Option<String>)>
         return Ok((None, None));
     };
     let name = format!("{:016x}.png", fnv1a(key(exe).as_bytes()));
+    let icons = dir.join(ICONS_DIR);
+    std::fs::create_dir_all(&icons).at(&icons)?;
+    let path = icons.join(&name);
+    std::fs::write(&path, &png).at(&path)?;
+    Ok((
+        Some(format!("{ICONS_DIR}/{name}")),
+        Some(icons::data_url(&png)),
+    ))
+}
+
+/// Saves a picture (a Steam game's) as a square icon, `icons/<hash>.png`.
+fn save_picture(dir: &Path, image: &Path) -> Result<(Option<String>, Option<String>)> {
+    let Some(png) = icons::square_png_from_image(image)? else {
+        return Ok((None, None));
+    };
+    let name = format!("{:016x}.png", fnv1a(&png));
     let icons = dir.join(ICONS_DIR);
     std::fs::create_dir_all(&icons).at(&icons)?;
     let path = icons.join(&name);

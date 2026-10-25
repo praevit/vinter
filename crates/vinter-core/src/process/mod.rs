@@ -379,6 +379,8 @@ mod tests {
             options: Default::default(),
             programs: vec![],
             domain: None,
+            drives: Vec::new(),
+            hide_root_drive: false,
         }
     }
 

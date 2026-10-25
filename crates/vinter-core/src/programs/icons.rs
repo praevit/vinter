@@ -50,6 +50,25 @@ pub fn png_from_file(path: &Path) -> Result<Option<Vec<u8>>> {
     }
 }
 
+/// A picture (e.g. a game's wide header) as a square icon: scaled to fit
+/// and centred on a transparent background, so launchers don't stretch it.
+pub fn square_png_from_image(path: &Path) -> Result<Option<Vec<u8>>> {
+    let bytes = std::fs::read(path).at(path)?;
+    let Ok(image) = image::load_from_memory(&bytes) else {
+        return Ok(None);
+    };
+    let image = image.resize(MAX_SIZE, MAX_SIZE, image::imageops::FilterType::Lanczos3);
+    let side = image.width().max(image.height());
+    let mut square = image::RgbaImage::new(side, side);
+    image::imageops::overlay(
+        &mut square,
+        &image.to_rgba8(),
+        i64::from((side - image.width()) / 2),
+        i64::from((side - image.height()) / 2),
+    );
+    encode(square.into()).map(Some)
+}
+
 /// Scales down to [`MAX_SIZE`] and encodes as PNG.
 fn encode(image: image::DynamicImage) -> Result<Vec<u8>> {
     let image = if image.width() > MAX_SIZE || image.height() > MAX_SIZE {
@@ -97,6 +116,16 @@ mod tests {
         let text = tmp.path().join("notes.png");
         std::fs::write(&text, "not an image").unwrap();
         assert!(png_from_file(&text).unwrap().is_none());
+    }
+
+    #[test]
+    fn wide_pictures_become_square_icons() {
+        let tmp = tempfile::tempdir().unwrap();
+        let header = tmp.path().join("header.jpg");
+        image::RgbImage::new(460, 215).save(&header).unwrap();
+        let png = square_png_from_image(&header).unwrap().unwrap();
+        let back = image::load_from_memory(&png).unwrap();
+        assert_eq!((back.width(), back.height()), (128, 128));
     }
 
     #[test]

@@ -90,6 +90,8 @@ fn fake_bottle() -> (tempfile::TempDir, AppPaths, String, PathBuf) {
         options: Default::default(),
         programs: vec![],
         domain: None,
+        drives: Vec::new(),
+        hide_root_drive: false,
     }
     .save(&dir)
     .unwrap();
@@ -176,7 +178,12 @@ fn add_skips_duplicates_and_marks_added() {
     let mut upper = def.clone();
     upper.exe = upper.exe.to_uppercase();
     let bottle = add(&paths, &id, vec![upper]).unwrap();
-    assert_eq!(bottle.programs, vec![def.clone()]);
+    assert_eq!(bottle.programs.len(), 1);
+    assert_eq!(bottle.programs[0].exe, def.exe);
+    // Ids are given on add, and stay.
+    let program_id = bottle.programs[0].id.clone();
+    assert!(!program_id.is_empty());
+    assert_eq!(bottle::get(&paths, &id).unwrap().programs[0].id, program_id);
     assert!(discover(&paths, &id).unwrap()[0].already_added);
 
     let mut outside = def.clone();
@@ -198,6 +205,68 @@ fn add_skips_duplicates_and_marks_added() {
         remove(&paths, &id, 0),
         Err(Error::ProgramNotFound(0))
     ));
+}
+
+#[test]
+fn steam_games_are_offered_through_steam() {
+    let (_tmp, paths, id, c) = fake_bottle();
+    let steam = c.join("Program Files (x86)/Steam");
+    touch(&steam.join("steam.exe"));
+    std::fs::create_dir_all(steam.join("steamapps")).unwrap();
+    for (app, name) in [("620", "Portal 2"), ("400", "Portal")] {
+        let manifest = steam.join(format!("steamapps/appmanifest_{app}.acf"));
+        std::fs::write(
+            manifest,
+            format!(
+                "\"AppState\" {{ \"appid\" \"{app}\" \"name\" \"{name}\" \"StateFlags\" \"4\" }}"
+            ),
+        )
+        .unwrap();
+    }
+    let cache = steam.join("appcache/librarycache");
+    std::fs::create_dir_all(&cache).unwrap();
+    image::RgbImage::new(460, 215)
+        .save(cache.join("620_header.jpg"))
+        .unwrap();
+
+    let found = discover(&paths, &id).unwrap();
+    let games: Vec<&DiscoveredProgram> =
+        found.iter().filter(|p| p.source == Source::Steam).collect();
+    assert_eq!(games.len(), 2);
+    assert_eq!(games[0].name, "Portal");
+    assert_eq!(games[0].exe, r"C:\Program Files (x86)\Steam\steam.exe");
+    assert_eq!(games[0].args, ["-applaunch", "400"]);
+    assert!(games[0].icon.is_none());
+    assert!(
+        games[1]
+            .icon
+            .as_deref()
+            .is_some_and(|i| i.starts_with("icons/"))
+    );
+    // Steam itself is offered too, as its own program.
+    assert!(
+        found
+            .iter()
+            .any(|p| p.source == Source::Executable && p.name == "steam")
+    );
+
+    // Both games share steam.exe, yet both are kept, and Steam too.
+    let mut defs: Vec<ProgramDef> = games.iter().map(|g| g.to_def()).collect();
+    defs.push(ProgramDef {
+        name: "Steam".into(),
+        exe: games[0].exe.clone(),
+        ..Default::default()
+    });
+    let bottle = add(&paths, &id, defs.clone()).unwrap();
+    assert_eq!(bottle.programs.len(), 3);
+    assert_eq!(add(&paths, &id, defs).unwrap().programs.len(), 3);
+    assert!(
+        discover(&paths, &id)
+            .unwrap()
+            .iter()
+            .filter(|p| p.source == Source::Steam)
+            .all(|p| p.already_added)
+    );
 }
 
 #[test]
@@ -270,8 +339,7 @@ fn launches_programs_in_their_folder_and_logs_output() {
             icon: None,
             pinned: false,
             arm64_build: None,
-            last_launched: None,
-            launch_count: 0,
+            ..Default::default()
         }],
     )
     .unwrap();
@@ -308,6 +376,56 @@ fn launches_programs_in_their_folder_and_logs_output() {
     assert!(matches!(
         launch(&paths, &id, 5, |_, _| {}, |_| {}),
         Err(Error::ProgramNotFound(5))
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn opens_files_by_their_windows_path() {
+    use std::sync::{Arc, Mutex};
+    let (tmp, paths, id, c) = fake_bottle();
+    fake_runtime(&paths);
+    touch(&c.join("Program Files/App/app.exe"));
+    let prefix = c.parent().unwrap().to_path_buf();
+    std::fs::create_dir_all(prefix.join("dosdevices")).unwrap();
+    std::os::unix::fs::symlink("/", prefix.join("dosdevices/z:")).unwrap();
+    add(
+        &paths,
+        &id,
+        vec![ProgramDef {
+            name: "App".into(),
+            exe: r"C:\Program Files\App\app.exe".into(),
+            ..Default::default()
+        }],
+    )
+    .unwrap();
+    let doc = tmp.path().join("My Docs/report.docx");
+    touch(&doc);
+
+    let lines = Arc::new(Mutex::new(Vec::new()));
+    let sink = lines.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    launch_opening(
+        &paths,
+        &id,
+        0,
+        std::slice::from_ref(&doc),
+        move |_, line| sink.lock().unwrap().push(line.to_string()),
+        move |code| tx.send(code).unwrap(),
+    )
+    .unwrap();
+    rx.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+    let lines = lines.lock().unwrap().join("\n");
+    let canonical = doc.canonicalize().unwrap().display().to_string();
+    let expected = format!("Z:{}", canonical.replace('/', "\\"));
+    assert!(lines.contains(&expected), "{lines}");
+
+    // With Z: hidden, a file outside the bottle's drives cannot be opened.
+    crate::bottle::drives::set(&paths, &id, vec![], true).unwrap();
+    assert!(!prefix.join("dosdevices/z:").exists());
+    assert!(matches!(
+        launch_opening(&paths, &id, 0, &[doc], |_, _| {}, |_| {}),
+        Err(Error::InvalidSetting(_))
     ));
 }
 
@@ -359,8 +477,7 @@ fn update_renames_changes_args_and_icon() {
             icon: None,
             pinned: false,
             arm64_build: None,
-            last_launched: None,
-            launch_count: 0,
+            ..Default::default()
         }],
     )
     .unwrap();
@@ -375,12 +492,14 @@ fn update_renames_changes_args_and_icon() {
             name: Some("  My App ".into()),
             args: Some(vec!["--fast".into(), "a b".into()]),
             icon_from: Some(image.display().to_string()),
+            file_types: Some(vec![".DOCX, txt".into()]),
         },
     )
     .unwrap();
     let p = &b.programs[0];
     assert_eq!(p.name, "My App");
     assert_eq!(p.args, ["--fast", "a b"]);
+    assert_eq!(p.file_types, ["docx", "txt"]);
     let icon = p.icon.as_deref().unwrap();
     assert!(icon_data_url(&paths, &id, icon).is_some());
 
@@ -464,8 +583,7 @@ fn per_app_engine_finds_and_launches_the_arm64_build() {
         icon: None,
         pinned: false,
         arm64_build: None,
-        last_launched: None,
-        launch_count: 0,
+        ..Default::default()
     });
     b.save(&dir).unwrap();
 
@@ -529,8 +647,7 @@ fn record_launch_counts_and_follows_moved_programs() {
         icon: None,
         pinned: false,
         arm64_build: None,
-        last_launched: None,
-        launch_count: 0,
+        ..Default::default()
     };
     add(&paths, &id, vec![def("A"), def("B")]).unwrap();
     record_launch(&paths, &id, 1, r"C:\B.exe").unwrap();

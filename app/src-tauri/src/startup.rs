@@ -12,10 +12,10 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_specta::Event;
-use vinter_core::launcher;
+use vinter_core::launcher::{self, DeepLink};
 
-use crate::commands::programs::launch_program;
-use crate::events::{ApprovalRequested, Notice};
+use crate::commands::programs::launch_program_opening;
+use crate::events::{ApprovalRequested, Notice, ShowBottle};
 
 /// How long to wait for a launch deep link before showing the window.
 /// macOS delivers the link shortly after the app finished starting.
@@ -64,10 +64,11 @@ fn is_windows_program(path: &std::path::Path) -> bool {
 }
 
 /// `.exe`/`.msi` paths among the process arguments (Linux file managers
-/// pass opened files this way).
+/// pass opened files this way). Files after `--run` are for that program.
 fn file_args(args: &[String]) -> Vec<std::path::PathBuf> {
     args.iter()
         .skip(1)
+        .take_while(|a| *a != "--run")
         .map(std::path::PathBuf::from)
         .filter(|p| is_windows_program(p))
         .collect()
@@ -140,6 +141,13 @@ pub fn on_start(app: &AppHandle, args: Vec<String>) {
     open_files(app, file_args(&args));
     let hidden = args.iter().any(|a| a == HIDDEN_ARG);
     let by_args = handle_args(app, &args);
+    // Launchers made before program ids point at indexes; rebuild them.
+    let paths = app.state::<crate::state::AppState>().paths.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Ok(target) = launcher_target() {
+            let _ = launcher::upgrade_legacy(&paths, &target);
+        }
+    });
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         // When macOS launches Vinter for a link, the link may arrive before the
@@ -172,8 +180,10 @@ pub fn on_second_instance(app: &AppHandle, args: Vec<String>) {
     }
 }
 
-/// Deep links: `vinter://run/<bottle>/<program>`, and `vinter://approve/<id>`
-/// from `vinter mcp` (the request itself is read from the data folder).
+/// Deep links: `vinter://run/<bottle>/<program>[?file=…]`,
+/// `vinter://stop/<bottle>/<program>`, `vinter://open-bottle/<bottle>`, and
+/// `vinter://approve/<id>` from `vinter mcp` (the request itself is read
+/// from the data folder).
 pub fn on_urls(app: &AppHandle, urls: Vec<String>) {
     for url in urls.into_iter().filter(|u| first_time(app, u)) {
         if url.starts_with("vinter://approve/") {
@@ -187,36 +197,108 @@ pub fn on_urls(app: &AppHandle, urls: Vec<String>) {
             continue;
         }
         match launcher::parse_deep_link(&url) {
-            Some((bottle_id, index)) => run(app, bottle_id, index),
+            Some(DeepLink::Run {
+                bottle,
+                program,
+                files,
+            }) => run(app, bottle, program, files),
+            Some(DeepLink::Stop { bottle, program }) => stop(app, &bottle, &program),
+            Some(DeepLink::OpenBottle { bottle }) => open_bottle(app, bottle),
             None => notify(app, format!("Vinter does not understand the link {url}.")),
         }
     }
 }
 
-/// Handles `--run <bottle> <program>`. Returns true if it was present.
+/// Handles `--run <bottle> <program> [files…]`. Returns true if it was present.
 fn handle_args(app: &AppHandle, args: &[String]) -> bool {
     let Some(pos) = args.iter().position(|a| a == "--run") else {
         return false;
     };
     match (
         args.get(pos + 1),
-        args.get(pos + 2).and_then(|i| i.parse().ok()),
+        args.get(pos + 2)
+            .and_then(|p| launcher::ProgramRef::parse(p)),
     ) {
-        (Some(bottle_id), Some(index)) => run(app, bottle_id.clone(), index),
-        _ => notify(app, "Usage: --run <bottle-id> <program-number>".into()),
+        (Some(bottle_id), Some(program)) => {
+            let files = args
+                .iter()
+                .skip(pos + 3)
+                .map(std::path::PathBuf::from)
+                .collect();
+            run(app, bottle_id.clone(), program, files)
+        }
+        _ => notify(app, "Usage: --run <bottle-id> <program> [files…]".into()),
     }
     true
 }
 
-fn run(app: &AppHandle, bottle_id: String, index: usize) {
+/// The index of a program named in a link or `--run`.
+fn resolve(
+    app: &AppHandle,
+    bottle_id: &str,
+    program: &launcher::ProgramRef,
+) -> Result<usize, String> {
+    let paths = &app.state::<crate::state::AppState>().paths;
+    let bottle = vinter_core::bottle::get(paths, bottle_id).map_err(|e| e.to_string())?;
+    program.resolve(&bottle).ok_or_else(|| {
+        format!(
+            "That program is no longer in the bottle \"{}\". Pin it again to make a new launcher.",
+            bottle.name
+        )
+    })
+}
+
+fn run(
+    app: &AppHandle,
+    bottle_id: String,
+    program: launcher::ProgramRef,
+    files: Vec<std::path::PathBuf>,
+) {
     app.state::<Startup>()
         .launched_program
         .store(true, Ordering::SeqCst);
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        if let Err(e) = launch_program(&app, bottle_id, index as u32, true) {
+        let index = match resolve(&app, &bottle_id, &program) {
+            Ok(index) => index,
+            Err(message) => return notify(&app, format!("Could not start the program: {message}")),
+        };
+        if let Err(e) = launch_program_opening(&app, bottle_id, index as u32, true, files) {
             notify(&app, format!("Could not start the program: {}", e.message));
         }
+    });
+}
+
+/// Stops a program Vinter started (every run of it).
+fn stop(app: &AppHandle, bottle_id: &str, program: &launcher::ProgramRef) {
+    let index = match resolve(app, bottle_id, program) {
+        Ok(index) => index as u32,
+        Err(message) => return notify(app, format!("Could not stop the program: {message}")),
+    };
+    let pids: Vec<u32> = app
+        .state::<crate::state::AppState>()
+        .runs
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|r| r.bottle_id == bottle_id && r.program_index == index)
+        .map(|r| r.pid)
+        .collect();
+    for pid in pids {
+        if let Err(e) = vinter_core::process::terminate(pid) {
+            notify(app, format!("Could not stop the program: {e}"));
+        }
+    }
+}
+
+/// Shows the window on a bottle's page.
+fn open_bottle(app: &AppHandle, bottle_id: String) {
+    show_main_window(app);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // Give a freshly shown window a moment to subscribe to events.
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        let _ = ShowBottle { bottle_id }.emit(&app);
     });
 }
 

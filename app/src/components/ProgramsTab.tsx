@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AppWindow, FlaskConical, LoaderCircle, Pencil, Pin, Play, Plus, Search, Square, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { pinLabel, useAppInfo } from "../api/app";
 import { commands, type PeArch, type ProgramView } from "../api/bindings";
 import { showContextMenu } from "../api/contextMenu";
+import { useFileDrop } from "../api/drop";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
@@ -120,18 +121,25 @@ export function ProgramTile({
   const running = !!run && !run.exit;
   const failed = run?.exit && run.exit.code !== 0 && run.exit.code !== null;
 
-  const launch = async () => {
+  const launch = async (files: string[] = []) => {
     setError(undefined);
     if (!(await ensureRosetta(needsRosetta))) return;
     setStarting(true);
     try {
-      add(await commands.programLaunch(bottleId, program.index));
+      add(
+        files.length
+          ? await commands.programOpenFiles(bottleId, program.index, files)
+          : await commands.programLaunch(bottleId, program.index),
+      );
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setStarting(false);
     }
   };
+  // Files dropped on the tile open with this program.
+  const tile = useRef<HTMLLIElement>(null);
+  useFileDrop(tile, (files) => void launch(files));
 
   const openContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -158,7 +166,9 @@ export function ProgramTile({
   return (
     <li
       onContextMenu={openContextMenu}
-      className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center dark:border-slate-deep-700 dark:bg-slate-deep-900"
+      ref={tile}
+      data-program-tile
+      className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center data-[drop-over]:border-wine-500 data-[drop-over]:ring-2 data-[drop-over]:ring-wine-500/30 dark:border-slate-deep-700 dark:bg-slate-deep-900"
     >
       {canCompare && (
         <button
@@ -227,7 +237,7 @@ export function ProgramTile({
           <Square className="size-3.5" /> Stop
         </Button>
       ) : (
-        <Button variant="primary" disabled={starting} onClick={launch}>
+        <Button variant="primary" disabled={starting} onClick={() => launch()}>
           {starting ? <LoaderCircle className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
           Open
         </Button>

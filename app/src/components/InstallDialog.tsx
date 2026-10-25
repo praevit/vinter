@@ -165,6 +165,9 @@ export function InstallDialog({
   );
 }
 
+/** Steam games all run steam.exe, so a program is its exe plus its arguments. */
+const programKey = (p: DiscoveredProgram) => [p.exe, ...p.args].join(" ");
+
 function PickPrograms({
   bottleId,
   installerError,
@@ -192,7 +195,7 @@ function PickPrograms({
       // Preselect new shortcuts; if there are none, preselect new executables.
       const fresh = programs.filter((p) => !p.already_added);
       const shortcuts = fresh.filter((p) => p.source === "shortcut");
-      setSelected(new Set((shortcuts.length ? shortcuts : fresh).map((p) => p.exe)));
+      setSelected(new Set((shortcuts.length ? shortcuts : fresh).map(programKey)));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -214,7 +217,7 @@ function PickPrograms({
     });
 
   const submit = () => {
-    const chosen = found?.filter((p) => selected.has(p.exe) && !p.already_added) ?? [];
+    const chosen = found?.filter((p) => selected.has(programKey(p)) && !p.already_added) ?? [];
     add.mutate(chosen, {
       onSuccess: (bottle) => onAdded(bottle.programs.length - chosen.length),
     });
@@ -237,7 +240,7 @@ function PickPrograms({
       ) : (
         <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
           {found?.map((p) => (
-            <li key={p.exe}>
+            <li key={programKey(p)}>
               <label
                 className={`flex items-center gap-3 rounded-lg px-2 py-1.5 ${
                   p.already_added ? "opacity-50" : "hover:bg-frost-100 dark:hover:bg-slate-deep-800"
@@ -246,15 +249,25 @@ function PickPrograms({
                 <input
                   type="checkbox"
                   className="accent-wine-500"
-                  checked={p.already_added || selected.has(p.exe)}
+                  checked={p.already_added || selected.has(programKey(p))}
                   disabled={p.already_added}
-                  onChange={() => toggle(p.exe)}
+                  onChange={() => toggle(programKey(p))}
                 />
                 <ProgramIcon src={p.icon_data_url} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{p.name}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-sm font-medium">{p.name}</span>
+                    {p.source === "steam" && (
+                      <span
+                        title="A game in this bottle's Steam library. It starts through Steam."
+                        className="shrink-0 rounded bg-frost-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-deep-700 dark:bg-slate-deep-800 dark:text-frost-300"
+                      >
+                        Steam
+                      </span>
+                    )}
+                  </span>
                   <span className={`block truncate ${subtle}`} title={p.exe}>
-                    {p.already_added ? "Already added" : programPlace(p.exe)}
+                    {p.already_added ? "Already added" : p.source === "steam" ? "Starts through Steam" : programPlace(p.exe)}
                   </span>
                 </span>
               </label>

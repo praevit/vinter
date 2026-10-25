@@ -356,7 +356,8 @@ fn run_step(
             rt.check_can_run()?;
             let (log, _) = logs::create(&dir, "regedit")?;
             let mut cmd = process::command(&rt, &prefix, &bottle, &[], "wine")?;
-            cmd.args(["regedit", "/S"]).arg(z_path(&path));
+            cmd.args(["regedit", "/S"])
+                .arg(winpath::host_arg(&prefix, &path));
             process::run_and_wait(
                 cmd,
                 &log,
@@ -421,8 +422,7 @@ fn add_programs(paths: &AppPaths, loaded: &LoadedRecipe, bottle_id: &str) -> Res
                 icon: programs::save_icon_for(paths, bottle_id, &unix),
                 pinned: true,
                 arm64_build: None,
-                last_launched: None,
-                launch_count: 0,
+                ..Default::default()
             })
         })
         .collect();
@@ -560,11 +560,6 @@ where
     winetricks::ensure(paths, &mut |p| tasks.download(p))
         .await
         .map(Some)
-}
-
-/// `Z:\path\to\file` for a host path (Wine maps Z: to `/`).
-fn z_path(path: &Path) -> String {
-    format!("Z:{}", path.display().to_string().replace('/', "\\"))
 }
 
 fn state_path(paths: &AppPaths, bottle_id: &str) -> Result<PathBuf> {

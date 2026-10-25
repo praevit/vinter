@@ -34,6 +34,10 @@ pub struct RunInfo {
 #[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ProgramView {
     pub index: u32,
+    /// Stable id (indexes shift when a program is removed).
+    pub id: String,
+    /// File extensions it opens.
+    pub file_types: Vec<String>,
     pub name: String,
     pub exe: String,
     pub args: Vec<String>,
@@ -158,7 +162,7 @@ pub async fn program_remove(
     let paths = state.paths.clone();
     blocking(move || {
         let bottle = programs::remove(&paths, &bottle_id, index as usize)?;
-        // Launchers point at program indexes, which just shifted.
+        // Removes the launcher of the program that is gone.
         vinter_core::launcher::sync_bottle(
             &paths,
             &bottle_id,
@@ -184,6 +188,25 @@ pub async fn program_update(
         name: Some(name),
         args: Some(args),
         icon_from: None,
+        file_types: None,
+    };
+    blocking(move || update_and_sync(&paths, &bottle_id, index as usize, patch)).await
+}
+
+/// Sets the file types a program opens (extensions such as `docx`). A pinned
+/// program's launcher then offers to open them.
+#[tauri::command]
+#[specta::specta]
+pub async fn program_set_file_types(
+    state: State<'_, AppState>,
+    bottle_id: String,
+    index: u32,
+    file_types: Vec<String>,
+) -> CommandResult<Bottle> {
+    let paths = state.paths.clone();
+    let patch = programs::ProgramPatch {
+        file_types: Some(file_types),
+        ..Default::default()
     };
     blocking(move || update_and_sync(&paths, &bottle_id, index as usize, patch)).await
 }
@@ -254,6 +277,8 @@ pub async fn programs_list(
             .enumerate()
             .map(|(i, p)| ProgramView {
                 index: i as u32,
+                id: p.id.clone(),
+                file_types: p.file_types.clone(),
                 name: p.name.clone(),
                 exe: p.exe.clone(),
                 args: p.args.clone(),
@@ -298,7 +323,30 @@ pub async fn program_launch_logged(
     wine_debug: WineDebug,
 ) -> CommandResult<RunInfo> {
     tauri::async_runtime::spawn_blocking(move || {
-        launch_program_with(&app, bottle_id, program_index, false, Some(wine_debug))
+        launch_program_with(
+            &app,
+            bottle_id,
+            program_index,
+            false,
+            Some(wine_debug),
+            Vec::new(),
+        )
+    })
+    .await?
+}
+
+/// Opens files with a program (files dropped on its tile).
+#[tauri::command]
+#[specta::specta]
+pub async fn program_open_files(
+    app: AppHandle,
+    bottle_id: String,
+    program_index: u32,
+    files: Vec<String>,
+) -> CommandResult<RunInfo> {
+    let files = files.into_iter().map(std::path::PathBuf::from).collect();
+    tauri::async_runtime::spawn_blocking(move || {
+        launch_program_with(&app, bottle_id, program_index, false, None, files)
     })
     .await?
 }
@@ -313,16 +361,29 @@ pub(crate) fn launch_program(
     program_index: u32,
     splash: bool,
 ) -> CommandResult<RunInfo> {
-    launch_program_with(app, bottle_id, program_index, splash, None)
+    launch_program_with(app, bottle_id, program_index, splash, None, Vec::new())
 }
 
-/// [`launch_program`], optionally with another Wine logging level for this run.
+/// [`launch_program`] that also opens files with the program.
+pub(crate) fn launch_program_opening(
+    app: &AppHandle,
+    bottle_id: String,
+    program_index: u32,
+    splash: bool,
+    files: Vec<std::path::PathBuf>,
+) -> CommandResult<RunInfo> {
+    launch_program_with(app, bottle_id, program_index, splash, None, files)
+}
+
+/// [`launch_program`], optionally with another Wine logging level for this
+/// run and files to open.
 fn launch_program_with(
     app: &AppHandle,
     bottle_id: String,
     program_index: u32,
     splash: bool,
     wine_debug: Option<WineDebug>,
+    files: Vec<std::path::PathBuf>,
 ) -> CommandResult<RunInfo> {
     let paths = app.state::<AppState>().paths.clone();
     let bottle = bottle::get(&paths, &bottle_id)?;
@@ -356,11 +417,12 @@ fn launch_program_with(
         .map(|w| ("WINEDEBUG", w.env_value()))
         .into_iter()
         .collect();
-    let launched = programs::launch_with(
+    let launched = programs::launch_inner(
         &paths,
         &bottle_id,
         program_index as usize,
         &extra_env,
+        &files,
         move |stream, line| {
             let _ = RunLog {
                 run_id: log_run.clone(),

@@ -281,8 +281,7 @@ mod tests {
             icon: None,
             pinned: true,
             arm64_build: None,
-            last_launched: None,
-            launch_count: 0,
+            ..Default::default()
         });
         b.programs.push(ProgramDef {
             name: "On the Mac".into(),
@@ -291,8 +290,7 @@ mod tests {
             icon: None,
             pinned: false,
             arm64_build: None,
-            last_launched: None,
-            launch_count: 0,
+            ..Default::default()
         });
         b
     }

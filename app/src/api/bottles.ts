@@ -28,7 +28,8 @@ export const TOOLS: { tool: Tool; label: string; description: string }[] = [
   { tool: "winecfg", label: "Wine Settings", description: "Drives, audio, graphics, libraries" },
   { tool: "regedit", label: "Registry Editor", description: "Edit the Windows registry" },
   { tool: "taskmgr", label: "Task Manager", description: "See and stop Windows programs" },
-  { tool: "control", label: "Control Panel", description: "Add/remove programs, game controllers" },
+  { tool: "control", label: "Control Panel", description: "Add/remove programs and other Windows settings" },
+  { tool: "joy.cpl", label: "Game Controllers", description: "Check that gamepads and joysticks work" },
 ];
 
 export const bottleJobKey = (id: string) => `bottle:${id}`;

@@ -213,7 +213,7 @@ enum BottleCommand {
     Duplicate { bottle: String, name: String },
     /// Move a bottle to the Trash.
     Delete { bottle: String },
-    /// Open a built-in tool: winecfg, regedit, taskmgr, control, notepad, explorer.
+    /// Open a built-in tool: winecfg, regedit, taskmgr, control, notepad, explorer, joy.cpl.
     Tool {
         bottle: String,
         #[arg(value_parser = parse_tool)]
@@ -293,6 +293,9 @@ enum BottleCommand {
         /// An image (.png, .jpg, .ico) or .exe to take the icon from.
         #[arg(long)]
         icon: Option<std::path::PathBuf>,
+        /// File types it opens, e.g. `docx txt` (replaces the current ones); give none to clear.
+        #[arg(long, num_args = 0..)]
+        file_types: Option<Vec<String>>,
     },
     /// Add a launcher for a program (~/Applications/Vinter on macOS, the app menu on Linux).
     Pin { bottle: String, program: usize },
@@ -1335,12 +1338,14 @@ async fn bottle_command(paths: &AppPaths, out: Out, cmd: BottleCommand) -> Resul
             name,
             args,
             icon,
+            file_types,
         } => {
             let id = id(&key)?;
             let patch = programs::ProgramPatch {
                 name,
                 args,
                 icon_from: icon.map(|p| p.display().to_string()),
+                file_types,
             };
             let b = programs::update(paths, &id, program, patch)?;
             if b.programs[program].pinned {

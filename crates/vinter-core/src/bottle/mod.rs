@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod config;
 pub mod domain;
+pub mod drives;
 pub mod history;
 pub mod snapshot;
 
@@ -12,8 +13,8 @@ use std::time::Duration;
 use serde::Serialize;
 
 pub use config::{
-    Bottle, BottleOptions, CONFIG_FILE, DomainAccount, Graphics, ProgramDef, WindowsVersion,
-    WineDebug,
+    Bottle, BottleOptions, CONFIG_FILE, DomainAccount, DriveMapping, Graphics, ProgramDef,
+    WindowsVersion, WineDebug,
 };
 
 use crate::error::{IoResultExt, validate_id};
@@ -65,16 +66,20 @@ pub enum Tool {
     Control,
     Notepad,
     Explorer,
+    /// Game Controllers (the Control Panel's `joy.cpl`).
+    #[serde(rename = "joy.cpl")]
+    Joy,
 }
 
 impl Tool {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Winecfg,
         Self::Regedit,
         Self::Taskmgr,
         Self::Control,
         Self::Notepad,
         Self::Explorer,
+        Self::Joy,
     ];
 
     pub fn program(self) -> &'static str {
@@ -85,6 +90,23 @@ impl Tool {
             Self::Control => "control",
             Self::Notepad => "notepad",
             Self::Explorer => "explorer",
+            Self::Joy => "joy.cpl",
+        }
+    }
+
+    /// The Wine program that opens it (Control Panel applets open through `control`).
+    pub fn exe(self) -> &'static str {
+        match self {
+            Self::Joy => "control",
+            other => other.program(),
+        }
+    }
+
+    /// Arguments for `wine`.
+    pub fn command(self) -> Vec<&'static str> {
+        match self {
+            Self::Joy => vec!["control", "joy.cpl"],
+            other => vec![other.program()],
         }
     }
 
@@ -258,6 +280,8 @@ pub fn prepare_create(paths: &AppPaths, new: NewBottle) -> Result<Bottle> {
         options: crate::settings::load(paths).new_bottle_options,
         programs: Vec::new(),
         domain: None,
+        drives: Vec::new(),
+        hide_root_drive: false,
     };
     let dir = dir(paths, &bottle.id)?;
     std::fs::create_dir_all(dir.join(PREFIX_DIR)).at(&dir)?;
@@ -364,10 +388,8 @@ fn register_emulators(
     std::fs::write(&reg, crate::engine::emulators_reg(emulators)).at(&reg)?;
     let (log, _) = logs::create(dir, "emulators")?;
     let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine")?;
-    cmd.args(["regedit", "/S"]).arg(format!(
-        "Z:{}",
-        reg.display().to_string().replace('/', "\\")
-    ));
+    cmd.args(["regedit", "/S"])
+        .arg(crate::programs::winpath::host_arg(&prefix, &reg));
     let result = process::run_and_wait(cmd, &log, "Setting up x86 emulation", WINECFG_TIMEOUT)
         .and_then(|()| wait_for_wineserver(rt, &prefix, bottle, &log));
     let _ = std::fs::remove_file(&reg);
@@ -380,10 +402,8 @@ fn apply_options(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
     std::fs::write(&reg, options_reg(&bottle.options)).at(&reg)?;
     let (log, _) = logs::create(dir, "options")?;
     let mut cmd = process::command(rt, &prefix, bottle, SETUP_OVERRIDES, "wine")?;
-    cmd.args(["regedit", "/S"]).arg(format!(
-        "Z:{}",
-        reg.display().to_string().replace('/', "\\")
-    ));
+    cmd.args(["regedit", "/S"])
+        .arg(crate::programs::winpath::host_arg(&prefix, &reg));
     let result = process::run_and_wait(cmd, &log, "Applying settings", WINECFG_TIMEOUT)
         .and_then(|()| wait_for_wineserver(rt, &prefix, bottle, &log));
     let _ = std::fs::remove_file(&reg);
@@ -825,11 +845,11 @@ pub fn run_tool(paths: &AppPaths, id: &str, tool: Tool) -> Result<u32> {
     let (log, _) = logs::create(&dir, tool.program())?;
     domain::refresh_ticket(&rt, &dir, &bottle, &log);
     let mut cmd = process::command(&rt, &dir.join(PREFIX_DIR), &bottle, &[], "wine")?;
-    cmd.arg(tool.program());
+    cmd.args(tool.command());
     // Wine's own tools are built for the runtime's own architecture.
     let exe = crate::engine::wine_lib_dir(&rt)
         .join(rt.engine().pe_dir())
-        .join(format!("{}.exe", tool.program()));
+        .join(format!("{}.exe", tool.exe()));
     let found = crate::programs::arch::detect(&exe).and_then(|pe| {
         crate::programs::arch::run_path(pe, rt.engine)
             .ok()

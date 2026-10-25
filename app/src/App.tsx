@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { commands, events } from "./api/bindings";
+import { dropOnTile } from "./api/drop";
 import { ApprovalDialog } from "./components/ApprovalDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import { OpenFileDialog } from "./components/OpenFileDialog";
@@ -38,15 +39,17 @@ export function App() {
     // The palette opens itself (see CommandPalette).
     const navigate = events.appNavigate.listen(({ payload }) => payload.to !== "palette" && setRoute({ page: payload.to }));
     const stopNavigating = onNavigate(setRoute);
+    const showBottle = events.appShowBottle.listen(({ payload }) => setRoute({ page: "bottle", id: payload.bottle_id }));
     const dropped = getCurrentWebview().onDragDropEvent(({ payload }) => {
-      if (payload.type !== "drop") return;
-      const files = payload.paths.filter((p) => /\.(exe|msi|msix|msixbundle|appx|appxbundle|vinterbottle)$/i.test(p));
+      // Files dropped on a program tile open with that program instead.
+      const files = dropOnTile(payload).filter((p) => /\.(exe|msi|msix|msixbundle|appx|appxbundle|vinterbottle)$/i.test(p));
       if (files.length) setOpenFiles((q) => [...q, ...files]);
     });
     return () => {
       opened.then((u) => u());
       navigate.then((u) => u());
       stopNavigating();
+      showBottle.then((u) => u());
       dropped.then((u) => u());
     };
   }, [setRoute]);

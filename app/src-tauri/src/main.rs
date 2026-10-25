@@ -54,6 +54,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::bottles::bottle_open_drive_c,
             commands::bottles::bottle_tool,
             commands::bottles::bottle_kill_all,
+            commands::bottles::bottle_set_drives,
+            commands::bottles::drive_choose_folder,
             commands::components::components_list,
             commands::components::components_install,
             commands::snapshots::snapshots_list,
@@ -70,6 +72,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::programs::programs_list,
             commands::programs::program_launch,
             commands::programs::program_launch_logged,
+            commands::programs::program_open_files,
+            commands::programs::program_set_file_types,
             commands::programs::program_stop,
             commands::programs::program_show,
             commands::programs::runs_list,
@@ -150,7 +154,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             events::OpenFiles,
             events::Navigate,
             events::ApprovalRequested,
-            events::UpdatesFound
+            events::UpdatesFound,
+            events::ShowBottle
         ])
         .error_handling(ErrorHandlingMode::Throw)
         // Byte counts (u64) stay far below 2^53, so plain numbers are exact.

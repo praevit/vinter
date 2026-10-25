@@ -95,6 +95,13 @@ export const commands = {
 	bottleTool: (id: string, tool: Tool) => __TAURI_INVOKE<null>("bottle_tool", { id, tool }),
 	/**  Stops every Wine process in the bottle (`wineserver -k`). */
 	bottleKillAll: (id: string) => __TAURI_INVOKE<null>("bottle_kill_all", { id }),
+	/**
+	 *  Sets the folders shown as drive letters, and whether `Z:` (the whole
+	 *  computer) is hidden.
+	 */
+	bottleSetDrives: (id: string, drives: DriveMapping[], hideRootDrive: boolean) => __TAURI_INVOKE<Bottle_Serialize>("bottle_set_drives", { id, drives, hideRootDrive }),
+	/**  Lets the user pick a folder to show as a drive. `None` if cancelled. */
+	driveChooseFolder: () => __TAURI_INVOKE<string | null>("drive_choose_folder"),
 	/**  Windows components that can be installed, marked installed or not. */
 	componentsList: (bottleId: string) => __TAURI_INVOKE<WindowsComponent[]>("components_list", { bottleId }),
 	/**
@@ -147,6 +154,10 @@ export const commands = {
 	programs: ProgramDef_Serialize[],
 	/**  Domain account the programs run as, if any. */
 	domain: DomainAccount | null,
+	/**  Folders shown as drive letters (see [`super::drives`]). */
+	drives: DriveMapping[],
+	/**  Hide `Z:`, which Wine maps to the whole computer (`/`). */
+	hide_root_drive: boolean,
 } | null>("program_choose_icon", { bottleId, index }),
 	/**  A bottle's programs, with icons as `data:` URLs. */
 	programsList: (bottleId: string) => __TAURI_INVOKE<ProgramView[]>("programs_list", { bottleId }),
@@ -157,6 +168,13 @@ export const commands = {
 	 *  changing the bottle's setting (the "Fix it" steps run it with Verbose).
 	 */
 	programLaunchLogged: (bottleId: string, programIndex: number, wineDebug: WineDebug) => __TAURI_INVOKE<RunInfo>("program_launch_logged", { bottleId, programIndex, wineDebug }),
+	/**  Opens files with a program (files dropped on its tile). */
+	programOpenFiles: (bottleId: string, programIndex: number, files: string[]) => __TAURI_INVOKE<RunInfo>("program_open_files", { bottleId, programIndex, files }),
+	/**
+	 *  Sets the file types a program opens (extensions such as `docx`). A pinned
+	 *  program's launcher then offers to open them.
+	 */
+	programSetFileTypes: (bottleId: string, index: number, fileTypes: string[]) => __TAURI_INVOKE<Bottle_Serialize>("program_set_file_types", { bottleId, index, fileTypes }),
 	/**  Stops a running program. Other programs in the bottle keep running. */
 	programStop: (runId: string) => __TAURI_INVOKE<null>("program_stop", { runId }),
 	/**
@@ -394,6 +412,7 @@ export const events = {
 	appNavigate: makeEvent<Navigate>("app://navigate"),
 	appNotice: makeEvent<Notice>("app://notice"),
 	appOpenFiles: makeEvent<OpenFiles>("app://open-files"),
+	appShowBottle: makeEvent<ShowBottle>("app://show-bottle"),
 	appUpdates: makeEvent<UpdatesFound>("app://updates"),
 	jobDone: makeEvent<JobDone>("job://done"),
 	jobProgress: makeEvent<JobProgress>("job://progress"),
@@ -540,6 +559,8 @@ export type BottleFile_Deserialize = {
 	options?: BottleOptions_Deserialize,
 	programs?: ProgramDef_Deserialize[],
 	domain?: DomainAccount | null,
+	drives?: DriveMapping[],
+	hide_root_drive?: boolean,
 };
 
 /**
@@ -561,6 +582,8 @@ export type BottleFile_Serialize = {
 	options: BottleOptions_Serialize,
 	programs: ProgramDef_Serialize[],
 	domain: DomainAccount | null,
+	drives: DriveMapping[],
+	hide_root_drive: boolean,
 };
 
 export type BottleListItem = {
@@ -674,6 +697,10 @@ export type Bottle_Serialize = {
 	programs: ProgramDef_Serialize[],
 	/**  Domain account the programs run as, if any. */
 	domain: DomainAccount | null,
+	/**  Folders shown as drive letters (see [`super::drives`]). */
+	drives: DriveMapping[],
+	/**  Hide `Z:`, which Wine maps to the whole computer (`/`). */
+	hide_root_drive: boolean,
 };
 
 /**  A user recipe that could not be loaded. */
@@ -841,6 +868,14 @@ export type DomainAccount = {
 export type DomainStatus = {
 	/**  A password is saved in the keychain. */
 	has_password: boolean,
+};
+
+/**  A folder on this computer shown to the bottle's programs as its own drive. */
+export type DriveMapping = {
+	/**  Drive letter, `D` to `Y`. */
+	letter: string,
+	/**  Absolute folder path. */
+	path: string,
 };
 
 export type EngineKind = 
@@ -1064,6 +1099,11 @@ export type ProgramDef = ProgramDef_Serialize | ProgramDef_Deserialize;
 
 /**  A program shown in a bottle. */
 export type ProgramDef_Deserialize = {
+	/**
+	 *  Stable id, used by launchers and links (indexes shift when a program
+	 *  is removed). Made when the program is saved; older files get one on load.
+	 */
+	id?: string,
 	name: string,
 	/**  Windows path, e.g. `C:\Program Files\App\app.exe`. */
 	exe: string,
@@ -1080,10 +1120,17 @@ export type ProgramDef_Deserialize = {
 	last_launched?: string | null,
 	/**  How many times it was launched. */
 	launch_count?: number,
+	/**  File extensions it opens (lowercase, without the dot), e.g. `docx`. */
+	file_types?: string[],
 };
 
 /**  A program shown in a bottle. */
 export type ProgramDef_Serialize = {
+	/**
+	 *  Stable id, used by launchers and links (indexes shift when a program
+	 *  is removed). Made when the program is saved; older files get one on load.
+	 */
+	id: string,
 	name: string,
 	/**  Windows path, e.g. `C:\Program Files\App\app.exe`. */
 	exe: string,
@@ -1100,11 +1147,17 @@ export type ProgramDef_Serialize = {
 	last_launched?: string | null,
 	/**  How many times it was launched. */
 	launch_count: number,
+	/**  File extensions it opens (lowercase, without the dot), e.g. `docx`. */
+	file_types: string[],
 };
 
 /**  A bottle's program as shown on its tile. */
 export type ProgramView = {
 	index: number,
+	/**  Stable id (indexes shift when a program is removed). */
+	id: string,
+	/**  File extensions it opens. */
+	file_types: string[],
 	name: string,
 	exe: string,
 	args: string[],
@@ -1488,6 +1541,11 @@ export type ShimView = {
 	on: boolean,
 } & Shim;
 
+/**  Asks the interface to show a bottle (`vinter://open-bottle/<id>`). */
+export type ShowBottle = {
+	bottle_id: string,
+};
+
 export type Snapshot = {
 	id: string,
 	label: string,
@@ -1502,7 +1560,9 @@ export type Source =
 /**  A Start Menu or Desktop shortcut. */
 "shortcut" | 
 /**  An `.exe` in Program Files without a shortcut. */
-"executable";
+"executable" | 
+/**  A game in the bottle's Steam library, started through Steam. */
+"steam";
 
 /**  A bottle whose setup has started in the background. */
 export type StartedBottle = {
@@ -1530,7 +1590,9 @@ export type SystemStatus = {
 };
 
 /**  Built-in Wine programs that can be opened in a bottle. */
-export type Tool = "winecfg" | "regedit" | "taskmgr" | "control" | "notepad" | "explorer";
+export type Tool = "winecfg" | "regedit" | "taskmgr" | "control" | "notepad" | "explorer" | 
+/**  Game Controllers (the Control Panel's `joy.cpl`). */
+"joy.cpl";
 
 /**  What one run of the app did. */
 export type Trial = {

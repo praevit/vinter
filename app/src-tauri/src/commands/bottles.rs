@@ -354,3 +354,34 @@ pub async fn bottle_kill_all(state: State<'_, AppState>, id: String) -> CommandR
     let paths = state.paths.clone();
     blocking(move || Ok(bottle::kill_all(&paths, &id)?)).await
 }
+
+/// Sets the folders shown as drive letters, and whether `Z:` (the whole
+/// computer) is hidden.
+#[tauri::command]
+#[specta::specta]
+pub async fn bottle_set_drives(
+    state: State<'_, AppState>,
+    id: String,
+    drives: Vec<bottle::DriveMapping>,
+    hide_root_drive: bool,
+) -> CommandResult<Bottle> {
+    let paths = state.paths.clone();
+    blocking(move || Ok(bottle::drives::set(&paths, &id, drives, hide_root_drive)?)).await
+}
+
+/// Lets the user pick a folder to show as a drive. `None` if cancelled.
+#[tauri::command]
+#[specta::specta]
+pub async fn drive_choose_folder(app: AppHandle) -> CommandResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_title("Choose a folder to add as a drive")
+            .blocking_pick_folder()
+    })
+    .await?;
+    Ok(picked
+        .and_then(|p| p.into_path().ok())
+        .map(|p| p.display().to_string()))
+}

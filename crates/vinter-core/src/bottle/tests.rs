@@ -276,6 +276,8 @@ fn interrupted_setup_is_reported() {
         options: Default::default(),
         programs: vec![],
         domain: None,
+        drives: Vec::new(),
+        hide_root_drive: false,
     }
     .save(&d)
     .unwrap();
@@ -307,6 +309,8 @@ fn env_and_override_editors_validate_input() {
         options: Default::default(),
         programs: vec![],
         domain: None,
+        drives: Vec::new(),
+        hide_root_drive: false,
     }
     .save(&d)
     .unwrap();

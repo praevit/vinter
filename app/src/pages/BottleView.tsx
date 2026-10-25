@@ -34,6 +34,7 @@ import { SaveRecipeButton } from "../components/SaveRecipeDialog";
 import { SettingsHistory } from "../components/SettingsHistory";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { DomainSection } from "../components/DomainSection";
+import { DrivesSection } from "../components/DrivesSection";
 import { GraphicsSection } from "../components/GraphicsSection";
 import { KeyValueEditor } from "../components/KeyValueEditor";
 import { LogsTab } from "../components/LogsTab";
@@ -700,6 +701,8 @@ function Settings({
           onShowLog={onShowLog}
         />
       </div>
+
+      <DrivesSection bottle={bottle} />
 
       <DomainSection
         key={bottle.id}

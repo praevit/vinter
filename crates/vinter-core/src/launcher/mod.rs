@@ -5,10 +5,12 @@
 //!   can start the program. Vinter handles the link, starting in the
 //!   background if it is not running.
 //! - Linux: a `.desktop` file in `~/.local/share/applications/` that runs
-//!   Vinter with `--run <bottle> <program>`.
+//!   Vinter with `--run <bottle> <program> [files…]`.
 //!
-//! Launchers point at a program's index, so after programs are removed or
-//! renamed, call [`sync_bottle`] to rebuild a bottle's launchers.
+//! Launchers point at a program's stable id. They show its name, icon and
+//! file types, so after those change, call [`sync_bottle`] to rebuild a
+//! bottle's launchers. Programs with file types get launchers that open
+//! documents: Finder's "Open With" on macOS, `MimeType=` on Linux.
 
 pub mod linux;
 pub mod macos;
@@ -38,7 +40,7 @@ pub struct Target {
     /// Linux only: where launcher icons are saved.
     pub icons_dir: PathBuf,
     /// Linux only: the command (program and leading arguments) that gets
-    /// `--run <bottle> <index>` appended, e.g. the Vinter app binary.
+    /// `--run <bottle> <program id>` appended, e.g. the Vinter app binary.
     pub command: Vec<String>,
 }
 
@@ -64,20 +66,135 @@ impl Target {
     }
 }
 
-/// `vinter://run/<bottle>/<index>`
-pub fn deep_link(bottle_id: &str, index: usize) -> String {
-    format!("{SCHEME}://run/{bottle_id}/{index}")
+/// `vinter://run/<bottle>/<program id>`
+pub fn deep_link(bottle_id: &str, program_id: &str) -> String {
+    format!("{SCHEME}://run/{bottle_id}/{program_id}")
 }
 
-/// Parses `vinter://run/<bottle>/<index>` (also with a trailing slash).
-pub fn parse_deep_link(url: &str) -> Option<(String, usize)> {
-    let rest = url.strip_prefix(&format!("{SCHEME}://run/"))?;
-    let mut parts = rest.trim_end_matches('/').split('/');
-    let (id, index) = (parts.next()?, parts.next()?);
-    if parts.next().is_some() || validate_id(id).is_err() {
-        return None;
+/// A program in a link: its stable id, or (in links made before ids
+/// existed) its position in the bottle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProgramRef {
+    Id(String),
+    Index(usize),
+}
+
+impl ProgramRef {
+    /// Digits are an old-style index; anything else must be a valid id
+    /// (program ids are never all digits).
+    pub fn parse(s: &str) -> Option<Self> {
+        if !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()) {
+            return s.parse().ok().map(Self::Index);
+        }
+        validate_id(s).ok()?;
+        Some(Self::Id(s.to_string()))
     }
-    Some((id.to_string(), index.parse().ok()?))
+
+    /// The program's index in `bottle`, if it is still there.
+    pub fn resolve(&self, bottle: &Bottle) -> Option<usize> {
+        match self {
+            Self::Id(id) => bottle.program_index(id),
+            Self::Index(i) => (*i < bottle.programs.len()).then_some(*i),
+        }
+    }
+}
+
+/// What a `vinter://` link asks for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeepLink {
+    /// `vinter://run/<bottle>/<program>`, optionally with files to open:
+    /// `?file=<percent-encoded path>&file=…`.
+    Run {
+        bottle: String,
+        program: ProgramRef,
+        files: Vec<PathBuf>,
+    },
+    /// `vinter://stop/<bottle>/<program>`: stops it if Vinter started it.
+    Stop { bottle: String, program: ProgramRef },
+    /// `vinter://open-bottle/<bottle>`: shows the bottle in Vinter.
+    OpenBottle { bottle: String },
+}
+
+/// Parses a `vinter://` link (a trailing slash is fine). `None` for links
+/// Vinter does not understand.
+pub fn parse_deep_link(url: &str) -> Option<DeepLink> {
+    let rest = url.strip_prefix(&format!("{SCHEME}://"))?;
+    let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let parts: Vec<&str> = path.trim_end_matches('/').split('/').collect();
+    let bottle = |s: &str| validate_id(s).ok().map(|()| s.to_string());
+    match parts.as_slice() {
+        ["run", b, p] => Some(DeepLink::Run {
+            bottle: bottle(b)?,
+            program: ProgramRef::parse(p)?,
+            files: query_files(query)?,
+        }),
+        ["stop", b, p] if query.is_empty() => Some(DeepLink::Stop {
+            bottle: bottle(b)?,
+            program: ProgramRef::parse(p)?,
+        }),
+        ["open-bottle", b] if query.is_empty() => Some(DeepLink::OpenBottle { bottle: bottle(b)? }),
+        _ => None,
+    }
+}
+
+/// `file=` values of a query, decoded. Other keys are ignored; files must
+/// be absolute paths.
+fn query_files(query: &str) -> Option<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for pair in query.split('&').filter(|p| !p.is_empty()) {
+        let Some(value) = pair.strip_prefix("file=") else {
+            continue;
+        };
+        let decoded = percent_encoding::percent_decode_str(value)
+            .decode_utf8()
+            .ok()?;
+        let path = PathBuf::from(decoded.as_ref());
+        if !path.is_absolute() || decoded.contains('\0') {
+            return None;
+        }
+        files.push(path);
+    }
+    Some(files)
+}
+
+/// `vinter://run/<bottle>/<program>?file=…` for opening files with a program.
+pub fn deep_link_with_files(bottle_id: &str, program_id: &str, files: &[PathBuf]) -> String {
+    const KEEP: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+        .remove(b'-')
+        .remove(b'.')
+        .remove(b'_')
+        .remove(b'~')
+        .remove(b'/');
+    let mut url = deep_link(bottle_id, program_id);
+    for (i, file) in files.iter().enumerate() {
+        url.push(if i == 0 { '?' } else { '&' });
+        url.push_str("file=");
+        url.extend(percent_encoding::utf8_percent_encode(
+            &file.display().to_string(),
+            KEEP,
+        ));
+    }
+    url
+}
+
+/// Normalizes file types typed by the user ("DOCX, .txt  md") to lowercase
+/// extensions without dots, each once. Anything that is not a plain
+/// extension is dropped.
+pub fn normalize_file_types(types: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in types.iter().flat_map(|t| t.split([',', ' ', ';'])) {
+        let ext = raw.trim().trim_start_matches("*.").trim_start_matches('.');
+        let ext = ext.to_ascii_lowercase();
+        let ok = !ext.is_empty()
+            && ext.len() <= 32
+            && ext
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '+'));
+        if ok && !out.contains(&ext) {
+            out.push(ext);
+        }
+    }
+    out
 }
 
 /// Pins or unpins a program, then rebuilds the bottle's launchers.
@@ -117,6 +234,27 @@ pub fn sync_bottle(paths: &AppPaths, bottle_id: &str, target: &Target) -> Result
         created.push(path);
     }
     Ok(created)
+}
+
+/// Rebuilds the launchers of bottles that still have ones made before
+/// program ids (they point at indexes). Returns the bottles rebuilt.
+pub fn upgrade_legacy(paths: &AppPaths, target: &Target) -> Result<Vec<String>> {
+    let mut upgraded = Vec::new();
+    for summary in bottle::list(paths)? {
+        let legacy = match target.kind {
+            Kind::MacApp => macos::find_for_bottle(&target.dir, &summary.id)
+                .iter()
+                .any(|app| macos::is_legacy(app)),
+            Kind::LinuxDesktop => linux::find_for_bottle(target, &summary.id)
+                .iter()
+                .any(|file| linux::is_legacy(file, &summary.id)),
+        };
+        if legacy {
+            sync_bottle(paths, &summary.id, target)?;
+            upgraded.push(summary.id);
+        }
+    }
+    Ok(upgraded)
 }
 
 /// Removes every launcher that belongs to a bottle.

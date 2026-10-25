@@ -108,3 +108,10 @@ pub enum NavigateTo {
     // Opens the ⌘K palette instead of a page.
     Palette,
 }
+
+/// Asks the interface to show a bottle (`vinter://open-bottle/<id>`).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "app://show-bottle")]
+pub struct ShowBottle {
+    pub bottle_id: String,
+}

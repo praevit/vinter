@@ -183,6 +183,8 @@ mod tests {
             options: Default::default(),
             programs: vec![],
             domain: None,
+            drives: Vec::new(),
+            hide_root_drive: false,
         }
         .save(&{
             std::fs::create_dir_all(&dir).unwrap();

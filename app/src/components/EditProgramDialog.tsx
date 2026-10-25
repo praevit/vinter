@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ImageUp } from "lucide-react";
+import { useAppInfo } from "../api/app";
 import { commands, type ProgramView } from "../api/bindings";
 import { errorMessage } from "../api/errors";
 import { CompatNoteSection } from "./CompatNoteSection";
@@ -14,6 +15,15 @@ import { Button, ErrorText, Label, field, subtle } from "./ui";
 /** Splits arguments on spaces, keeping "quoted parts" together. */
 export function splitArgs(line: string): string[] {
   return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+}
+
+/** "DOCX, .txt md" -> ["docx", "txt", "md"] (the backend checks them again). */
+export function splitFileTypes(text: string): string[] {
+  const types = text
+    .split(/[\s,;]+/)
+    .map((t) => t.replace(/^\*?\./, "").toLowerCase())
+    .filter(Boolean);
+  return [...new Set(types)];
 }
 
 /** The reverse of `splitArgs`: quotes arguments that contain spaces. */
@@ -33,6 +43,11 @@ export function EditProgramDialog({
   const queryClient = useQueryClient();
   const [name, setName] = useState(program.name);
   const [args, setArgs] = useState(joinArgs(program.args));
+  const [fileTypes, setFileTypes] = useState(program.file_types.join(", "));
+  const { data: app } = useAppInfo();
+  const mac = app?.os === "macos";
+  const where = mac ? "Applications" : "the app menu";
+  const openWith = mac ? "Finder's Open With menu" : "the file manager's Open With menu";
   const [icon, setIcon] = useState(program.icon_data_url);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -58,6 +73,10 @@ export function EditProgramDialog({
     setError(undefined);
     try {
       await commands.programUpdate(bottleId, program.index, name, splitArgs(args));
+      const types = splitFileTypes(fileTypes);
+      if (types.join(" ") !== program.file_types.join(" ")) {
+        await commands.programSetFileTypes(bottleId, program.index, types);
+      }
       await refresh();
       onClose();
     } catch (e) {
@@ -96,6 +115,19 @@ export function EditProgramDialog({
           />
         </Label>
         <p className={`${subtle} -mt-2 select-text break-all`}>{program.exe}</p>
+        <Label title="Opens files of type">
+          <input
+            className={field}
+            value={fileTypes}
+            placeholder="for example: docx, txt"
+            onChange={(e) => setFileTypes(e.target.value)}
+            spellCheck={false}
+          />
+        </Label>
+        <p className={`${subtle} -mt-2`}>
+          Drop these files on the program's tile to open them. If you add the program to {where}, it also shows
+          up in {openWith} for them.
+        </p>
         <EngineSection bottleId={bottleId} program={program} />
         <FexSection bottleId={bottleId} program={program} />
         <ShimsSection bottleId={bottleId} program={program} />

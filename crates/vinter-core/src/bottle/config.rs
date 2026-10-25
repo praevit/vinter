@@ -186,9 +186,13 @@ pub struct DomainAccount {
 }
 
 /// A program shown in a bottle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct ProgramDef {
+    /// Stable id, used by launchers and links (indexes shift when a program
+    /// is removed). Made when the program is saved; older files get one on load.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     /// Windows path, e.g. `C:\Program Files\App\app.exe`.
     pub exe: String,
@@ -209,6 +213,19 @@ pub struct ProgramDef {
     /// How many times it was launched.
     #[serde(default)]
     pub launch_count: u32,
+    /// File extensions it opens (lowercase, without the dot), e.g. `docx`.
+    #[serde(default)]
+    pub file_types: Vec<String>,
+}
+
+/// A folder on this computer shown to the bottle's programs as its own drive.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+pub struct DriveMapping {
+    /// Drive letter, `D` to `Y`.
+    pub letter: String,
+    /// Absolute folder path.
+    pub path: String,
 }
 
 /// Contents of `bottle.toml`.
@@ -235,6 +252,10 @@ pub struct Bottle {
     pub programs: Vec<ProgramDef>,
     /// Domain account the programs run as, if any.
     pub domain: Option<DomainAccount>,
+    /// Folders shown as drive letters (see [`super::drives`]).
+    pub drives: Vec<DriveMapping>,
+    /// Hide `Z:`, which Wine maps to the whole computer (`/`).
+    pub hide_root_drive: bool,
 }
 
 /// `bottle.toml` as read from disk: everything after `created_at` is optional.
@@ -265,6 +286,10 @@ struct BottleFile {
     programs: Vec<ProgramDef>,
     #[serde(default)]
     domain: Option<DomainAccount>,
+    #[serde(default)]
+    drives: Vec<DriveMapping>,
+    #[serde(default)]
+    hide_root_drive: bool,
 }
 
 impl From<BottleFile> for Bottle {
@@ -283,6 +308,8 @@ impl From<BottleFile> for Bottle {
             options: f.options,
             programs: f.programs,
             domain: f.domain,
+            drives: f.drives,
+            hide_root_drive: f.hide_root_drive,
         }
     }
 }
@@ -291,19 +318,73 @@ impl Bottle {
     pub fn load(dir: &Path) -> Result<Self> {
         let file = dir.join(CONFIG_FILE);
         let text = std::fs::read_to_string(&file).at(&file)?;
-        toml::from_str(&text).map_err(|e| Error::Config {
+        let mut bottle: Self = toml::from_str(&text).map_err(|e| Error::Config {
             path: file,
             message: e.to_string(),
-        })
+        })?;
+        // Programs saved before ids existed get one, written back so it stays
+        // the same. Best effort: a read-only folder still loads.
+        if bottle.assign_program_ids() {
+            let _ = bottle.save(dir);
+        }
+        Ok(bottle)
     }
 
-    /// Writes `bottle.toml` atomically (temp file, then rename).
+    /// Writes `bottle.toml` atomically (temp file, then rename). Programs
+    /// without an id get one.
     pub fn save(&self, dir: &Path) -> Result<()> {
         let file = dir.join(CONFIG_FILE);
         let tmp = dir.join(format!(".{CONFIG_FILE}.tmp"));
-        let text = toml::to_string_pretty(self).expect("bottle config serializes");
+        let with_ids;
+        let mut bottle = self;
+        if self.programs.iter().any(|p| p.id.is_empty()) {
+            let mut copy = self.clone();
+            copy.assign_program_ids();
+            with_ids = copy;
+            bottle = &with_ids;
+        }
+        let text = toml::to_string_pretty(bottle).expect("bottle config serializes");
         std::fs::write(&tmp, text).at(&tmp)?;
         std::fs::rename(&tmp, &file).at(&file)
+    }
+
+    /// Gives every program without an id (or with one another program has
+    /// already) a new one. Returns true if any changed.
+    pub fn assign_program_ids(&mut self) -> bool {
+        let mut seen = std::collections::HashSet::new();
+        let mut changed = false;
+        for i in 0..self.programs.len() {
+            let id = self.programs[i].id.clone();
+            if !id.is_empty() && seen.insert(id) {
+                continue;
+            }
+            let fresh = loop {
+                let candidate = new_program_id();
+                if !seen.contains(&candidate) && !self.programs.iter().any(|p| p.id == candidate) {
+                    break candidate;
+                }
+            };
+            seen.insert(fresh.clone());
+            self.programs[i].id = fresh;
+            changed = true;
+        }
+        changed
+    }
+
+    /// Index of the program with this id.
+    pub fn program_index(&self, id: &str) -> Option<usize> {
+        self.programs.iter().position(|p| p.id == id)
+    }
+}
+
+/// A short random program id. Never all digits, so links can tell it from an
+/// old-style program index.
+pub fn new_program_id() -> String {
+    loop {
+        let id = uuid::Uuid::new_v4().simple().to_string()[..10].to_string();
+        if !id.chars().all(|c| c.is_ascii_digit()) {
+            return id;
+        }
     }
 }
 
@@ -358,8 +439,42 @@ dns_domain = "corp.example.com"
         );
 
         let tmp = tempfile::tempdir().unwrap();
+        let mut bottle = bottle;
+        bottle.assign_program_ids();
         bottle.save(tmp.path()).unwrap();
         assert_eq!(Bottle::load(tmp.path()).unwrap(), bottle);
+    }
+
+    #[test]
+    fn older_programs_get_ids_that_stay() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(CONFIG_FILE), PLAN_EXAMPLE).unwrap();
+        let first = Bottle::load(tmp.path()).unwrap();
+        let id = first.programs[0].id.clone();
+        assert!(!id.is_empty() && !id.chars().all(|c| c.is_ascii_digit()));
+        // Written back on load, so the next load has the same one.
+        let text = std::fs::read_to_string(tmp.path().join(CONFIG_FILE)).unwrap();
+        assert!(text.contains(&format!("id = \"{id}\"")), "{text}");
+        assert_eq!(Bottle::load(tmp.path()).unwrap().programs[0].id, id);
+        assert_eq!(first.program_index(&id), Some(0));
+
+        // Duplicated ids are fixed; saving fills in missing ones.
+        let mut b = first.clone();
+        b.programs.push(b.programs[0].clone());
+        b.programs.push(ProgramDef {
+            name: "New".into(),
+            ..Default::default()
+        });
+        assert!(b.assign_program_ids());
+        assert_eq!(b.programs[0].id, id);
+        assert!(b.programs[1].id != id && !b.programs[2].id.is_empty());
+        assert!(!b.assign_program_ids());
+    }
+
+    #[test]
+    fn drives_default_to_none() {
+        let bottle: Bottle = toml::from_str(PLAN_EXAMPLE).unwrap();
+        assert!(bottle.drives.is_empty() && !bottle.hide_root_drive);
     }
 
     #[test]
