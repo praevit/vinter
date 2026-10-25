@@ -170,17 +170,26 @@ impl LoadedRecipe {
     pub fn file(&self, name: &str) -> Result<Vec<u8>> {
         validate_id(name)
             .map_err(|_| Error::InvalidRecipe(format!("{name:?} is not a plain file name")))?;
-        match &self.origin {
-            Origin::Builtin => BUILTIN_FILES
+        let builtin = || {
+            BUILTIN_FILES
                 .iter()
                 .find(|(n, _)| *n == name)
                 .map(|(_, bytes)| bytes.to_vec())
+        };
+        match &self.origin {
+            Origin::Builtin => builtin()
                 .ok_or_else(|| Error::InvalidRecipe(format!("file {name:?} is not built in"))),
+            // Next to the recipe, in a `files` folder beside it (the layout of
+            // `recipes/`), or one of the built-in files.
             Origin::User(path) => {
-                let file = path.parent().unwrap_or(path).join(name);
-                std::fs::read(&file).map_err(|e| {
-                    Error::InvalidRecipe(format!("cannot read {}: {e}", file.display()))
-                })
+                let dir = path.parent().unwrap_or(path);
+                let file = dir.join(name);
+                std::fs::read(&file)
+                    .or_else(|e| std::fs::read(dir.join("files").join(name)).map_err(|_| e))
+                    .or_else(|e| builtin().ok_or(e))
+                    .map_err(|e| {
+                        Error::InvalidRecipe(format!("cannot read {}: {e}", file.display()))
+                    })
             }
         }
     }
@@ -540,6 +549,21 @@ exe = 'C:\Program Files\Notepad++\notepad++.exe'
         assert_eq!(r.recipe.steps.len(), 4);
         assert_eq!(r.winetricks_verbs(), ["corefonts"]);
         assert_eq!(r.summary().installer_kind, "user_provided");
+    }
+
+    #[test]
+    fn repo_recipes_are_valid_as_files() {
+        // CI checks them as user recipes: their files are in `recipes/files/`.
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../recipes");
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "toml") {
+                let text = std::fs::read_to_string(&path).unwrap();
+                if let Err(e) = parse(&text, Origin::User(path.clone())) {
+                    panic!("{}: {e}", path.display());
+                }
+            }
+        }
     }
 
     #[test]
