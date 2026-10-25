@@ -49,20 +49,20 @@ fn enable_and_disable() {
     assert!(flags.iter().all(|f| !f.1 && !f.2), "all off by default");
 
     assert!(
-        vinter(data, &["experimental", "enable", "compat-notes"])
+        vinter(data, &["experimental", "enable", "engine-ab-compare"])
             .status
             .success()
     );
-    assert_eq!(state(&list(data, &[]), "compat-notes"), (true, true));
+    assert_eq!(state(&list(data, &[]), "engine-ab-compare"), (true, true));
     let text = std::fs::read_to_string(data.join("settings.toml")).unwrap();
-    assert!(text.contains("compat-notes = true"), "{text}");
+    assert!(text.contains("engine-ab-compare = true"), "{text}");
 
     assert!(
-        vinter(data, &["experimental", "disable", "compat-notes"])
+        vinter(data, &["experimental", "disable", "engine-ab-compare"])
             .status
             .success()
     );
-    assert_eq!(state(&list(data, &[]), "compat-notes"), (false, false));
+    assert_eq!(state(&list(data, &[]), "engine-ab-compare"), (false, false));
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn unknown_ids_are_rejected_on_the_command_line() {
     let tmp = tempfile::tempdir().unwrap();
     let out = vinter(tmp.path(), &["experimental", "enable", "nope"]);
     assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("compat-notes"));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("engine-ab-compare"));
 }
 
 #[test]
@@ -88,10 +88,12 @@ fn unknown_ids_in_settings_are_ignored() {
     let data = tmp.path();
     std::fs::write(
         data.join("settings.toml"),
-        "[experimental]\nfrom-the-future = true\ncompat-notes = true\n",
+        "[experimental]\nfrom-the-future = true\ncompat-notes = true\nengine-ab-compare = true\n",
     )
     .unwrap();
-    assert_eq!(state(&list(data, &[]), "compat-notes"), (true, true));
+    assert_eq!(state(&list(data, &[]), "engine-ab-compare"), (true, true));
+    // A former flag (now a regular feature) is ignored, not an error.
+    assert!(!list(data, &[]).iter().any(|f| f.0 == "compat-notes"));
     assert!(
         vinter(data, &["experimental", "enable", "launcher-shims"])
             .status
@@ -99,4 +101,5 @@ fn unknown_ids_in_settings_are_ignored() {
     );
     let text = std::fs::read_to_string(data.join("settings.toml")).unwrap();
     assert!(text.contains("from-the-future = true"), "{text}");
+    assert!(text.contains("compat-notes = true"), "{text}");
 }

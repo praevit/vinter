@@ -203,6 +203,14 @@ pub fn list(paths: &AppPaths, bottle_id: &str) -> Result<Vec<WindowsComponent>> 
         .collect())
 }
 
+/// Every verb winetricks installed in the bottle, in the order it did.
+pub fn installed(paths: &AppPaths, bottle_id: &str) -> Result<Vec<String>> {
+    let mut verbs = installed_verbs(&bottle::dir(paths, bottle_id)?.join(PREFIX_DIR));
+    let mut seen = std::collections::HashSet::new();
+    verbs.retain(|v| seen.insert(v.clone()));
+    Ok(verbs)
+}
+
 /// Whether a verb is in the catalog.
 pub fn is_known(verb: &str) -> bool {
     CATALOG.iter().any(|&(v, ..)| v == verb)

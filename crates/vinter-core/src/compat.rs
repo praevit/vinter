@@ -1,5 +1,4 @@
-//! Compatibility notes (the `compat-notes` experimental flag): the user's
-//! own record of how well each app works, with the engine and graphics
+//! Compatibility notes: the user's own record of how well each app works, with the engine and graphics
 //! backend it was tried on. Kept in `compat-notes.json` in the data folder.
 //! Nothing is sent anywhere.
 
@@ -10,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use crate::bottle::{self, Graphics};
 use crate::engine::EngineKind;
 use crate::error::IoResultExt;
-use crate::experimental::{ExperimentalFlag, Flags};
 use crate::{AppPaths, Error, Result};
 
 const FILE: &str = "compat-notes.json";
@@ -57,17 +55,6 @@ pub struct CompatNote {
     pub updated_at: String,
 }
 
-fn ensure_enabled(paths: &AppPaths) -> Result<()> {
-    if Flags::load(paths).is_enabled(ExperimentalFlag::CompatNotes) {
-        Ok(())
-    } else {
-        Err(Error::Unsupported(format!(
-            "compatibility notes are experimental; turn on {} first",
-            ExperimentalFlag::CompatNotes
-        )))
-    }
-}
-
 fn read(paths: &AppPaths) -> Result<Vec<CompatNote>> {
     let file = paths.data_dir().join(FILE);
     match std::fs::read_to_string(&file) {
@@ -92,7 +79,6 @@ fn write(paths: &AppPaths, notes: &[CompatNote]) -> Result<()> {
 
 /// Every note, newest first.
 pub fn list(paths: &AppPaths) -> Result<Vec<CompatNote>> {
-    ensure_enabled(paths)?;
     let mut notes = read(paths)?;
     notes.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(notes)
@@ -107,7 +93,6 @@ pub fn set(
     rating: Rating,
     note: &str,
 ) -> Result<CompatNote> {
-    ensure_enabled(paths)?;
     let b = bottle::get(paths, bottle_id)?;
     let program = b.programs.get(index).ok_or(Error::ProgramNotFound(index))?;
     let entry = CompatNote {
@@ -129,12 +114,18 @@ pub fn set(
 
 /// Removes the note for program number `index` of a bottle, if any.
 pub fn remove(paths: &AppPaths, bottle_id: &str, index: usize) -> Result<()> {
-    ensure_enabled(paths)?;
     let b = bottle::get(paths, bottle_id)?;
     let program = b.programs.get(index).ok_or(Error::ProgramNotFound(index))?;
     let mut notes = read(paths)?;
     notes.retain(|n| !(n.bottle_id == b.id && n.exe == program.exe));
     write(paths, &notes)
+}
+
+/// A bottle's notes, newest first.
+pub fn for_bottle(paths: &AppPaths, bottle_id: &str) -> Result<Vec<CompatNote>> {
+    let mut notes = list(paths)?;
+    notes.retain(|n| n.bottle_id == bottle_id);
+    Ok(notes)
 }
 
 /// Writes every note as JSON to `dest`.
@@ -148,7 +139,6 @@ pub fn export(paths: &AppPaths, dest: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use crate::bottle::{Bottle, ProgramDef};
-    use crate::experimental;
 
     fn setup() -> (tempfile::TempDir, AppPaths) {
         let tmp = tempfile::tempdir().unwrap();
@@ -174,17 +164,16 @@ mod tests {
     }
 
     #[test]
-    fn off_unless_the_flag_is_on() {
+    fn none_until_one_is_saved() {
         let (_tmp, paths) = setup();
-        assert!(list(&paths).is_err());
-        assert!(set(&paths, "b", 0, Rating::Works, "").is_err());
+        assert!(list(&paths).unwrap().is_empty());
+        assert!(for_bottle(&paths, "b").unwrap().is_empty());
         assert!(!paths.data_dir().join(FILE).exists());
     }
 
     #[test]
     fn rate_replace_remove_and_export() {
         let (tmp, paths) = setup();
-        experimental::set(&paths, ExperimentalFlag::CompatNotes, true).unwrap();
 
         let n = set(&paths, "b", 0, Rating::Partly, "  menus flicker  ").unwrap();
         assert_eq!(n.app, "Notepad++");

@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, LoaderCircle, Wrench } from "lucide-react";
 import { commands, type ProgramView, type Rating } from "../api/bindings";
 import { useBottle } from "../api/bottles";
-import { useCompatNotes } from "../api/compat";
 import { errorMessage } from "../api/errors";
 import { logRoute, navigate } from "../api/navigate";
 import { useEnsureRosetta } from "../api/rosetta";
@@ -189,7 +188,7 @@ export function FixItDialog({
   );
 }
 
-/** Offers to keep the outcome as a compatibility note (experimental `compat-notes`). */
+/** Offers to keep the outcome as a compatibility note. */
 function SaveNote({
   bottleId,
   program,
@@ -201,13 +200,11 @@ function SaveNote({
   works: boolean;
   found: string[];
 }) {
-  const { enabled } = useCompatNotes();
   const queryClient = useQueryClient();
   const rating: Rating = works ? "works" : "broken";
   const [note, setNote] = useState(found.length ? `Log doctor found: ${found.join("; ")}.` : "");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string>();
-  if (!enabled) return null;
 
   const save = async () => {
     setError(undefined);

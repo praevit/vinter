@@ -1,4 +1,39 @@
+/// Sidecar name in `tauri.conf.json` (`bundle.externalBin`).
+const CLI_SIDECAR: &str = "binaries/vinter-cli";
+
+/// Tauri needs `binaries/vinter-cli-<target>` to exist when it builds. The
+/// release workflow puts the real `vinter` command there first; other builds
+/// get a stand-in that says how to build it, so `cargo build` keeps working.
+fn ensure_cli_sidecar() {
+    let target = std::env::var("TARGET").expect("cargo sets TARGET");
+    let ext = if target.contains("windows") {
+        ".exe"
+    } else {
+        ""
+    };
+    let path = std::path::PathBuf::from(format!("{CLI_SIDECAR}-{target}{ext}"));
+    if path.exists() {
+        return;
+    }
+    std::fs::create_dir_all(path.parent().unwrap()).expect("create binaries/");
+    std::fs::write(
+        &path,
+        "#!/bin/sh\n\
+         # vinter-cli-placeholder: this build of Vinter does not include the vinter command.\n\
+         echo 'This build of Vinter does not include the vinter command. Build it with: cargo build --release -p vinter-cli' >&2\n\
+         exit 1\n",
+    )
+    .expect("write the vinter command stand-in");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("make the stand-in executable");
+    }
+}
+
 fn main() {
+    ensure_cli_sidecar();
     // Declaring the app's commands makes Tauri require an explicit
     // `allow-<command>` permission in a capability before the UI can call them.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
@@ -84,6 +119,16 @@ fn main() {
             "d3dmetal_choose",
             "d3dmetal_import",
             "d3dmetal_remove",
+            "cli_status",
+            "cli_install",
+            "auto_backup_get",
+            "auto_backup_set",
+            "auto_backup_choose_folder",
+            "auto_backup_run_now",
+            "bottle_save_recipe",
+            "recipe_share",
+            "bottle_history",
+            "bottle_history_revert",
         ]),
     ))
     .expect("failed to run tauri-build");

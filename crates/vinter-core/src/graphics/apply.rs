@@ -77,8 +77,16 @@ pub fn apply(paths: &AppPaths, bottle_id: &str, backend: Backend) -> Result<Bott
         }
     }
 
-    bottle.graphics = backend;
+    let before = std::mem::replace(&mut bottle.graphics, backend);
     bottle.save(&bottle::dir(paths, bottle_id)?)?;
+    bottle::history::note(
+        paths,
+        bottle_id,
+        bottle::history::Change::Graphics {
+            before,
+            after: backend,
+        },
+    );
     Ok(bottle)
 }
 

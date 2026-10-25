@@ -1,5 +1,6 @@
 # Builds signed-ready bundles when a version tag is pushed (or by hand):
 #   macOS: Vinter.app + .dmg (Apple Silicon)   Linux: .AppImage + .deb (x86_64)
+# Each bundle includes the `vinter` command (CLI and MCP server) as a sidecar.
 # Produces a draft GitHub release with the bundles and the updater files.
 #
 # Secrets (Settings -> Secrets and variables -> Actions):
@@ -24,8 +25,10 @@ jobs:
       matrix:
         include:
           - platform: macos-14
+            target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin --bundles app,dmg
           - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
             args: --bundles appimage,deb
     runs-on: ${{ matrix.platform }}
     steps:
@@ -49,6 +52,17 @@ jobs:
 
       - run: npm ci
         working-directory: app
+
+      # The app bundles `vinter` (bundle.externalBin in tauri.conf.json), which
+      # Tauri expects at app/src-tauri/binaries/vinter-cli-<target triple>.
+      # Without it, build.rs puts a stand-in there that only prints a message.
+      - name: Build the vinter command
+        shell: bash
+        run: |
+          cargo build --release --locked -p vinter-cli --target ${{ matrix.target }}
+          mkdir -p app/src-tauri/binaries
+          cp target/${{ matrix.target }}/release/vinter app/src-tauri/binaries/vinter-cli-${{ matrix.target }}
+          app/src-tauri/binaries/vinter-cli-${{ matrix.target }} --version
 
       - uses: tauri-apps/tauri-action@v1
         env:

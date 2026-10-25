@@ -1,10 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { commands } from "./bindings";
-import { useExperimental } from "./experimental";
 
-/** Compatibility notes, or none while the `compat-notes` flag is off. */
+/** The user's compatibility notes, for every bottle. */
 export function useCompatNotes() {
-  const enabled = useExperimental("compat-notes");
-  const query = useQuery({ queryKey: ["compat-notes"], queryFn: () => commands.compatNotesList(), enabled });
-  return { enabled, notes: enabled ? (query.data ?? []) : [] };
+  const query = useQuery({ queryKey: ["compat-notes"], queryFn: () => commands.compatNotesList() });
+  return { notes: query.data ?? [] };
 }

@@ -3,6 +3,7 @@
 pub mod backup;
 pub mod config;
 pub mod domain;
+pub mod history;
 pub mod snapshot;
 
 use std::path::{Path, PathBuf};
@@ -395,6 +396,7 @@ fn apply_options(rt: &Runtime, dir: &Path, bottle: &Bottle) -> Result<()> {
 pub fn set_options(paths: &AppPaths, id: &str, options: BottleOptions) -> Result<Bottle> {
     let mut bottle = get(paths, id)?;
     let dir = dir(paths, id)?;
+    let before = bottle.options;
     if needs_registry(&bottle.options, &options) {
         let rt = runtime_for(paths, &bottle)?;
         rt.check_can_run()?;
@@ -407,6 +409,14 @@ pub fn set_options(paths: &AppPaths, id: &str, options: BottleOptions) -> Result
     }
     bottle.options = options;
     bottle.save(&dir)?;
+    history::note(
+        paths,
+        id,
+        history::Change::Options {
+            before,
+            after: options,
+        },
+    );
     Ok(bottle)
 }
 
@@ -453,8 +463,16 @@ pub fn set_runtime(paths: &AppPaths, id: &str, runtime_id: &str) -> Result<Bottl
     if bottle.runtime != runtime_id {
         snapshot::auto(paths, id, &format!("Before switching to {runtime_id}"))?;
     }
-    bottle.runtime = runtime_id.to_string();
+    let before = std::mem::replace(&mut bottle.runtime, runtime_id.to_string());
     bottle.save(&dir(paths, id)?)?;
+    history::note(
+        paths,
+        id,
+        history::Change::Runtime {
+            before,
+            after: runtime_id.to_string(),
+        },
+    );
     Ok(bottle)
 }
 
@@ -469,8 +487,16 @@ pub fn set_dll_overrides(
         validate_override(dll, mode)?;
     }
     let mut bottle = get(paths, id)?;
-    bottle.dll_overrides = overrides;
+    let before = std::mem::replace(&mut bottle.dll_overrides, overrides);
     bottle.save(&dir(paths, id)?)?;
+    history::note(
+        paths,
+        id,
+        history::Change::DllOverrides {
+            before,
+            after: bottle.dll_overrides.clone(),
+        },
+    );
     Ok(bottle)
 }
 
@@ -513,8 +539,16 @@ pub fn set_env(
         validate_env_var(key, value)?;
     }
     let mut bottle = get(paths, id)?;
-    bottle.env = env;
+    let before = std::mem::replace(&mut bottle.env, env);
     bottle.save(&dir(paths, id)?)?;
+    history::note(
+        paths,
+        id,
+        history::Change::Env {
+            before,
+            after: bottle.env.clone(),
+        },
+    );
     Ok(bottle)
 }
 
@@ -554,10 +588,18 @@ pub fn set_windows_version(paths: &AppPaths, id: &str, version: WindowsVersion) 
     let mut bottle = get(paths, id)?;
     let rt = runtime_for(paths, &bottle)?;
     rt.check_can_run()?;
-    bottle.windows_version = version;
+    let before = std::mem::replace(&mut bottle.windows_version, version);
     let dir = dir(paths, id)?;
     apply_windows_version(&rt, &dir, &bottle)?;
     bottle.save(&dir)?;
+    history::note(
+        paths,
+        id,
+        history::Change::WindowsVersion {
+            before,
+            after: version,
+        },
+    );
     Ok(bottle)
 }
 

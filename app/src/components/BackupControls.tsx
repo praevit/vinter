@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArchiveRestore, HardDriveDownload } from "lucide-react";
 import { commands } from "../api/bindings";
+import { lastBackupLabel, useAutoBackups } from "../api/backups";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { ProgressBar } from "./ProgressBar";
@@ -65,7 +66,20 @@ export function BackupButton({ bottleId }: { bottleId: string }) {
       </Button>
       <JobStatus jobKey={key} done="Backup saved." />
       {error && <ErrorText>{error}</ErrorText>}
+      <LastAutoBackup bottleId={bottleId} />
     </section>
+  );
+}
+
+/** The bottle's last automatic backup, when automatic backups are on. */
+function LastAutoBackup({ bottleId }: { bottleId: string }) {
+  const { data } = useAutoBackups();
+  if (!data?.settings.enabled) return null;
+  const last = data.bottles.find((b) => b.bottle_id === bottleId)?.last;
+  return (
+    <p className={subtle}>
+      Last automatic backup: {lastBackupLabel(last)}. Change automatic backups in Vinter's Settings.
+    </p>
   );
 }
 

@@ -94,6 +94,16 @@
     "allow-d3dmetal-status",
     "allow-d3dmetal-choose",
     "allow-d3dmetal-import",
-    "allow-d3dmetal-remove"
+    "allow-d3dmetal-remove",
+    "allow-cli-status",
+    "allow-cli-install",
+    "allow-auto-backup-get",
+    "allow-auto-backup-set",
+    "allow-auto-backup-choose-folder",
+    "allow-auto-backup-run-now",
+    "allow-bottle-save-recipe",
+    "allow-recipe-share",
+    "allow-bottle-history",
+    "allow-bottle-history-revert"
   ]
 }

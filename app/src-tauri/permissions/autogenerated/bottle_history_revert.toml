@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-history-revert"
+description = "Enables the bottle_history_revert command without any pre-configured scope."
+commands.allow = ["bottle_history_revert"]
+
+[[permission]]
+identifier = "deny-bottle-history-revert"
+description = "Denies the bottle_history_revert command without any pre-configured scope."
+commands.deny = ["bottle_history_revert"]

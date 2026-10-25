@@ -83,7 +83,7 @@ enum Command {
         #[arg(long, default_value_t = 20)]
         seconds: u64,
     },
-    /// Your own compatibility notes per app (experimental: compat-notes).
+    /// Your own compatibility notes per app.
     #[command(subcommand)]
     Notes(NotesCommand),
     /// Show which CPU a Windows program (.exe, .dll) or installer (.msi) is

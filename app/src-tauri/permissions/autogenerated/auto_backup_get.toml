@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-auto-backup-get"
+description = "Enables the auto_backup_get command without any pre-configured scope."
+commands.allow = ["auto_backup_get"]
+
+[[permission]]
+identifier = "deny-auto-backup-get"
+description = "Denies the auto_backup_get command without any pre-configured scope."
+commands.deny = ["auto_backup_get"]

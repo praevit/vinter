@@ -46,6 +46,9 @@
       "icons/icon.ico"
     ],
     "createUpdaterArtifacts": true,
+    "externalBin": [
+      "binaries/vinter-cli"
+    ],
     "macOS": {
       "minimumSystemVersion": "13.0",
       "signingIdentity": "-",

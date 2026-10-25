@@ -117,6 +117,7 @@ pub fn set(
     }
     let mut store = read(paths, bottle_id)?;
     let ids = store.entry(program.exe.clone()).or_default();
+    let before = ids.iter().any(|i| i == id);
     ids.retain(|i| i != id);
     if on {
         ids.push(id.to_string());
@@ -132,6 +133,16 @@ pub fn set(
     )
     .at(&tmp)?;
     std::fs::rename(&tmp, &path).at(&path)?;
+    bottle::history::note(
+        paths,
+        bottle_id,
+        bottle::history::Change::Shim {
+            program: program.exe.clone(),
+            shim: id.to_string(),
+            before,
+            after: on,
+        },
+    );
     Ok(result)
 }
 

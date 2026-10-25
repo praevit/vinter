@@ -357,6 +357,35 @@ export const commands = {
 	d3dmetalImport: (path: string) => __TAURI_INVOKE<D3dMetal>("d3dmetal_import", { path }),
 	/**  Removes the imported copy. */
 	d3dmetalRemove: () => __TAURI_INVOKE<null>("d3dmetal_remove"),
+	/**  Whether the `vinter` command is installed, and where it would go. */
+	cliStatus: () => __TAURI_INVOKE<CliStatus>("cli_status"),
+	/**  Puts `vinter` on the PATH: a link to the app's copy. */
+	cliInstall: () => __TAURI_INVOKE<CliStatus>("cli_install"),
+	autoBackupGet: () => __TAURI_INVOKE<AutoBackupView_Serialize>("auto_backup_get"),
+	/**  Saves the automatic backup settings; turning them on checks right away. */
+	autoBackupSet: (settings: AutoBackupSettings_Deserialize) => __TAURI_INVOKE<null>("auto_backup_set", { settings }),
+	/**  Asks for the folder backups go to. `None` if cancelled. */
+	autoBackupChooseFolder: () => __TAURI_INVOKE<string | null>("auto_backup_choose_folder"),
+	/**
+	 *  Backs up every bottle now, in the background. False if backups are
+	 *  already running.
+	 */
+	autoBackupRunNow: () => __TAURI_INVOKE<boolean>("auto_backup_run_now"),
+	/**  Writes a recipe made from the bottle into the recipes folder. */
+	bottleSaveRecipe: (id: string, name: string, description: string, installerHint: string) => __TAURI_INVOKE<SavedRecipe>("bottle_save_recipe", { id, name, description, installerHint }),
+	/**
+	 *  Opens a new GitHub issue in the browser with the recipe and the bottle's
+	 *  compatibility notes filled in. Nothing is sent until the user submits it.
+	 */
+	recipeShare: (bottleId: string, name: string, toml: string) => __TAURI_INVOKE<null>("recipe_share", { bottleId, name, toml }),
+	/**  A bottle's settings changes, newest first. */
+	bottleHistory: (id: string) => __TAURI_INVOKE<HistoryItem[]>("bottle_history", { id }),
+	/**
+	 *  Puts a setting back as it was before a change. Changes that run Wine
+	 *  (Windows version, display options, graphics) run as a job, whose id is
+	 *  returned; the others are done when this returns `None`.
+	 */
+	bottleHistoryRevert: (id: string, entryId: string) => __TAURI_INVOKE<string | null>("bottle_history_revert", { id, entryId }),
 };
 
 /** Events */
@@ -415,6 +444,46 @@ export type ApprovalRequested = null;
 
 export type ArchiveFormat = "tar_xz" | "tar_gz";
 
+/**
+ *  [`AutoBackupSettings`] as read: missing fields keep their defaults, so the
+ *  API type (and its generated TS) has no optional fields.
+ */
+export type AutoBackupFile = {
+	enabled?: boolean,
+	frequency?: Frequency,
+	folder?: string | null,
+	keep?: number,
+};
+
+export type AutoBackupSettings = AutoBackupSettings_Serialize | AutoBackupSettings_Deserialize;
+
+export type AutoBackupSettings_Deserialize = AutoBackupFile;
+
+export type AutoBackupSettings_Serialize = {
+	enabled: boolean,
+	frequency: Frequency,
+	/**  Folder the backups go to. */
+	folder: string | null,
+	/**  Backups kept per bottle; older ones are removed. */
+	keep: number,
+};
+
+export type AutoBackupView = AutoBackupView_Serialize | AutoBackupView_Deserialize;
+
+export type AutoBackupView_Deserialize = {
+	settings: AutoBackupSettings_Deserialize,
+	bottles: BottleBackup[],
+	/**  Backups are being made right now. */
+	running: boolean,
+};
+
+export type AutoBackupView_Serialize = {
+	settings: AutoBackupSettings_Serialize,
+	bottles: BottleBackup[],
+	/**  Backups are being made right now. */
+	running: boolean,
+};
+
 /**  What the UI shows for one backend in a bottle. */
 export type BackendInfo = {
 	backend: Graphics,
@@ -437,6 +506,14 @@ export type BackendInfo = {
 
 /**  Contents of `bottle.toml`. */
 export type Bottle = Bottle_Serialize | Bottle_Deserialize;
+
+/**  When one bottle was last backed up automatically. */
+export type BottleBackup = {
+	bottle_id: string,
+	name: string,
+	/**  RFC 3339, or null if never (in the current folder). */
+	last: string | null,
+};
 
 /**
  *  `bottle.toml` as read from disk: everything after `created_at` is optional.
@@ -621,6 +698,24 @@ export type CheckStatus = "ok" | "warning" | "error" |
 /**  The check does not apply to this machine. */
 "skipped";
 
+export type CliStatus = {
+	/**  The command inside the app, if this build has one. */
+	bundled: string | null,
+	/**  Where `vinter` is installed, if it is (and points at this app). */
+	installed_at: string | null,
+	/**  A different `vinter` is in the way at the install location. */
+	conflict: string | null,
+	/**  Folder an install puts the link in. */
+	install_dir: string,
+	/**  Whether that folder is on the PATH of a new terminal. */
+	on_path: boolean,
+	/**
+	 *  JSON for an AI agent's MCP settings, starting `vinter mcp` (through
+	 *  the installed link, else the app's copy).
+	 */
+	mcp_config: string | null,
+};
+
 /**  Error returned to the frontend. Commands reject with this value. */
 export type CommandError = {
 	message: string,
@@ -759,7 +854,7 @@ export type EngineKind =
 "arm64-fex-linux";
 
 /**  One experimental feature. */
-export type ExperimentalFlag = "per-app-engine" | "engine-ab-compare" | "simulate-macos28" | "bottle-migrate-arm64" | "fex-config-editor" | "wow64-large-address" | "graphics-dxvk-arm64ec" | "graphics-user-gptk" | "runtime-channel-nightly" | "runtime-build-from-source" | "arm64-fex-linux" | "compat-notes" | "launcher-shims";
+export type ExperimentalFlag = "per-app-engine" | "engine-ab-compare" | "simulate-macos28" | "bottle-migrate-arm64" | "fex-config-editor" | "wow64-large-address" | "graphics-dxvk-arm64ec" | "graphics-user-gptk" | "runtime-channel-nightly" | "runtime-build-from-source" | "arm64-fex-linux" | "launcher-shims";
 
 /**
  *  The `[experimental]` section of `settings.toml`: flag id → on.
@@ -841,6 +936,8 @@ export type FlagState = {
 
 export type Flavor = "stable" | "devel" | "staging" | "gptk";
 
+export type Frequency = "daily" | "weekly";
+
 /**  Graphics translation layer. Only stored in M2; applied in M4. */
 export type Graphics = "wined3d" | "dxvk" | "dxmt" | "d3dmetal";
 
@@ -868,6 +965,22 @@ export type GraphicsReport = {
 	matches_backend: boolean,
 	/**  Log of the test, for `log_read`. */
 	log_id: string,
+};
+
+/**  What the History section shows for one entry. */
+export type HistoryItem = {
+	id: string,
+	/**  RFC 3339. */
+	at: string,
+	/**  The setting, e.g. "Windows version". */
+	title: string,
+	/**  What changed, e.g. "Windows 10 → Windows 11". */
+	detail: string,
+	/**
+	 *  Reverting runs Wine for a few seconds (Windows version, display
+	 *  options, graphics), so the app runs it as a job.
+	 */
+	slow: boolean,
 };
 
 export type JobDone = {
@@ -1275,6 +1388,14 @@ export type RuntimeUpdate_Serialize = {
 	newer_build: number | null,
 	/**  Names of the bottles that use the installed runtime now. */
 	bottles: string[],
+};
+
+/**  A recipe saved from a bottle. */
+export type SavedRecipe = {
+	id: string,
+	name: string,
+	path: string,
+	toml: string,
 };
 
 export type Settings = Settings_Serialize | Settings_Deserialize;

@@ -1,6 +1,7 @@
 // Prevents an extra console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod backups;
 mod commands;
 mod events;
 mod focus;
@@ -128,6 +129,16 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::settings::d3dmetal_choose,
             commands::settings::d3dmetal_import,
             commands::settings::d3dmetal_remove,
+            commands::integrations::cli_status,
+            commands::integrations::cli_install,
+            commands::integrations::auto_backup_get,
+            commands::integrations::auto_backup_set,
+            commands::integrations::auto_backup_choose_folder,
+            commands::integrations::auto_backup_run_now,
+            commands::integrations::bottle_save_recipe,
+            commands::integrations::recipe_share,
+            commands::integrations::bottle_history,
+            commands::integrations::bottle_history_revert,
         ])
         .events(collect_events![
             events::JobProgress,
@@ -201,6 +212,7 @@ fn main() {
             );
             tray::create(app.handle());
             updates::start(app.handle());
+            backups::start(app.handle());
             startup::on_start(app.handle(), std::env::args().collect());
             Ok(())
         })

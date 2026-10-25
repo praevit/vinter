@@ -3,6 +3,10 @@
 //!
 //! Each feature checks its flag with [`Flags::is_enabled`]. Ids are stable:
 //! they are what `settings.toml` and the CLI use, so never rename one.
+//!
+//! A feature that becomes a regular one loses its flag; its id stays in old
+//! `settings.toml` files and is ignored like any unknown id. Former flags:
+//! `compat-notes` (compatibility notes).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
@@ -38,8 +42,6 @@ pub enum ExperimentalFlag {
     RuntimeBuildFromSource,
     #[serde(rename = "arm64-fex-linux")]
     Arm64FexLinux,
-    #[serde(rename = "compat-notes")]
-    CompatNotes,
     #[serde(rename = "launcher-shims")]
     LauncherShims,
 }
@@ -70,7 +72,6 @@ pub fn all() -> &'static [ExperimentalFlag] {
     &[
         SimulateMacos28,
         EngineAbCompare,
-        CompatNotes,
         PerAppEngine,
         Wow64LargeAddress,
         GraphicsDxvkArm64ec,
@@ -100,7 +101,6 @@ impl ExperimentalFlag {
             RuntimeChannelNightly => "runtime-channel-nightly",
             RuntimeBuildFromSource => "runtime-build-from-source",
             Arm64FexLinux => "arm64-fex-linux",
-            CompatNotes => "compat-notes",
             LauncherShims => "launcher-shims",
         }
     }
@@ -123,7 +123,6 @@ impl ExperimentalFlag {
             RuntimeChannelNightly => "Nightly runtimes",
             RuntimeBuildFromSource => "Build runtimes from source",
             Arm64FexLinux => "Linux ARM64 engine",
-            CompatNotes => "Compatibility notes",
             LauncherShims => "Game launcher fixes",
         }
     }
@@ -160,9 +159,6 @@ impl ExperimentalFlag {
                 "Build Apple Silicon Wine and FEX from chosen git sources, for testing runtimes before they are published."
             }
             Arm64FexLinux => "Run Windows apps on ARM64 Linux with FEX.",
-            CompatNotes => {
-                "Keep your own notes on how well each app works, stored on this computer and exportable as JSON."
-            }
             LauncherShims => {
                 "Apply known workarounds for game launchers that fail on Apple Silicon Wine, with a list of what was changed."
             }
@@ -174,7 +170,6 @@ impl ExperimentalFlag {
         use ExperimentalFlag::*;
         match self {
             PerAppEngine | FexConfigEditor | LauncherShims => "Bottle → Programs → Edit",
-            CompatNotes => "Bottle → Programs → Edit, and a dot on the program",
             EngineAbCompare => "Bottle → Programs → Compare engines, on a program",
             SimulateMacos28 => "Runtimes, and New bottle",
             BottleMigrateArm64 => "The bottle's page: Recreate for Apple Silicon",
@@ -201,14 +196,14 @@ impl ExperimentalFlag {
             GraphicsUserGptk => Some("Needs the Game Porting Toolkit installed"),
             Arm64FexLinux => Some("Needs an ARM64 Linux computer"),
             LauncherShims => Some("Only for known game launchers"),
-            SimulateMacos28 | CompatNotes | RuntimeChannelNightly | RuntimeBuildFromSource => None,
+            SimulateMacos28 | RuntimeChannelNightly | RuntimeBuildFromSource => None,
         }
     }
 
     pub fn risk(self) -> Risk {
         use ExperimentalFlag::*;
         match self {
-            EngineAbCompare | SimulateMacos28 | CompatNotes => Risk::Low,
+            EngineAbCompare | SimulateMacos28 => Risk::Low,
             PerAppEngine
             | Wow64LargeAddress
             | GraphicsDxvkArm64ec
@@ -424,17 +419,17 @@ mod tests {
     #[test]
     fn unknown_ids_are_ignored_and_kept() {
         let s: Settings = toml::from_str(
-            "[experimental]\nfrom-the-future = true\ncompat-notes = true\nper-app-engine = false\n",
+            "[experimental]\nfrom-the-future = true\nengine-ab-compare = true\nper-app-engine = false\n",
         )
         .unwrap();
         let flags = Flags::from_settings(&s);
-        assert!(flags.is_enabled(ExperimentalFlag::CompatNotes));
+        assert!(flags.is_enabled(ExperimentalFlag::EngineAbCompare));
         assert!(!flags.is_enabled(ExperimentalFlag::PerAppEngine));
 
         let tmp = tempfile::tempdir().unwrap();
         let paths = AppPaths::with_data_dir(tmp.path());
         settings::save(&paths, &s).unwrap();
-        set(&paths, ExperimentalFlag::CompatNotes, false).unwrap();
+        set(&paths, ExperimentalFlag::EngineAbCompare, false).unwrap();
         let text = std::fs::read_to_string(paths.settings_file()).unwrap();
         assert!(text.contains("from-the-future = true"), "{text}");
     }
@@ -442,14 +437,28 @@ mod tests {
     #[test]
     fn a_bad_section_keeps_the_other_settings() {
         // A wrong type under [experimental] must not reset everything else.
-        let s: Settings =
-            toml::from_str("notifications = false\n[experimental]\nx = 1\ncompat-notes = true\n")
-                .unwrap();
+        let s: Settings = toml::from_str(
+            "notifications = false\n[experimental]\nx = 1\nengine-ab-compare = true\n",
+        )
+        .unwrap();
         assert!(!s.notifications);
-        assert!(s.experimental.is_enabled(ExperimentalFlag::CompatNotes));
+        assert!(s.experimental.is_enabled(ExperimentalFlag::EngineAbCompare));
         let s: Settings = toml::from_str("notifications = false\nexperimental = 3\n").unwrap();
         assert!(!s.notifications);
         assert_eq!(s.experimental, ExperimentalSettings::default());
+    }
+
+    #[test]
+    fn former_flags_still_load() {
+        // Compatibility notes were experimental; old settings still name them.
+        let s: Settings =
+            toml::from_str("notifications = false\n[experimental]\ncompat-notes = true\n").unwrap();
+        assert!(!s.notifications);
+        assert_eq!(ExperimentalFlag::parse("compat-notes"), None);
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = AppPaths::with_data_dir(tmp.path());
+        settings::save(&paths, &s).unwrap();
+        assert!(list(&paths).iter().all(|f| f.flag.id() != "compat-notes"));
     }
 
     #[test]

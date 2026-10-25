@@ -5,7 +5,9 @@
 //! Tauri app and the `vinter` CLI.
 
 pub mod approval;
+pub mod auto_backup;
 pub mod bottle;
+pub mod cli_install;
 pub mod compare;
 pub mod compat;
 pub mod components;

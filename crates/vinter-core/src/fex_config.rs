@@ -207,6 +207,7 @@ pub fn set(
         .ok_or_else(|| Error::InvalidSetting(format!("FEX has no setting called {name}")))?;
     let mut all = read(paths, bottle_id)?;
     let settings = all.entry(program.exe.clone()).or_default();
+    let before = settings.get(&option.name).cloned();
     match value {
         Some(v) => {
             settings.insert(option.name.clone(), normalize(option, v)?);
@@ -225,6 +226,16 @@ pub fn set(
     )
     .at(&tmp)?;
     std::fs::rename(&tmp, &file).at(&file)?;
+    bottle::history::note(
+        paths,
+        bottle_id,
+        bottle::history::Change::FexSetting {
+            program: program.exe.clone(),
+            name: option.name.clone(),
+            before,
+            after: result.get(&option.name).cloned(),
+        },
+    );
     Ok(result)
 }
 

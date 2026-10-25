@@ -30,6 +30,8 @@ import { RecipeResume } from "../components/RecipeResume";
 import { BackupButton, startBackup } from "../components/BackupControls";
 import { Dialog } from "../components/Dialog";
 import { Menu } from "../components/Menu";
+import { SaveRecipeButton } from "../components/SaveRecipeDialog";
+import { SettingsHistory } from "../components/SettingsHistory";
 import { BottleOptionsFields } from "../components/BottleOptionsFields";
 import { DomainSection } from "../components/DomainSection";
 import { GraphicsSection } from "../components/GraphicsSection";
@@ -767,6 +769,10 @@ function Backups({ bottle, onNavigate }: { bottle: BottleDetails; onNavigate: (r
       </section>
 
       <BottleStorage bottleId={bottle.id} />
+
+      <SaveRecipeButton bottleId={bottle.id} bottleName={bottle.name} />
+
+      <SettingsHistory bottleId={bottle.id} />
     </div>
   );
 }

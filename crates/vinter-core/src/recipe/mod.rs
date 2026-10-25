@@ -7,6 +7,7 @@
 
 pub mod apply;
 pub mod installers;
+pub mod save;
 pub mod winetricks;
 
 use std::collections::BTreeMap;

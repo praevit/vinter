@@ -133,7 +133,7 @@ mod tests {
         assert_eq!(load(&paths), Settings::default());
 
         let mut experimental = crate::experimental::ExperimentalSettings::default();
-        experimental.set(crate::experimental::ExperimentalFlag::CompatNotes, true);
+        experimental.set(crate::experimental::ExperimentalFlag::EngineAbCompare, true);
         let s = Settings {
             menu_bar_icon: false,
             appearance: Appearance::Dark,

@@ -5,6 +5,8 @@ node_modules/
 dist/
 # Tauri-generated files (capability schemas, mobile projects)
 /app/src-tauri/gen/
+# The bundled vinter command (built by the release workflow; stand-in otherwise)
+/app/src-tauri/binaries/
 # OS / editor
 .DS_Store
 *.log

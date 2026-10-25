@@ -6,6 +6,7 @@ pub mod bottles;
 pub mod compat;
 pub mod components;
 pub mod graphics;
+pub mod integrations;
 pub mod programs;
 pub mod recipes;
 pub mod runtimes;

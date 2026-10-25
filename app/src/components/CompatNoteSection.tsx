@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { commands, type CompatNote, type ProgramView, type Rating } from "../api/bindings";
 import { useCompatNotes } from "../api/compat";
 import { errorMessage } from "../api/errors";
-import { ExperimentalBadge } from "./ExperimentalBadge";
 import { Select } from "./Select";
 import { Button, ErrorText, field, subtle } from "./ui";
 
@@ -19,16 +18,14 @@ export function useProgramNote(bottleId: string, program: ProgramView): CompatNo
   return notes.find((n) => n.bottle_id === bottleId && n.exe === program.exe);
 }
 
-/** A program's own compatibility note (experimental `compat-notes`). */
+/** A program's own compatibility note. */
 export function CompatNoteSection({ bottleId, program }: { bottleId: string; program: ProgramView }) {
-  const { enabled } = useCompatNotes();
   const saved = useProgramNote(bottleId, program);
   const queryClient = useQueryClient();
   const [rating, setRating] = useState<Rating>(saved?.rating ?? "works");
   const [note, setNote] = useState(saved?.note ?? "");
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
-  if (!enabled) return null;
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setError(undefined);
@@ -44,7 +41,7 @@ export function CompatNoteSection({ bottleId, program }: { bottleId: string; pro
   return (
     <section className="flex flex-col gap-2 rounded-xl border border-frost-200 p-3 dark:border-slate-deep-700">
       <h3 className="flex items-center gap-2 text-sm font-medium">
-        Compatibility note <ExperimentalBadge />
+        Compatibility note
       </h3>
       <Select value={rating} options={RATINGS} onChange={setRating} />
       <textarea
@@ -55,7 +52,8 @@ export function CompatNoteSection({ bottleId, program }: { bottleId: string; pro
         onChange={(e) => setNote(e.target.value)}
       />
       <p className={subtle}>
-        Kept on this Mac only, with this bottle's engine and graphics backend. Nothing is sent anywhere.
+        Kept on this computer, with this bottle's engine and graphics backend. It is only shared if you share this
+        bottle's recipe yourself.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -99,7 +97,7 @@ export function CompatNoteDot({ bottleId, program }: { bottleId: string; program
   const r = RATINGS.find((x) => x.value === note.rating);
   return (
     <span
-      title={`${r?.label}${note.note ? `: ${note.note}` : ""} (your note, experimental)`}
+      title={`${r?.label}${note.note ? `: ${note.note}` : ""} (your note)`}
       className={`absolute right-2 bottom-2 size-2 rounded-full ${r?.color}`}
     />
   );

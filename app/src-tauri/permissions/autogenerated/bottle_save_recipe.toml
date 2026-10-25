@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-bottle-save-recipe"
+description = "Enables the bottle_save_recipe command without any pre-configured scope."
+commands.allow = ["bottle_save_recipe"]
+
+[[permission]]
+identifier = "deny-bottle-save-recipe"
+description = "Denies the bottle_save_recipe command without any pre-configured scope."
+commands.deny = ["bottle_save_recipe"]

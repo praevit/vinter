@@ -2,9 +2,11 @@ import { useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TriangleAlert, Trash2 } from "lucide-react";
 import { useAppInfo } from "../api/app";
+import { lastBackupLabel, useAutoBackups } from "../api/backups";
 import {
   commands,
   type Appearance,
+  type AutoBackupSettings_Serialize as AutoBackupSettings,
   type D3dMetalSource,
   type FlagState,
   type Settings_Serialize as SettingsData,
@@ -109,6 +111,10 @@ export function Settings() {
       {mac && d3dmetalRuntime && <D3dMetalGroup />}
 
       <StorageGroup />
+
+      <AutoBackupGroup mac={mac} />
+
+      <CommandLineGroup mac={mac} />
 
       <ExperimentalGroup />
 
@@ -238,6 +244,213 @@ function D3dMetalGroup() {
             </div>
           </div>
         </Dialog>
+      )}
+    </Group>
+  );
+}
+
+/** The `vinter` command in a terminal, and AI agents through `vinter mcp`. */
+function CommandLineGroup({ mac }: { mac: boolean }) {
+  const queryClient = useQueryClient();
+  const { data: cli } = useQuery({ queryKey: ["cli"], queryFn: () => commands.cliStatus() });
+  const [installing, setInstalling] = useState(false);
+  const [copied, setCopied] = useState<boolean>();
+  const [error, setError] = useState<string>();
+
+  const install = async () => {
+    setInstalling(true);
+    setError(undefined);
+    try {
+      queryClient.setQueryData(["cli"], await commands.cliInstall());
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setInstalling(false);
+    }
+  };
+  const copy = async () => {
+    if (!cli?.mcp_config) return;
+    try {
+      await navigator.clipboard.writeText(cli.mcp_config);
+      setCopied(true);
+    } catch {
+      // Shown below to copy by hand.
+      setCopied(false);
+    }
+  };
+
+  if (!cli) return null;
+  const dir = cli.installed_at ? cli.installed_at.replace(/\/vinter$/, "") : cli.install_dir;
+  const commandDetail = !cli.bundled
+    ? "This build of Vinter does not include the vinter command."
+    : cli.installed_at
+      ? `Installed at ${cli.installed_at}. Open a terminal and type vinter --help to start.`
+      : cli.conflict
+        ? `There is already a different vinter command at ${cli.conflict}. Remove it to install Vinter's.`
+        : `Use Vinter from a terminal. This puts a link to the vinter command in ${cli.install_dir}.`;
+
+  return (
+    <Group title="Command line & AI agents">
+      <div className="flex items-center gap-4 px-5 py-3.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm font-medium">The vinter command</span>
+          <span className={`${subtle} break-words select-text`}>{commandDetail}</span>
+          {cli.bundled && !cli.on_path && (
+            <span className={`${subtle} break-words select-text`}>
+              {dir} is not on your PATH yet. Add it in your shell's settings, for example with{" "}
+              <code className="font-mono">{`export PATH="${dir}:$PATH"`}</code> in {mac ? "~/.zprofile" : "~/.profile"},
+              then open a new terminal.
+            </span>
+          )}
+        </span>
+        {cli.bundled && !cli.installed_at && !cli.conflict && (
+          <Button disabled={installing} onClick={install}>
+            {installing ? "Installing…" : "Install the vinter command"}
+          </Button>
+        )}
+      </div>
+      {cli.mcp_config && (
+        <div className="flex flex-col gap-2 px-5 py-3.5">
+          <div className="flex items-center gap-4">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-sm font-medium">AI agents</span>
+              <span className={subtle}>
+                Agents that support MCP can see your bottles and apps, and ask Vinter to install or change things.
+                Vinter asks you before an agent changes anything.
+              </span>
+            </span>
+            <Button onClick={copy}>{copied ? "Copied" : "Copy MCP config"}</Button>
+          </div>
+          {copied === false && (
+            <>
+              <span className={subtle}>Copy this into your agent's MCP settings:</span>
+              <pre className="overflow-x-auto rounded-lg bg-frost-100 p-3 text-xs select-text dark:bg-slate-deep-950">
+                {cli.mcp_config}
+              </pre>
+            </>
+          )}
+        </div>
+      )}
+      {error && (
+        <div className="px-5 py-3">
+          <ErrorText>{error}</ErrorText>
+        </div>
+      )}
+    </Group>
+  );
+}
+
+/** Backing up every bottle to a folder on a schedule. */
+function AutoBackupGroup({ mac }: { mac: boolean }) {
+  const queryClient = useQueryClient();
+  const { data } = useAutoBackups();
+  const [message, setMessage] = useState<string>();
+  const [error, setError] = useState<string>();
+
+  if (!data) return null;
+  const settings = data.settings;
+  const run = async (action: () => Promise<unknown>) => {
+    setError(undefined);
+    try {
+      await action();
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+    await queryClient.invalidateQueries({ queryKey: ["auto-backup"] });
+  };
+  const save = (patch: Partial<AutoBackupSettings>) =>
+    run(() => commands.autoBackupSet({ ...settings, ...patch }));
+  const chooseFolder = async (): Promise<string | null> => {
+    setError(undefined);
+    try {
+      return await commands.autoBackupChooseFolder();
+    } catch (e) {
+      setError(errorMessage(e));
+      return null;
+    }
+  };
+  const toggle = async (enabled: boolean) => {
+    if (enabled && !settings.folder) {
+      const folder = await chooseFolder();
+      if (folder) await save({ enabled, folder });
+      return;
+    }
+    await save({ enabled });
+  };
+  const backUpNow = () =>
+    run(async () => {
+      const started = await commands.autoBackupRunNow();
+      setMessage(started ? "Backing up in the background…" : "Backups are already running.");
+    });
+
+  return (
+    <Group title="Backups">
+      <Toggle
+        title="Back up bottles automatically"
+        detail="Saves each bottle as a .vinterbottle file while its programs are closed, and keeps the newest few."
+        checked={settings.enabled}
+        onChange={toggle}
+      />
+      <div className="flex items-center gap-4 px-5 py-3.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm font-medium">Folder</span>
+          <span className={`${subtle} break-all select-text`}>{settings.folder ?? "Not chosen yet."}</span>
+          {mac && <span className={subtle}>A folder in iCloud Drive works too, so the backups are kept off this Mac.</span>}
+        </span>
+        <Button
+          onClick={async () => {
+            const folder = await chooseFolder();
+            if (folder) await save({ folder });
+          }}
+        >
+          Choose…
+        </Button>
+      </div>
+      <div className="flex items-center gap-4 px-5 py-3.5">
+        <span className="flex-1 text-sm font-medium">How often</span>
+        <div className="w-40">
+          <Select
+            value={settings.frequency}
+            options={[
+              { value: "daily", label: "Every day" },
+              { value: "weekly", label: "Every week" },
+            ]}
+            onChange={(frequency) => save({ frequency })}
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-4 px-5 py-3.5">
+        <span className="flex-1 text-sm font-medium">Keep per bottle</span>
+        <div className="w-40">
+          <Select
+            value={String(settings.keep)}
+            options={[1, 2, 3, 5, 10, 20].map((n) => ({
+              value: String(n),
+              label: n === 1 ? "The last backup" : `The last ${n} backups`,
+            }))}
+            onChange={(keep) => save({ keep: Number(keep) })}
+          />
+        </div>
+      </div>
+      {settings.folder &&
+        data.bottles.map((b) => (
+          <div key={b.bottle_id} className="flex items-center gap-4 px-5 py-3">
+            <span className="min-w-0 flex-1 truncate text-sm">{b.name}</span>
+            <span className={subtle}>Last backup: {lastBackupLabel(b.last)}</span>
+          </div>
+        ))}
+      {settings.folder && (
+        <div className="flex items-center gap-3 px-5 py-3">
+          <Button disabled={data.running} onClick={backUpNow}>
+            {data.running ? "Backing up…" : "Back up all now"}
+          </Button>
+          {message && <span className={subtle}>{message}</span>}
+        </div>
+      )}
+      {error && (
+        <div className="px-5 py-3">
+          <ErrorText>{error}</ErrorText>
+        </div>
       )}
     </Group>
   );
