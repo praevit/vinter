@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { commands, events, type RunInfo, type Stream } from "./bindings";
 import { useToasts } from "./toasts";
 
@@ -14,7 +15,7 @@ export type Run = {
 
 type Runs = {
   runs: Run[];
-  /** Records a run started from the UI (its events may already be arriving). */
+  /** Records a run (its events may already be arriving). Safe to call twice. */
   add: (info: RunInfo) => void;
 };
 
@@ -24,6 +25,7 @@ const RunsContext = createContext<Runs | null>(null);
 export function RunsProvider({ children }: { children: ReactNode }) {
   const [runs, setRuns] = useState<Record<string, Run>>({});
   const toasts = useToasts();
+  const queryClient = useQueryClient();
 
   const add = useCallback((info: RunInfo) => {
     setRuns((r) => ({ ...r, [info.run_id]: { ...(r[info.run_id] ?? { lines: [] }), info } }));
@@ -32,6 +34,12 @@ export function RunsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Runs started before this window loaded (e.g. after a reload).
     commands.runsList().then((list) => list.forEach(add));
+    // Runs started anywhere: here, the menu bar, a launcher or a link.
+    const started = events.runStarted.listen(({ payload: { info } }) => {
+      add(info);
+      // Its "last used" time changed.
+      void queryClient.invalidateQueries({ queryKey: ["bottles", info.bottle_id, "programs"] });
+    });
     const log = events.runLog.listen(({ payload: p }) =>
       setRuns((r) => {
         const run = r[p.run_id] ?? { info: undefined as unknown as RunInfo, lines: [] };
@@ -50,10 +58,11 @@ export function RunsProvider({ children }: { children: ReactNode }) {
       }),
     );
     return () => {
+      started.then((u) => u());
       log.then((u) => u());
       exit.then((u) => u());
     };
-  }, [add, toasts]);
+  }, [add, toasts, queryClient]);
 
   const list = Object.values(runs).filter((r) => r.info);
   return <RunsContext value={{ runs: list, add }}>{children}</RunsContext>;
@@ -70,4 +79,9 @@ export function latestRun(runs: Run[], bottleId: string, index: number): Run | u
   return runs
     .filter((r) => r.info.bottle_id === bottleId && r.info.program_index === index)
     .sort((a, b) => b.info.started_at.localeCompare(a.info.started_at))[0];
+}
+
+/** Runs that have not exited yet, oldest first. */
+export function runningRuns(runs: Run[]): Run[] {
+  return runs.filter((r) => !r.exit).sort((a, b) => a.info.started_at.localeCompare(b.info.started_at));
 }

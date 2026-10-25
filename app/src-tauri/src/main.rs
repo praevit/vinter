@@ -69,6 +69,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::programs::programs_list,
             commands::programs::program_launch,
             commands::programs::program_stop,
+            commands::programs::program_show,
             commands::programs::runs_list,
             commands::programs::logs_list,
             commands::programs::log_read,
@@ -125,6 +126,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .events(collect_events![
             events::JobProgress,
             events::JobDone,
+            events::RunStarted,
             events::RunLog,
             events::RunExit,
             events::Notice,

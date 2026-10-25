@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { commands, events } from "./api/bindings";
 import { ApprovalDialog } from "./components/ApprovalDialog";
+import { CommandPalette } from "./components/CommandPalette";
 import { OpenFileDialog } from "./components/OpenFileDialog";
 import { useBottles } from "./api/bottles";
 import { Sidebar, type Route } from "./components/Sidebar";
@@ -26,7 +27,8 @@ export function App() {
       commands.openFilesTake().then((files) => files.length && setOpenFiles((q) => [...q, ...files]));
     void take();
     const opened = events.appOpenFiles.listen(() => void take());
-    const navigate = events.appNavigate.listen(({ payload }) => setRoute({ page: payload.to }));
+    // The palette opens itself (see CommandPalette).
+    const navigate = events.appNavigate.listen(({ payload }) => payload.to !== "palette" && setRoute({ page: payload.to }));
     const dropped = getCurrentWebview().onDragDropEvent(({ payload }) => {
       if (payload.type !== "drop") return;
       const files = payload.paths.filter((p) => /\.(exe|msi|msix|msixbundle|appx|appxbundle|vinterbottle)$/i.test(p));
@@ -69,6 +71,7 @@ export function App() {
         )}
       </main>
       <ApprovalDialog />
+      <CommandPalette route={current} onNavigate={setRoute} />
       {openFiles.length > 0 && (
         <OpenFileDialog
           key={openFiles[0]}

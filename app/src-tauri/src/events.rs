@@ -3,6 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::commands::programs::RunInfo;
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[tauri_specta(event_name = "job://progress")]
 pub struct JobProgress {
@@ -13,6 +15,14 @@ pub struct JobProgress {
     pub message: String,
     /// 0 to 100, or null when the step has no measurable progress.
     pub percent: Option<f64>,
+}
+
+/// A program started, from anywhere: the window, the menu bar, a launcher
+/// or a link.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[tauri_specta(event_name = "run://started")]
+pub struct RunStarted {
+    pub info: RunInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
@@ -93,4 +103,8 @@ pub struct Navigate {
 #[serde(rename_all = "snake_case")]
 pub enum NavigateTo {
     Settings,
+    #[serde(rename = "new-bottle")]
+    NewBottle,
+    // Opens the ⌘K palette instead of a page.
+    Palette,
 }

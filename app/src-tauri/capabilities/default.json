@@ -1,13 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main window. Only Vinter's own commands and job/run events; no shell or fs access. Links, the installer file dialog, deep links and updates are handled in Rust, so the opener, dialog, deep-link and updater plugins grant nothing to the frontend.",
+  "description": "Permissions for the main window. Only Vinter's own commands, job/run events and right-click menus; no shell or fs access. Links, the installer file dialog, deep links and updates are handled in Rust, so the opener, dialog, deep-link and updater plugins grant nothing to the frontend.",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:menu:allow-new",
+    "core:menu:allow-popup",
+    "core:resources:allow-close",
     "allow-system-checks",
     "allow-rosetta-install",
     "allow-runtimes-available",
@@ -49,6 +52,7 @@
     "allow-programs-list",
     "allow-program-launch",
     "allow-program-stop",
+    "allow-program-show",
     "allow-runs-list",
     "allow-logs-list",
     "allow-log-read",

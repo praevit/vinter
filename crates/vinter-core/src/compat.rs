@@ -166,6 +166,8 @@ mod tests {
             icon: None,
             pinned: false,
             arm64_build: None,
+            last_launched: None,
+            launch_count: 0,
         });
         b.save(&dir).unwrap();
         (tmp, paths)

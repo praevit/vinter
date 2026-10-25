@@ -25,6 +25,8 @@ fn bottle_with_programs(paths: &AppPaths, id: &str, name: &str, programs: &[&str
                 icon: None,
                 pinned: false,
                 arm64_build: None,
+                last_launched: None,
+                launch_count: 0,
             })
             .collect(),
         domain: None,

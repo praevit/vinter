@@ -82,6 +82,8 @@ impl DiscoveredProgram {
             icon: self.icon.clone(),
             pinned: false,
             arm64_build: None,
+            last_launched: None,
+            launch_count: 0,
         }
     }
 }
@@ -251,6 +253,24 @@ pub fn remove(paths: &AppPaths, bottle_id: &str, index: usize) -> Result<Bottle>
     Ok(bottle)
 }
 
+/// Notes that a program was just launched (for "Recently used"). The
+/// program is found by its path, in case the list changed meanwhile.
+pub fn record_launch(paths: &AppPaths, bottle_id: &str, index: usize, exe: &str) -> Result<()> {
+    let mut bottle = bottle::get(paths, bottle_id)?;
+    let program = match bottle.programs.get_mut(index) {
+        Some(p) if p.exe == exe => p,
+        _ => bottle
+            .programs
+            .iter_mut()
+            .find(|p| p.exe == exe)
+            .ok_or(Error::ProgramNotFound(index))?,
+    };
+    program.last_launched =
+        Some(humantime::format_rfc3339_seconds(std::time::SystemTime::now()).to_string());
+    program.launch_count = program.launch_count.saturating_add(1);
+    bottle.save(&bottle::dir(paths, bottle_id)?)
+}
+
 /// A started program.
 #[derive(Debug, Clone)]
 pub struct Launched {
@@ -288,6 +308,7 @@ pub fn launch_with(
         .get(index)
         .cloned()
         .ok_or(Error::ProgramNotFound(index))?;
+    let saved_exe = program.exe.clone();
     let rt = runtime::get(paths, &bottle.runtime)?;
     rt.check_can_run()?;
     let dir = bottle::dir(paths, bottle_id)?;
@@ -347,6 +368,8 @@ pub fn launch_with(
         on_line,
         on_exit,
     )?;
+    // Not worth failing a launch over.
+    let _ = record_launch(paths, bottle_id, index, &saved_exe);
     Ok(Launched {
         pid,
         name: program.name,

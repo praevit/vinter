@@ -270,6 +270,8 @@ fn launches_programs_in_their_folder_and_logs_output() {
             icon: None,
             pinned: false,
             arm64_build: None,
+            last_launched: None,
+            launch_count: 0,
         }],
     )
     .unwrap();
@@ -296,6 +298,9 @@ fn launches_programs_in_their_folder_and_logs_output() {
     );
     assert!(lines.contains("Program Files/App"), "{lines}");
     assert_eq!(launched.name, "My App");
+    let program = &crate::bottle::get(&paths, &id).unwrap().programs[0];
+    assert_eq!(program.launch_count, 1);
+    assert!(program.last_launched.is_some());
 
     let dir = bottle::dir(&paths, &id).unwrap();
     let log = process::logs::read(&dir, &launched.log_id).unwrap();
@@ -354,6 +359,8 @@ fn update_renames_changes_args_and_icon() {
             icon: None,
             pinned: false,
             arm64_build: None,
+            last_launched: None,
+            launch_count: 0,
         }],
     )
     .unwrap();
@@ -457,6 +464,8 @@ fn per_app_engine_finds_and_launches_the_arm64_build() {
         icon: None,
         pinned: false,
         arm64_build: None,
+        last_launched: None,
+        launch_count: 0,
     });
     b.save(&dir).unwrap();
 
@@ -508,4 +517,32 @@ fn per_app_engine_finds_and_launches_the_arm64_build() {
     experimental::set(&paths, ExperimentalFlag::PerAppEngine, false).unwrap();
     rt.engine = crate::engine::EngineKind::Arm64Fex;
     assert!(native_build(&paths, &rt, &prefix, &saved.programs[0]).is_none());
+}
+
+#[test]
+fn record_launch_counts_and_follows_moved_programs() {
+    let (_tmp, paths, id, _c) = fake_bottle();
+    let def = |name: &str| ProgramDef {
+        name: name.into(),
+        exe: format!(r"C:\{name}.exe"),
+        args: vec![],
+        icon: None,
+        pinned: false,
+        arm64_build: None,
+        last_launched: None,
+        launch_count: 0,
+    };
+    add(&paths, &id, vec![def("A"), def("B")]).unwrap();
+    record_launch(&paths, &id, 1, r"C:\B.exe").unwrap();
+    // B moved to index 0 meanwhile: it is still found by its path.
+    remove(&paths, &id, 0).unwrap();
+    record_launch(&paths, &id, 1, r"C:\B.exe").unwrap();
+    let programs = crate::bottle::get(&paths, &id).unwrap().programs;
+    assert_eq!(programs[0].launch_count, 2);
+    assert!(programs[0].last_launched.is_some());
+    assert!(record_launch(&paths, &id, 0, r"C:\Gone.exe").is_err());
+
+    // Old bottle files without the fields still load.
+    let old: ProgramDef = toml::from_str("name = \"X\"\nexe = 'C:\\x.exe'").unwrap();
+    assert_eq!((old.launch_count, old.last_launched), (0, None));
 }

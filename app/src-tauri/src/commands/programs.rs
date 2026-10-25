@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_specta::Event;
@@ -8,7 +8,7 @@ use vinter_core::programs::{self, DiscoveredProgram};
 use vinter_core::runtime;
 
 use super::{CommandResult, blocking};
-use crate::events::{RunExit, RunLog};
+use crate::events::{RunExit, RunLog, RunStarted};
 use crate::focus;
 use crate::jobs::{self, JobId};
 use crate::state::AppState;
@@ -17,7 +17,7 @@ use crate::state::AppState;
 const CRASH_WINDOW: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// A program started from Vinter that is still running.
-#[derive(Debug, Clone, Serialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct RunInfo {
     pub run_id: String,
     pub bottle_id: String,
@@ -46,6 +46,9 @@ pub struct ProgramView {
     pub large_address_aware: Option<bool>,
     /// The ARM64 build launched instead (experimental `per-app-engine`).
     pub arm64_build: Option<String>,
+    /// RFC 3339 time of the last launch, if any.
+    pub last_launched: Option<String>,
+    pub launch_count: u32,
 }
 
 /// Lets the user pick an installer (.exe, .msi, or an MSIX/AppX package) with
@@ -258,6 +261,8 @@ pub async fn programs_list(
                 arch: programs::arch_of(&paths, &bottle_id, p),
                 large_address_aware: programs::large_address_aware_of(&paths, &bottle_id, p),
                 arm64_build: p.arm64_build.clone(),
+                last_launched: p.last_launched.clone(),
+                launch_count: p.launch_count,
                 icon_data_url: p
                     .icon
                     .as_deref()
@@ -337,6 +342,7 @@ pub(crate) fn launch_program(
                 let run = runs.remove(&exit_run);
                 (run, runs.is_empty())
             };
+            state.run_apps.lock().unwrap().remove(&exit_run);
             // A program that fails right after starting likely crashed.
             if let (Some(run), Some(code)) = (&run, code) {
                 let quick = humantime::parse_rfc3339(&run.started_at)
@@ -358,6 +364,7 @@ pub(crate) fn launch_program(
                 code,
             }
             .emit(&exit_app);
+            crate::tray::refresh(&exit_app);
             // Started in the background just for this program: quit with it.
             if none_left && crate::startup::was_headless(&exit_app) {
                 exit_app.exit(0);
@@ -371,15 +378,26 @@ pub(crate) fn launch_program(
             return Err(e.into());
         }
     };
+    // Remembers the program's window, for "Show" later.
+    let remember = {
+        let (app, run_id) = (app.clone(), run_id.clone());
+        move |pid: Option<i32>| {
+            let state = app.state::<AppState>();
+            if let Some(pid) = pid.filter(|_| state.runs.lock().unwrap().contains_key(&run_id)) {
+                state.run_apps.lock().unwrap().insert(run_id, pid);
+            }
+        }
+    };
     if splash.is_some() {
         // Wait longer than usual: a cold start under Rosetta takes a while.
-        watch.focus_new_app_then(240, move |_| {
+        watch.focus_new_app_reporting(240, move |pid| {
+            remember(pid);
             // Let the program's window settle before the splash goes.
             std::thread::sleep(std::time::Duration::from_millis(400));
             close_splash();
         });
     } else {
-        watch.focus_new_app();
+        watch.focus_new_app_reporting(60, remember);
     }
 
     let info = RunInfo {
@@ -396,7 +414,18 @@ pub(crate) fn launch_program(
         .lock()
         .unwrap()
         .insert(run_id, info.clone());
+    let _ = RunStarted { info: info.clone() }.emit(app);
+    // Its Running and Recent sections changed.
+    crate::tray::refresh(app);
     Ok(info)
+}
+
+/// Brings a running program's window to the front. False if Vinter cannot
+/// tell which window is the program's (or on Linux, where the desktop does it).
+#[tauri::command]
+#[specta::specta]
+pub async fn program_show(app: AppHandle, run_id: String) -> CommandResult<bool> {
+    blocking(move || Ok(focus::show_run(&app, &run_id))).await
 }
 
 /// Stops a running program. Other programs in the bottle keep running.

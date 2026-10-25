@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-program-show"
+description = "Enables the program_show command without any pre-configured scope."
+commands.allow = ["program_show"]
+
+[[permission]]
+identifier = "deny-program-show"
+description = "Denies the program_show command without any pre-configured scope."
+commands.deny = ["program_show"]

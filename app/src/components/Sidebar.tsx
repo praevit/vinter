@@ -1,7 +1,16 @@
 import { useState } from "react";
-import { Activity, AlertTriangle, Info, LoaderCircle, PackagePlus, Plus, Settings, Wine, type LucideIcon } from "lucide-react";
-import { useBottles } from "../api/bottles";
+import { useQueryClient } from "@tanstack/react-query";
+import { Activity, AlertTriangle, Info, LoaderCircle, PackagePlus, Plus, Settings, Trash2, Wine, type LucideIcon } from "lucide-react";
+import { commands, type BottleListItem } from "../api/bindings";
+import { bottleJobKey, useBottles, useDeleteBottle } from "../api/bottles";
+import { showContextMenu } from "../api/contextMenu";
+import { errorMessage } from "../api/errors";
+import { useJobs } from "../api/jobs";
+import { runningRuns, useRuns } from "../api/runs";
+import { useToasts } from "../api/toasts";
+import { Dialog } from "./Dialog";
 import { ReadinessDot } from "./ReadinessDot";
+import { Button, ErrorText } from "./ui";
 
 export type Route =
   | { page: "home" }
@@ -24,6 +33,8 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
   const { data: allBottles } = useBottles();
   const [filter, setFilter] = useState("");
   const bottles = allBottles?.filter((b) => b.name.toLowerCase().includes(filter.trim().toLowerCase()));
+  const running = runningRuns(useRuns().runs);
+  const bottleMenu = useBottleMenu(onNavigate);
 
   const NavItem = ({ to, label, Icon }: { to: Route; label: string; Icon: LucideIcon }) => (
     <button
@@ -77,16 +88,30 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
           )}
           {bottles?.map((b) => {
             const active = route.page === "bottle" && route.id === b.id;
+            const runCount = running.filter((r) => r.info.bottle_id === b.id).length;
             return (
               <button
                 key={b.id}
                 type="button"
                 onClick={() => onNavigate({ page: "bottle", id: b.id })}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  bottleMenu.open(b);
+                }}
                 aria-current={active ? "page" : undefined}
                 className={item(active)}
               >
                 <Wine className="size-4 shrink-0 text-wine-500 dark:text-rose-300" />
                 <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                {runCount > 0 && (
+                  <span
+                    title={runCount === 1 ? "1 program running" : `${runCount} programs running`}
+                    className="flex items-center gap-1 text-[10px] text-emerald-600 tabular-nums dark:text-emerald-400"
+                  >
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    {runCount > 1 && runCount}
+                  </span>
+                )}
                 {b.status === "ready" && <ReadinessDot readiness={b.readiness} />}
                 {b.status === "setting_up" && (
                   <LoaderCircle className="size-3.5 shrink-0 animate-spin text-frost-400" />
@@ -106,6 +131,83 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
         <NavItem to={{ page: "settings" }} label="Settings" Icon={Settings} />
         <NavItem to={{ page: "about" }} label="About" Icon={Info} />
       </div>
+      {bottleMenu.dialog}
     </nav>
   );
+}
+
+/** The right-click menu of a bottle in the list, and its Move to Trash confirmation. */
+function useBottleMenu(onNavigate: (r: Route) => void) {
+  const queryClient = useQueryClient();
+  const jobs = useJobs();
+  const toasts = useToasts();
+  const remove = useDeleteBottle();
+  const [trashing, setTrashing] = useState<BottleListItem>();
+
+  const attempt = (work: () => Promise<unknown>) => () =>
+    void work().catch((e) => toasts.show(errorMessage(e)));
+
+  const open = (b: BottleListItem) => {
+    const ready = b.status === "ready";
+    void showContextMenu([
+      { text: "Open", action: () => onNavigate({ page: "bottle", id: b.id }) },
+      { text: "Open C: Drive", enabled: ready, action: attempt(() => commands.bottleOpenDriveC(b.id)) },
+      "separator",
+      {
+        text: "Duplicate",
+        enabled: ready,
+        action: attempt(async () => {
+          const started = await commands.bottleDuplicate(b.id, `${b.name} copy`);
+          jobs.start(bottleJobKey(started.bottle_id), async () => started.job_id);
+          await queryClient.invalidateQueries({ queryKey: ["bottles"] });
+          onNavigate({ page: "bottle", id: started.bottle_id });
+        }),
+      },
+      {
+        text: "Stop All Programs",
+        enabled: ready,
+        action: attempt(async () => {
+          await commands.bottleKillAll(b.id);
+          toasts.show(`Stopped every program in ${b.name}.`, "info");
+        }),
+      },
+      "separator",
+      {
+        text: "Move to Trash…",
+        action: () => {
+          remove.reset();
+          setTrashing(b);
+        },
+      },
+    ]);
+  };
+
+  const close = () => !remove.isPending && setTrashing(undefined);
+  const dialog = trashing && (
+    <Dialog onClose={close}>
+      <div className="flex flex-col gap-3">
+        <h2 className="font-semibold">Move “{trashing.name}” to the Trash?</h2>
+        <p className="text-sm">Its programs stop. You can still get it back from the Trash.</p>
+        {remove.error && <ErrorText>{errorMessage(remove.error)}</ErrorText>}
+        <div className="flex justify-end gap-2">
+          <Button disabled={remove.isPending} onClick={close}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={remove.isPending}
+            onClick={() =>
+              remove.mutate(trashing.id, {
+                onSuccess: () => setTrashing(undefined),
+              })
+            }
+          >
+            <Trash2 className="size-4" />
+            {remove.isPending ? "Moving to Trash…" : "Move to Trash"}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+  return { open, dialog };
 }

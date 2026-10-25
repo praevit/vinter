@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { AppWindow, FlaskConical, LoaderCircle, Pencil, Pin, PinOff, Play, Plus, Search, Square, X } from "lucide-react";
+import { AppWindow, FlaskConical, LoaderCircle, Pencil, Pin, Play, Plus, Search, Square, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { pinLabel, useAppInfo } from "../api/app";
 import { commands, type PeArch, type ProgramView } from "../api/bindings";
+import { showContextMenu } from "../api/contextMenu";
 import { errorMessage } from "../api/errors";
 import { isRunning, useJobs } from "../api/jobs";
 import { installerJobKey, usePrograms, useRemoveProgram } from "../api/programs";
@@ -22,7 +23,8 @@ export function ProgramsTab({
 }: {
   bottleId: string;
   needsRosetta: boolean;
-  onShowLog: (logId: string) => void;
+  /** Shows a run's log, or the latest log without one. */
+  onShowLog: (logId?: string) => void;
 }) {
   const { data: programs } = usePrograms(bottleId);
   const jobs = useJobs();
@@ -86,7 +88,8 @@ export function ProgramTile({
   bottleId: string;
   program: ProgramView;
   needsRosetta: boolean;
-  onShowLog: (logId: string) => void;
+  /** Shows a run's log, or the latest log without one. */
+  onShowLog: (logId?: string) => void;
   /** Shown under the name (on the home page), with a link to the bottle. */
   bottle?: { name: string; open: () => void };
 }) {
@@ -129,15 +132,40 @@ export function ProgramTile({
     }
   };
 
+  const openContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    void showContextMenu([
+      running
+        ? { text: "Stop", action: () => void commands.programStop(run.info.run_id) }
+        : { text: "Open", action: () => void launch(), enabled: !starting },
+      { text: "Show Log", action: () => onShowLog(run?.info.log_id) },
+      "separator",
+      { text: "Edit…", action: () => setEditing(true) },
+      { text: pinLabel(app?.os, program.pinned), action: () => void togglePin() },
+      {
+        text: "Open C: Drive",
+        action: () => void commands.bottleOpenDriveC(bottleId).catch((e) => setError(errorMessage(e))),
+      },
+      "separator",
+      { text: "Remove…", action: () => setConfirmRemove(true) },
+    ]);
+  };
+
+  // Hidden until the tile is hovered or has keyboard focus.
+  const reveal = "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100";
+
   return (
-    <li className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center dark:border-slate-deep-700 dark:bg-slate-deep-900">
+    <li
+      onContextMenu={openContextMenu}
+      className="group relative flex flex-col items-center gap-2 rounded-xl border border-frost-200 bg-white p-4 text-center dark:border-slate-deep-700 dark:bg-slate-deep-900"
+    >
       {canCompare && (
         <button
           type="button"
           title="Compare engines (experimental): run this app here and in another bottle"
           aria-label="Compare engines"
           onClick={() => setComparing(true)}
-          className="absolute top-1.5 right-12 rounded p-0.5 text-violet-500 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:text-violet-300 dark:hover:bg-slate-deep-800"
+          className={`absolute top-1.5 right-12 rounded p-0.5 text-violet-500 ${reveal} hover:bg-frost-100 dark:text-violet-300 dark:hover:bg-slate-deep-800`}
         >
           <FlaskConical className="size-3.5" />
         </button>
@@ -147,15 +175,16 @@ export function ProgramTile({
         title="Edit name, arguments and icon"
         aria-label="Edit"
         onClick={() => setEditing(true)}
-        className="absolute top-1.5 right-7 rounded p-0.5 text-frost-400 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:hover:bg-slate-deep-800"
+        className={`absolute top-1.5 right-7 rounded p-0.5 text-frost-400 ${reveal} hover:bg-frost-100 dark:hover:bg-slate-deep-800`}
       >
         <Pencil className="size-3.5" />
       </button>
       <button
         type="button"
         title="Remove from this bottle (keeps it installed)"
+        aria-label="Remove"
         onClick={() => setConfirmRemove(true)}
-        className="absolute top-1.5 right-1.5 rounded p-0.5 text-frost-400 opacity-0 group-hover:opacity-100 hover:bg-frost-100 dark:hover:bg-slate-deep-800"
+        className={`absolute top-1.5 right-1.5 rounded p-0.5 text-frost-400 ${reveal} hover:bg-frost-100 dark:hover:bg-slate-deep-800`}
       >
         <X className="size-3.5" />
       </button>
@@ -166,10 +195,12 @@ export function ProgramTile({
         aria-pressed={program.pinned}
         onClick={togglePin}
         className={`absolute top-1.5 left-1.5 rounded p-0.5 hover:bg-frost-100 dark:hover:bg-slate-deep-800 ${
-          program.pinned ? "text-wine-500 dark:text-rose-300" : "text-frost-400 hover:text-wine-500 dark:hover:text-rose-300"
+          program.pinned
+            ? "text-wine-500 dark:text-rose-300"
+            : `text-frost-400 hover:text-wine-500 dark:hover:text-rose-300 ${reveal}`
         }`}
       >
-        {program.pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
+        <Pin className="size-3.5" />
       </button>
       <CompatNoteDot bottleId={bottleId} program={program} />
       <ProgramIcon src={program.icon_data_url} size="size-12" />

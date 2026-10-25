@@ -445,6 +445,8 @@ fn install_package(
             icon,
             pinned: true,
             arm64_build: None,
+            last_launched: None,
+            launch_count: 0,
         });
     }
     if programs.is_empty() {

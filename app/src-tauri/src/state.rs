@@ -14,6 +14,8 @@ pub struct AppState {
     pub busy_bottles: Mutex<HashSet<String>>,
     /// Programs started from Vinter that are still running, by run id.
     pub runs: Mutex<HashMap<String, RunInfo>>,
+    /// macOS: the Wine app (pid) whose window opened for each run.
+    pub run_apps: Mutex<HashMap<String, i32>>,
 }
 
 impl AppState {
@@ -23,6 +25,7 @@ impl AppState {
             installing: Mutex::default(),
             busy_bottles: Mutex::default(),
             runs: Mutex::default(),
+            run_apps: Mutex::default(),
         }
     }
 

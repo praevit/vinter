@@ -44,6 +44,7 @@ fn main() {
             "programs_list",
             "program_launch",
             "program_stop",
+            "program_show",
             "runs_list",
             "logs_list",
             "log_read",

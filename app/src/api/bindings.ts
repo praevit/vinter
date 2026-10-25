@@ -154,6 +154,11 @@ export const commands = {
 	programLaunch: (bottleId: string, programIndex: number) => __TAURI_INVOKE<RunInfo>("program_launch", { bottleId, programIndex }),
 	/**  Stops a running program. Other programs in the bottle keep running. */
 	programStop: (runId: string) => __TAURI_INVOKE<null>("program_stop", { runId }),
+	/**
+	 *  Brings a running program's window to the front. False if Vinter cannot
+	 *  tell which window is the program's (or on Linux, where the desktop does it).
+	 */
+	programShow: (runId: string) => __TAURI_INVOKE<boolean>("program_show", { runId }),
 	/**  Programs started from Vinter that are still running. */
 	runsList: () => __TAURI_INVOKE<RunInfo[]>("runs_list"),
 	logsList: (bottleId: string) => __TAURI_INVOKE<LogEntry[]>("logs_list", { bottleId }),
@@ -317,6 +322,7 @@ export const events = {
 	jobProgress: makeEvent<JobProgress>("job://progress"),
 	runExit: makeEvent<RunExit>("run://exit"),
 	runLog: makeEvent<RunLog>("run://log"),
+	runStarted: makeEvent<RunStarted>("run://started"),
 };
 
 /* Types */
@@ -845,7 +851,7 @@ export type Navigate = {
 	to: NavigateTo,
 };
 
-export type NavigateTo = "settings";
+export type NavigateTo = "settings" | "new-bottle" | "palette";
 
 /**
  *  A message for the user that has no other place to appear, e.g. a
@@ -890,6 +896,10 @@ export type ProgramDef_Deserialize = {
 	 *  in Apple Silicon bottles (the `per-app-engine` experimental flag).
 	 */
 	arm64_build?: string | null,
+	/**  RFC 3339 time of the last launch, if it was ever launched. */
+	last_launched?: string | null,
+	/**  How many times it was launched. */
+	launch_count?: number,
 };
 
 /**  A program shown in a bottle. */
@@ -906,6 +916,10 @@ export type ProgramDef_Serialize = {
 	 *  in Apple Silicon bottles (the `per-app-engine` experimental flag).
 	 */
 	arm64_build?: string | null,
+	/**  RFC 3339 time of the last launch, if it was ever launched. */
+	last_launched?: string | null,
+	/**  How many times it was launched. */
+	launch_count: number,
 };
 
 /**  A bottle's program as shown on its tile. */
@@ -923,6 +937,9 @@ export type ProgramView = {
 	large_address_aware: boolean | null,
 	/**  The ARM64 build launched instead (experimental `per-app-engine`). */
 	arm64_build: string | null,
+	/**  RFC 3339 time of the last launch, if any. */
+	last_launched: string | null,
+	launch_count: number,
 };
 
 export type Rating = "works" | "partly" | "broken";
@@ -1009,6 +1026,14 @@ export type RunLog = {
 	run_id: string,
 	line: string,
 	stream: Stream,
+};
+
+/**
+ *  A program started, from anywhere: the window, the menu bar, a launcher
+ *  or a link.
+ */
+export type RunStarted = {
+	info: RunInfo,
 };
 
 /**  An installed runtime. */

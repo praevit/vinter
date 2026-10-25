@@ -201,6 +201,12 @@ pub struct ProgramDef {
     /// in Apple Silicon bottles (the `per-app-engine` experimental flag).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arm64_build: Option<String>,
+    /// RFC 3339 time of the last launch, if it was ever launched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_launched: Option<String>,
+    /// How many times it was launched.
+    #[serde(default)]
+    pub launch_count: u32,
 }
 
 /// Contents of `bottle.toml`.

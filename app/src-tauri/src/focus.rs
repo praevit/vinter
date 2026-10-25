@@ -48,23 +48,57 @@ impl Watch {
     /// Like [`Self::focus_new_app`], polling up to `polls` × 250 ms, then calls
     /// `done` with whether a new app appeared (on Linux right away, with false).
     pub fn focus_new_app_then(self, polls: u32, done: impl FnOnce(bool) + Send + 'static) {
+        self.focus_new_app_reporting(polls, move |pid| done(pid.is_some()));
+    }
+
+    /// Like [`Self::focus_new_app_then`], with the pid of the app that
+    /// appeared (on Linux right away, with none).
+    pub fn focus_new_app_reporting(
+        self,
+        polls: u32,
+        done: impl FnOnce(Option<i32>) + Send + 'static,
+    ) {
         #[cfg(target_os = "macos")]
         std::thread::spawn(move || {
             for _ in 0..polls {
                 std::thread::sleep(std::time::Duration::from_millis(250));
                 let (dir, before) = (self.runtime_dir.clone(), self.before.clone());
-                let focused = on_main(&self.app, move || macos::focus_first_new(&dir, &before));
-                if focused != Some(false) {
-                    return done(focused.unwrap_or(false));
+                match on_main(&self.app, move || macos::focus_first_new(&dir, &before)) {
+                    Some(None) => continue,
+                    found => return done(found.flatten()),
                 }
             }
-            done(false);
+            done(None);
         });
         #[cfg(not(target_os = "macos"))]
         {
             let _ = polls;
-            done(false);
+            done(None);
         }
+    }
+}
+
+/// Brings the window of a program Vinter started to the front. False if it
+/// is not known (or not on macOS).
+pub fn show_run(app: &AppHandle, run_id: &str) -> bool {
+    use tauri::Manager;
+    let state = app.state::<crate::state::AppState>();
+    let Some(run_pid) = state.runs.lock().unwrap().get(run_id).map(|r| r.pid) else {
+        return false;
+    };
+    let app_pid = state.run_apps.lock().unwrap().get(run_id).copied();
+    #[cfg(target_os = "macos")]
+    {
+        let pids: Vec<i32> = app_pid
+            .into_iter()
+            .chain(i32::try_from(run_pid).ok())
+            .collect();
+        on_main(app, move || pids.iter().any(|&pid| macos::activate(pid))).unwrap_or(false)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (run_pid, app_pid);
+        false
     }
 }
 
@@ -115,22 +149,39 @@ mod macos {
             .collect()
     }
 
-    /// Activates the first Wine app not in `before`. True if one was found.
-    pub fn focus_first_new(runtime_dir: &Path, before: &[i32]) -> bool {
-        let Some(target) = wine_apps(runtime_dir)
+    /// Activates the first Wine app not in `before`. Its pid if one was found.
+    pub fn focus_first_new(runtime_dir: &Path, before: &[i32]) -> Option<i32> {
+        let target = wine_apps(runtime_dir)
             .into_iter()
-            .find(|a| !before.contains(&a.processIdentifier()))
+            .find(|a| !before.contains(&a.processIdentifier()))?;
+        bring_forward(&target);
+        Some(target.processIdentifier())
+    }
+
+    /// Activates the running app with this pid. False if there is none.
+    pub fn activate(pid: i32) -> bool {
+        let Some(target) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
         else {
             return false;
         };
+        if target.activationPolicy() != NSApplicationActivationPolicy::Regular {
+            return false;
+        }
+        if target.isHidden() {
+            target.unhide();
+        }
+        bring_forward(&target);
+        true
+    }
+
+    fn bring_forward(target: &NSRunningApplication) {
         if let Some(mtm) = MainThreadMarker::new() {
             let ns_app = NSApplication::sharedApplication(mtm);
             // macOS 14+: let the Wine app take over activation from us.
             if ns_app.respondsToSelector(sel!(yieldActivationToApplication:)) {
-                ns_app.yieldActivationToApplication(&target);
+                ns_app.yieldActivationToApplication(target);
             }
         }
         target.activateWithOptions(NSApplicationActivationOptions::ActivateAllWindows);
-        true
     }
 }

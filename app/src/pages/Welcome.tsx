@@ -4,7 +4,9 @@ import { useBottles } from "../api/bottles";
 import type { BottleListItem } from "../api/bindings";
 import { usePrograms } from "../api/programs";
 import { useInstalledRuntimes } from "../api/runtimes";
+import { NowRunning } from "../components/NowRunning";
 import { ProgramTile } from "../components/ProgramsTab";
+import { RecentApps } from "../components/RecentApps";
 import type { Route } from "../components/Sidebar";
 import { Button, field, subtle } from "../components/ui";
 
@@ -35,11 +37,13 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
           <h1 className="text-2xl font-semibold tracking-tight">Your apps</h1>
           {actions}
         </header>
+        <NowRunning />
         {appCount > 4 && (
           <label className="relative">
             <Search className="pointer-events-none absolute top-2 left-2.5 size-4 text-frost-400" />
             <input
               className={`${field} pl-8`}
+              id="home-search"
               placeholder="Search your apps"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -47,6 +51,7 @@ export function Welcome({ onNavigate }: { onNavigate: (r: Route) => void }) {
             />
           </label>
         )}
+        {!query && <RecentApps onNavigate={onNavigate} />}
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
           {withApps.map((b) => (
             <BottleApps
